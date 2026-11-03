@@ -26,6 +26,7 @@ def run_team(
     ctx = RunContext(deps=deps, profile=profile, on_step=on_step, activity=activity or Activity())
     ctx.activity.stage("plan")
     ctx.activity.act("head", "read the agency profile")
+    ctx.activity.progress("head", 0, 1, "planning the run")
     supervisor = build_team(ctx, models)
     try:
         result = supervisor.invoke(
@@ -47,6 +48,7 @@ def run_team(
     ctx.activity.pitched(ranked)
     ctx.activity.stage("report")
     ctx.activity.act("head", "briefing ready")
+    ctx.activity.progress("head", 1, 1, "briefing ready")
     return ScoutResult(
         queries=tuple(f"{source}:{query}" for source, query in ctx.searches),
         iterations=sum(1 for entry in ctx.trace if entry.startswith("supervisor → ")),

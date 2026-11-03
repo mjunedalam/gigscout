@@ -64,6 +64,8 @@ def _delegation_tools(ctx: RunContext, workers: dict) -> list[BaseTool]:
         ctx.log(f"supervisor → {role}: {task}")
         ctx.activity.act("head", f"briefed {role}")
         ctx.activity.stage(ROLE_STAGE[role])
+        if role == "writer":
+            ctx.activity.progress("writer", 0, 1, "writing the briefing")
         brief = f"{task}\n\nAgency:\n{ctx.profile.as_query()}\n\nShared state: {ctx.progress()}"
         try:
             result = workers[role].invoke(

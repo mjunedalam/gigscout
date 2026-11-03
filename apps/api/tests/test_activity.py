@@ -132,3 +132,44 @@ def test_a_stop_signal_escapes_both_run_modes(settings, index, profile, sample_l
             run_team(deps, profile, happy_team(), activity=activity)
         else:
             run_scout(deps, profile, activity=activity)
+
+
+def test_progress_reports_done_out_of_total_for_the_current_step():
+    events = []
+    activity = Activity(events.append)
+    activity.stage("search")
+
+    activity.progress("prospector", 2, 4, "searched remoteok")
+
+    assert kinds(events, "progress") == [{
+        "kind": "progress", "t": events[-1]["t"], "agent": "prospector", "stage": "search", "done": 2, "total": 4,
+        "label": "searched remoteok",
+    }]
+
+
+def test_pipeline_reports_progress_for_every_agent_while_it_works(settings, index, profile, sample_leads):
+    events = []
+    sources = [FakeSource("a", sample_leads), FakeSource("b", sample_leads)]
+    deps = make_deps(settings, index, sources, reasoner=FakeReasoner())
+
+    run_scout(deps, profile, activity=Activity(events.append, profile=profile))
+
+    progress = kinds(events, "progress")
+    search = [p for p in progress if p["agent"] == "prospector"]
+    assert [p["done"] for p in search][-1] == 2 and all(p["total"] == 2 for p in search)
+    qualify = [p for p in progress if p["agent"] == "qualifier"]
+    assert qualify and qualify[-1]["done"] == qualify[-1]["total"]
+    assert {p["agent"] for p in progress} == {"head", "prospector", "qualifier", "writer"}
+    assert all(0 <= p["done"] <= p["total"] for p in progress)
+
+
+def test_team_reports_search_budget_and_shortlist_progress(settings, index, profile, sample_leads):
+    events = []
+    deps = make_deps(settings, index, [FakeSource("fake", sample_leads)])
+
+    run_team(deps, profile, happy_team(), activity=Activity(events.append, profile=profile))
+
+    progress = kinds(events, "progress")
+    assert any(p["agent"] == "prospector" and p["total"] == settings.team_max_searches for p in progress)
+    shortlist = [p for p in progress if p["agent"] == "qualifier"]
+    assert shortlist[-1]["done"] == 2 and shortlist[-1]["total"] == settings.shortlist_size

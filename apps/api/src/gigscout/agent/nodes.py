@@ -1,6 +1,7 @@
 """Graph nodes. Each takes the current state and returns only the keys it changes."""
 
 import logging
+import threading
 from dataclasses import dataclass
 
 from langchain_core.language_models import BaseChatModel
@@ -35,10 +36,13 @@ class ScoutNodes:
     def __init__(self, deps: ScoutDeps, activity: Activity | None = None) -> None:
         self.deps = deps
         self.activity = activity or Activity()
+        self._fetch_lock = threading.Lock()
+        self._fetch = {"done": 0, "total": 0}  # parallel fetches of the current round, for progress
 
     def plan_queries(self, state: ScoutState) -> dict:
         """Turn the agency profile into source search queries; on later iterations, broaden them."""
         self.activity.stage("plan")
+        self.activity.progress("head", 0, 1, "planning searches")
         profile, previous = state["profile"], state.get("queries", [])
         proposed = [] if previous else _base_queries(profile)
         errors: list[str] = []
@@ -52,6 +56,7 @@ class ScoutNodes:
             proposed += [s.lower() for s in (*profile.services, *profile.skills)]
         pending = [q for q in _dedupe(proposed) if q not in previous]
         self.activity.act("head", f"planned {len(pending)} searches")
+        self.activity.progress("head", 1, 1, f"planned {len(pending)} searches")
         return {
             "queries": [*previous, *pending],
             "pending_queries": pending,
@@ -66,11 +71,22 @@ class ScoutNodes:
         pending = state.get("pending_queries", [])
         if not names or not pending:
             return "index"
+        with self._fetch_lock:
+            self._fetch = {"done": 0, "total": len(names)}
         return [Send("fetch_source", FetchTask(source=n, queries=pending)) for n in names]
 
     def fetch_source(self, task: FetchTask) -> dict:
         """Call one source. Failures are recorded, never fatal: one broken source must not sink the run."""
         self.activity.stage("search")
+        try:
+            return self._fetch_one(task)
+        finally:
+            with self._fetch_lock:
+                self._fetch["done"] += 1
+                done, total = self._fetch["done"], self._fetch["total"]
+            self.activity.progress("prospector", done, total, f"searched {task['source']}")
+
+    def _fetch_one(self, task: FetchTask) -> dict:
         try:
             leads = self.deps.sources[task["source"]].fetch(task["queries"], self.deps.settings.per_query_limit)
             log.info("%s returned %d leads", task["source"], len(leads))
@@ -107,9 +123,13 @@ class ScoutNodes:
                         key=lambda s: s.score, reverse=True)
         errors: list[str] = []
         if self.deps.reasoner is not None:
-            limit = self.deps.settings.llm_grade_limit
-            scored = [self._llm_qualify(profile, s, errors) for s in scored[:limit]] + scored[limit:]
-            scored.sort(key=lambda s: s.score, reverse=True)
+            limit = min(self.deps.settings.llm_grade_limit, len(scored))
+            checked = []
+            for i, s in enumerate(scored[:limit]):
+                self.activity.progress("qualifier", i, limit, f"checking \"{s.lead.title[:60]}\"")
+                checked.append(self._llm_qualify(profile, s, errors))
+            scored = sorted(checked + scored[limit:], key=lambda s: s.score, reverse=True)
+        self.activity.progress("qualifier", len(scored), len(scored), f"reviewed {len(scored)} leads")
         threshold = self.deps.settings.good_match_threshold
         for s in scored:
             self.activity.act("qualifier", f"reviewed \"{s.lead.title[:60]}\"")
@@ -127,10 +147,13 @@ class ScoutNodes:
     def report(self, state: ScoutState) -> dict:
         """Render a markdown briefing of the best leads."""
         self.activity.stage("write")
+        self.activity.progress("writer", 0, 1, "drafting outreach")
         threshold = self.deps.settings.good_match_threshold
         self.activity.pitched([s for s in state.get("scored", []) if s.score >= threshold])
         self.activity.act("writer", "drafted outreach")
+        self.activity.progress("writer", 1, 1, "outreach drafted")
         self.activity.stage("report")
+        self.activity.progress("head", 0, 1, "writing the briefing")
         top = state.get("scored", [])[:REPORT_ROWS]
         table = render_table(top)
         summary = ""
@@ -140,6 +163,7 @@ class ScoutNodes:
             except Exception as exc:
                 log.warning("Summary failed: %s", exc)
         self.activity.act("head", "wrote the briefing")
+        self.activity.progress("head", 1, 1, "briefing ready")
         return {"report": report_header(state["profile"]) + summary + (table or NO_LEADS)}
 
     def _llm_qualify(self, profile: AgencyProfile, scored: ScoredLead, errors: list[str]) -> ScoredLead:

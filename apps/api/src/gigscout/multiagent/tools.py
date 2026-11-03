@@ -34,6 +34,8 @@ def build_scout_tools(ctx: RunContext) -> list[BaseTool]:
         if ctx.searches_left <= 0:
             return "Search budget exhausted. Stop searching and report what you found."
         ctx.searches.append((source, query))
+        budget = ctx.deps.settings.team_max_searches
+        ctx.activity.progress("prospector", len(ctx.searches), budget, f"searching {source} for '{query}'")
         try:
             leads = ctx.deps.sources[source].fetch([query], ctx.deps.settings.per_query_limit)
         except Exception as exc:
@@ -68,6 +70,8 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
         )
         kept = [c for c in results if not is_excluded(profile, c.lead)]
         ctx.activity.act("qualifier", f"searched memory for '{query}'")
+        filled, slots = len(ctx.shortlist), settings.shortlist_size
+        ctx.activity.progress("qualifier", filled, slots, f"searching memory for '{query}'")
         if not kept:
             return "No matching leads in memory. Ask for more prospecting."
         ctx.seen.update({c.lead.id: c for c in kept})
@@ -102,6 +106,8 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
         ctx.shortlist[lead_id] = blend_with_llm(heuristic_score(profile, candidate), score, reason, red_flags, pitch)
         ctx.activity.act("qualifier", f"qualified \"{ctx.shortlist[lead_id].lead.title[:60]}\"")
         ctx.activity.reviewed(ctx.shortlist[lead_id], qualified=True)
+        title = ctx.shortlist[lead_id].lead.title[:60]
+        ctx.activity.progress("qualifier", len(ctx.shortlist), settings.shortlist_size, f"shortlisted \"{title}\"")
         return f"Qualified {lead_id} ({len(ctx.shortlist)}/{settings.shortlist_size})."
 
     return [find_leads, read_lead, qualify_lead, _view_shortlist_tool(ctx)]
@@ -115,6 +121,7 @@ def build_writer_tools(ctx: RunContext) -> list[BaseTool]:
             return "ERROR: report is empty."
         ctx.report = markdown.strip()
         ctx.activity.act("writer", "submitted the briefing")
+        ctx.activity.progress("writer", 1, 1, "briefing submitted")
         return "Report saved."
 
     read_lead = next(t for t in build_analyst_tools(ctx) if t.name == "read_lead")

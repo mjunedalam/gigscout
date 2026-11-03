@@ -4,6 +4,7 @@ Both run modes report the same small vocabulary, so the UI can draw one producti
 
     stage     a step started: plan → search → qualify → write → report (a broadened run may revisit steps)
     act       an agent did one unit of work (a search, a review, a draft)
+    progress  how far the current step is: done out of total, and what the agent is busy with right now
     found     a source search returned leads
     reviewed  a lead was judged: qualified, or dropped with a reason
     pitched   outreach was drafted for a shortlisted lead
@@ -61,6 +62,10 @@ class Activity:
 
     def act(self, agent: str, what: str = "") -> None:
         self._emit("act", agent=agent, what=what)
+
+    def progress(self, agent: str, done: int, total: int, label: str = "") -> None:
+        """Reported before slow work starts too, so the UI can show what an agent is waiting on."""
+        self._emit("progress", agent=agent, stage=self._stage, done=done, total=total, label=label)
 
     def found(self, source: str, leads: list[Lead]) -> None:
         unique = {lead.id: lead for lead in leads}  # a source returns a lead once per matching query
