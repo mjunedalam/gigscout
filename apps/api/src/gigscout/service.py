@@ -19,6 +19,7 @@ from gigscout.multiagent.team import TeamModels
 from gigscout.rag import Answer, ask, ask_stream
 from gigscout.sources.base import Source
 from gigscout.sources.registry import build_sources
+from gigscout.sources.website import public_only_transport
 from gigscout.store.embeddings import FastEmbedder
 from gigscout.store.vector_store import LeadIndex
 from gigscout.tracking import tracked_run
@@ -36,7 +37,7 @@ class ScoutService:
     @cached_property
     def web_client(self) -> PoliteClient:
         """Polite client for websites admins add (built-in sources keep their own)."""
-        return PoliteClient(self.deps.settings)
+        return PoliteClient(self.deps.settings, transport=public_only_transport())
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ScoutService":

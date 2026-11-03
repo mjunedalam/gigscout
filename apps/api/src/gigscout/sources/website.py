@@ -16,6 +16,8 @@ from typing import Literal
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import feedparser
+import httpcore
+import httpx
 from bs4 import BeautifulSoup, Tag
 
 from gigscout.http import PoliteClient
@@ -59,6 +61,33 @@ def check_url(url: str, resolve: Resolver = default_resolve) -> str:
         raise UnsafeUrl(f"{host} is not a public website")
     netloc = host if parts.port is None else f"{host}:{parts.port}"
     return urlunsplit((parts.scheme, netloc, parts.path or "/", parts.query, ""))
+
+
+class PublicOnlyBackend(httpcore.SyncBackend):
+    """Resolves and vets the address when the socket is opened, not just beforehand, and connects to that exact IP.
+
+    Checking a hostname and then letting the HTTP library resolve it again leaves a gap (DNS rebinding): the name
+    can answer with a public IP for the check and an internal one for the connection. TLS still uses the original
+    hostname for SNI and certificate checks, because httpcore passes it separately from the address.
+    """
+
+    def __init__(self, resolve: Resolver = default_resolve) -> None:
+        self._resolve = resolve
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        addresses = self._resolve(host)
+        if not addresses or not all(ipaddress.ip_address(a).is_global for a in addresses):
+            raise httpcore.ConnectError(f"{host} is not a public website")
+        return super().connect_tcp(addresses[0], port, timeout, local_address, socket_options)
+
+
+def public_only_transport(resolve: Resolver = default_resolve) -> httpx.HTTPTransport:
+    """An httpx transport whose every connection (robots.txt, pages, feeds, redirects) goes to a public IP."""
+    transport = httpx.HTTPTransport()
+    # httpx 0.28 has no public hook for a network backend; swap the pool for one built with ours
+    backend = PublicOnlyBackend(resolve)
+    transport._pool = httpcore.ConnectionPool(ssl_context=httpx.create_ssl_context(), network_backend=backend)
+    return transport
 
 
 def slugify(name: str) -> str:

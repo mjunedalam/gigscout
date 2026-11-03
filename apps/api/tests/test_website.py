@@ -147,3 +147,19 @@ def test_a_redirect_to_an_internal_address_is_refused(client):
 
     with pytest.raises(UnsafeUrl):
         source.fetch(["django"], 5)
+
+
+def test_connections_are_pinned_to_public_addresses_even_if_dns_changes_after_the_check(settings):
+    """DNS rebinding: a name that passed check_url may resolve to an internal IP when the socket opens."""
+    import httpcore
+
+    from gigscout.sources.website import PublicOnlyBackend, public_only_transport
+
+    rebinding = {"rebind.example.com": ["10.0.0.9"]}.get
+    with pytest.raises(httpcore.ConnectError, match="not a public website"):
+        PublicOnlyBackend(lambda h: rebinding(h) or []).connect_tcp("rebind.example.com", 80)
+
+    client = PoliteClient(settings, transport=public_only_transport(lambda h: rebinding(h) or []))
+    with pytest.raises(httpx.ConnectError):  # robots.txt and the page itself both go through the pinned transport
+        client.get("http://rebind.example.com/jobs")
+    client.close()
