@@ -2,7 +2,8 @@
 
 import logging
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import cached_property
 from typing import Any, Literal
 
 from gigscout.activity import Activity, ActivityListener
@@ -16,6 +17,7 @@ from gigscout.models import AgencyProfile, Candidate, Lead, ScoutResult
 from gigscout.multiagent.runner import run_team
 from gigscout.multiagent.team import TeamModels
 from gigscout.rag import Answer, ask, ask_stream
+from gigscout.sources.base import Source
 from gigscout.sources.registry import build_sources
 from gigscout.store.embeddings import FastEmbedder
 from gigscout.store.vector_store import LeadIndex
@@ -30,6 +32,11 @@ Mode = Literal["auto", "team", "pipeline"]
 class ScoutService:
     deps: ScoutDeps
     team_models: TeamModels | None = None  # defaults to deps.chat_model in every role
+
+    @cached_property
+    def web_client(self) -> PoliteClient:
+        """Polite client for websites admins add (built-in sources keep their own)."""
+        return PoliteClient(self.deps.settings)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ScoutService":
@@ -54,15 +61,18 @@ class ScoutService:
         mode: Mode = "auto",
         on_step: StepListener | None = None,
         on_activity: ActivityListener | None = None,
+        sources: dict[str, Source] | None = None,
     ) -> ScoutResult:
+        """`sources` replaces the configured set for this run (built-ins an admin left on, plus added websites)."""
         resolved = self.resolve_mode(mode)
+        deps = self.deps if sources is None else replace(self.deps, sources=sources)
         activity = Activity(on_activity, profile=profile, threshold=self.deps.settings.good_match_threshold)
         with tracked_run(self.deps.settings, profile, mode=resolved) as run:
             if resolved == "team":
                 models = self.team_models or TeamModels.uniform(self.deps.chat_model)
-                result = run_team(self.deps, profile, models, on_step=on_step, activity=activity)
+                result = run_team(deps, profile, models, on_step=on_step, activity=activity)
             else:
-                result = run_scout(self.deps, profile, on_step=on_step, activity=activity)
+                result = run_scout(deps, profile, on_step=on_step, activity=activity)
             run.log_result(result)
         return result
 

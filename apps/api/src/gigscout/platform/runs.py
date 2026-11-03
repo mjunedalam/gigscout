@@ -11,8 +11,10 @@ from sqlalchemy import select, update
 from gigscout.models import AgencyProfile, ScoutResult
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
-from gigscout.platform.tables import AgencyProfileRecord, LeadState, Run, utcnow
+from gigscout.platform.tables import AgencyProfileRecord, Connector, LeadState, Run, SourceToggle, utcnow
 from gigscout.service import Mode, ScoutService
+from gigscout.sources.base import Source
+from gigscout.sources.website import WebsiteSource
 
 log = logging.getLogger(__name__)
 
@@ -102,7 +104,7 @@ class RunManager:
         try:
             result = self._service.scout(
                 agency, mode, on_step=lambda line: self._step(run_id, line),
-                on_activity=lambda event: self._activity(run_id, event),
+                on_activity=lambda event: self._activity(run_id, event), sources=self.sources_for_run(),
             )
         except RunStopped:
             self._finish_stopped(run_id)
@@ -128,6 +130,16 @@ class RunManager:
             session.commit()
             self._bus.publish("run.started", _summary(run))
             return run.mode_requested, AgencyProfile.model_validate(record.data)
+
+    def sources_for_run(self) -> dict[str, Source]:
+        """Built-in sources an admin left on, plus the websites they added and enabled."""
+        with self._sessions() as session:
+            off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.enabled.is_(False))))
+            sites = list(session.scalars(select(Connector).where(Connector.enabled.is_(True))))
+        sources: dict[str, Source] = {n: s for n, s in self._service.deps.sources.items() if n not in off}
+        for site in sites:
+            sources[site.name] = WebsiteSource(self._service.web_client, site.name, site.url, site.kind, site.feed_url)
+        return sources
 
     def activity(self, run_id: str) -> list[dict] | None:
         """Activity so far for a running run, or the stored activity of a finished one; None if no such run."""
@@ -169,8 +181,11 @@ class RunManager:
             run.errors, run.trace = list(result.errors), list(result.trace)
             run.activity = self._take_activity(run_id)
             _record_qualifications(session, run_id, result)
+            blocked = _record_site_health(session, result)
             session.commit()
             self._bus.publish("run.finished", _summary(run))
+        for site in blocked:
+            self._bus.publish("source.blocked", site)
 
     def _finish_stopped(self, run_id: str) -> None:
         with self._lock:
@@ -198,6 +213,19 @@ def _record_qualifications(session, run_id: str, result: ScoutResult) -> None:
         state.score, state.reasons, state.red_flags = match.score, match.reasons, match.red_flags
         state.pitch, state.last_run_id = match.pitch, run_id
         session.add(state)
+
+
+def _record_site_health(session, result: ScoutResult) -> list[dict]:
+    """Update each added website from this run's errors; return the ones that now refuse us (robots.txt)."""
+    newly_blocked = []
+    for site in session.scalars(select(Connector).where(Connector.enabled.is_(True))):
+        error = next((e for e in result.errors if e.startswith(f"{site.name}:")), None)
+        status = "ok" if error is None else "blocked" if "robots.txt" in error else "error"
+        if status == "blocked" and site.status != "blocked":
+            reason = "robots.txt does not allow automated access"
+            newly_blocked.append({"name": site.name, "url": site.url, "reason": reason})
+        site.status, site.last_error, site.checked_at = status, error, utcnow()
+    return newly_blocked
 
 
 def _summary(run: Run) -> dict:

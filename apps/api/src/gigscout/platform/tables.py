@@ -114,6 +114,34 @@ class LeadState(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
+class Connector(Base):
+    """A website an admin added as a lead source (name is the source name the agents see)."""
+
+    __tablename__ = "connectors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(60), unique=True)
+    label: Mapped[str] = mapped_column(String(120), default="")
+    url: Mapped[str] = mapped_column(String(500))
+    kind: Mapped[str] = mapped_column(String(8))  # feed | page
+    feed_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | blocked | error
+    last_error: Mapped[str | None] = mapped_column(Text, default=None)
+    checked_at: Mapped[datetime | None] = mapped_column(default=None)
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class SourceToggle(Base):
+    """A built-in source an admin switched off (or back on). No row means on."""
+
+    __tablename__ = "source_toggles"
+
+    name: Mapped[str] = mapped_column(String(60), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

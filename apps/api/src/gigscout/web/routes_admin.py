@@ -3,17 +3,29 @@
 import platform as pyplatform
 import time
 from collections import Counter
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import SecretStr
 from sqlalchemy import func, select
 
+from gigscout.http import DisallowedByRobots
 from gigscout.inbound import google_ads
 from gigscout.platform.security import WeakPasswordError, hash_password
-from gigscout.platform.tables import AuditLog, AuthToken, Run, User
+from gigscout.platform.tables import AuditLog, AuthToken, Connector, Run, SourceToggle, User, utcnow
+from gigscout.sources.website import UnsafeUrl, WebsiteSource, probe, slugify
 from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, audit
-from gigscout.web.schemas import AuditOut, SourceHealth, SourceTestResult, UserCreate, UserOut, UserUpdate
+from gigscout.web.schemas import (
+    AuditOut,
+    ConnectorCreate,
+    SourceEnabled,
+    SourceHealth,
+    SourceTestResult,
+    UserCreate,
+    UserOut,
+    UserUpdate,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -109,23 +121,96 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
             name = error.split(":", 1)[0]
             failures[name] += 1
             last_error.setdefault(name, error)
+    off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.enabled.is_(False))))
     pulled = [
-        SourceHealth(name=n, channel="pull", enabled=True, recent_failures=failures[n], last_error=last_error.get(n))
+        SourceHealth(
+            name=n, channel="pull", enabled=n not in off, recent_failures=failures[n], last_error=last_error.get(n),
+        )
         for n in platform.service.deps.sources
+    ]
+    sites = [
+        SourceHealth(
+            name=c.name, channel="pull", enabled=c.enabled, recent_failures=failures[c.name],
+            last_error=c.last_error or last_error.get(c.name), custom=True, id=c.id, label=c.label or c.name,
+            url=c.url, kind=c.kind, status=c.status,
+        )
+        for c in session.scalars(select(Connector).order_by(Connector.created_at))
     ]
     pushed = SourceHealth(name=google_ads.SOURCE_NAME, channel="push", enabled=platform.service.inbound_enabled,
                           recent_failures=0)
-    return [*pulled, pushed]
+    return [*pulled, *sites, pushed]
+
+
+@router.post("/connectors", status_code=status.HTTP_201_CREATED)
+def add_connector(body: ConnectorCreate, platform: PlatformDep, session: SessionDep, admin: AdminDep) -> SourceHealth:
+    """Add any website as a lead source. It is checked first: public address, reachable, and robots.txt allows us."""
+    name = slugify(body.name)
+    taken = set(platform.service.deps.sources) | {google_ads.SOURCE_NAME}
+    if name in taken or session.scalar(select(Connector.id).where(Connector.name == name)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A source called '{name}' already exists")
+    try:
+        site = probe(platform.service.web_client, body.url)
+    except UnsafeUrl as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except DisallowedByRobots as exc:
+        host = urlsplit(body.url.strip()).hostname or body.url
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            f"{host} does not allow automated access (its robots.txt), so it was not added") from exc
+    except httpx.HTTPError as exc:
+        reason = f"Could not reach {body.url}: {type(exc).__name__}"
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, reason) from exc
+    url = site.url or body.url.strip()
+    connector = Connector(name=name, label=body.name.strip(), url=url, kind=site.kind, feed_url=site.feed_url,
+                          created_by=admin.email, checked_at=utcnow())
+    session.add(connector)
+    audit(session, admin, "connector.add", name, url=url, kind=site.kind)
+    session.commit()
+    platform.bus.publish("source.added", {"name": name, "url": url, "kind": site.kind})
+    return SourceHealth(name=name, channel="pull", enabled=True, recent_failures=0, custom=True, id=connector.id,
+                        label=connector.label, url=url, kind=site.kind, status="ok")
+
+
+@router.delete("/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_connector(connector_id: int, session: SessionDep, admin: AdminDep) -> None:
+    connector = session.get(Connector, connector_id)
+    if connector is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
+    audit(session, admin, "connector.remove", connector.name)
+    session.delete(connector)
+    session.commit()
+
+
+@router.put("/sources/{name}/enabled")
+def set_source_enabled(
+    name: str, body: SourceEnabled, platform: PlatformDep, session: SessionDep, admin: AdminDep,
+) -> dict:
+    """Plug a source in or out. Takes effect from the next run."""
+    connector = session.scalar(select(Connector).where(Connector.name == name))
+    if connector is not None:
+        connector.enabled = body.enabled
+    elif name in platform.service.deps.sources:
+        session.merge(SourceToggle(name=name, enabled=body.enabled))
+    else:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown source")
+    audit(session, admin, "source.enable" if body.enabled else "source.disable", name)
+    session.commit()
+    return {"name": name, "enabled": body.enabled}
 
 
 @router.post("/sources/{name}/test")
 def test_source(name: str, platform: PlatformDep, session: SessionDep, admin: AdminDep) -> SourceTestResult:
     source = platform.service.deps.sources.get(name)
+    connector = session.scalar(select(Connector).where(Connector.name == name)) if source is None else None
+    if connector is not None:
+        source = WebsiteSource(
+            platform.service.web_client, connector.name, connector.url, connector.kind, connector.feed_url,
+        )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown pull source")
     started = time.perf_counter()
     try:
-        leads = source.fetch([SOURCE_TEST_QUERY], SOURCE_TEST_LIMIT)
+        # an added website is shown as it is; built-in boards are searched with a typical agency query
+        leads = source.preview(SOURCE_TEST_LIMIT) if connector else source.fetch([SOURCE_TEST_QUERY], SOURCE_TEST_LIMIT)
         result = SourceTestResult(name=name, ok=True, count=len(leads), latency_ms=_ms(started),
                                   sample=[lead.title for lead in leads[:3]])
     except Exception as exc:

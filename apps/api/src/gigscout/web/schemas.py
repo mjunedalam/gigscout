@@ -171,6 +171,21 @@ class SourceHealth(BaseModel):
     enabled: bool
     recent_failures: int
     last_error: str | None = None
+    custom: bool = False  # a website an admin added
+    id: int | None = None
+    label: str | None = None
+    url: str | None = None
+    kind: Literal["feed", "page"] | None = None
+    status: Literal["ok", "blocked", "error"] | None = None
+
+
+class ConnectorCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=60)
+    url: str = Field(min_length=8, max_length=500)
+
+
+class SourceEnabled(BaseModel):
+    enabled: bool
 
 
 class SourceTestResult(BaseModel):

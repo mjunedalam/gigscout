@@ -216,6 +216,89 @@ def test_ask_streams_newline_delimited_events(web):
     assert events[-1]["type"] == "done"
 
 
+def test_admin_adds_a_website_and_refuses_ones_that_do_not_allow_us(web, monkeypatch):
+    from gigscout.http import DisallowedByRobots
+    from gigscout.sources.website import SiteProbe, UnsafeUrl
+    from gigscout.web import routes_admin
+
+    def fake_probe(client, url):
+        if "blocked" in url:
+            raise DisallowedByRobots("robots.txt disallows it")
+        if "internal" in url:
+            raise UnsafeUrl("internal.example is not a public website")
+        return SiteProbe("feed", url + "feed.xml", "Acme Jobs")
+
+    monkeypatch.setattr(routes_admin, "probe", fake_probe)
+    client, _ = web()
+    login(client)
+
+    added = client.post("/api/admin/connectors", json={"name": "Acme Jobs", "url": "https://acme.example/"})
+    assert added.status_code == 201
+    assert {"name": "acme-jobs", "custom": True, "kind": "feed", "enabled": True}.items() <= added.json().items()
+    blocked = client.post("/api/admin/connectors", json={"name": "Nope", "url": "https://blocked.example/"})
+    assert blocked.status_code == 422 and "does not allow automated access" in blocked.json()["detail"]
+    unsafe = client.post("/api/admin/connectors", json={"name": "Inside", "url": "http://internal.example/"})
+    assert unsafe.status_code == 422 and "not a public website" in unsafe.json()["detail"]
+    duplicate = client.post("/api/admin/connectors", json={"name": "acme jobs", "url": "https://x.example/"})
+    assert duplicate.status_code == 409
+    assert client.post("/api/admin/connectors", json={"name": "Fake", "url": "https://x.example/"}).status_code == 409
+
+    sources = {s["name"]: s for s in client.get("/api/admin/sources").json()}
+    assert sources["acme-jobs"]["url"] == "https://acme.example/" and sources["fake"]["custom"] is False
+    assert "source.added" in [e["type"] for e in client.get("/api/events/recent").json()]
+    actions = [a["action"] for a in client.get("/api/admin/audit").json()]
+    assert "connector.add" in actions
+
+    assert client.delete(f"/api/admin/connectors/{sources['acme-jobs']['id']}").status_code == 204
+    assert "acme-jobs" not in {s["name"] for s in client.get("/api/admin/sources").json()}
+
+
+def test_sources_can_be_unplugged_and_runs_skip_them(web, sample_leads):
+    from tests.conftest import FakeSource
+
+    on, off = FakeSource("on", sample_leads), FakeSource("off", sample_leads)
+    client, _ = web(sources=[on, off])
+    login(client)
+    assert client.put("/api/admin/sources/off/enabled", json={"enabled": False}).status_code == 200
+    assert client.put("/api/admin/sources/nope/enabled", json={"enabled": False}).status_code == 404
+
+    profile_id = client.get("/api/profiles").json()[0]["id"]
+    wait_for_run(client, client.post("/api/runs", json={"profile_id": profile_id, "mode": "pipeline"}).json()["id"])
+
+    assert on.calls and not off.calls
+    assert {s["name"]: s["enabled"] for s in client.get("/api/admin/sources").json()}["off"] is False
+
+
+def test_a_website_that_blocks_us_during_a_run_is_flagged_and_announced(web, monkeypatch):
+    from gigscout.http import DisallowedByRobots
+    from gigscout.platform import runs
+    from gigscout.platform.tables import Connector
+
+    class BlockingSite:
+        def __init__(self, client, name, url, kind, feed_url=None):
+            self.name = name
+
+        def fetch(self, queries, limit):
+            raise DisallowedByRobots("robots.txt disallows https://shy.example/")
+
+    monkeypatch.setattr(runs, "WebsiteSource", BlockingSite)
+    client, platform = web()
+    with platform.sessions() as session:
+        session.add(Connector(name="shy-site", url="https://shy.example/", kind="page", created_by="admin"))
+        session.commit()
+    login(client)
+    profile_id = client.get("/api/profiles").json()[0]["id"]
+
+    started = client.post("/api/runs", json={"profile_id": profile_id, "mode": "pipeline"}).json()
+    run = wait_for_run(client, started["id"])
+
+    assert run["status"] == "succeeded" and any(e.startswith("shy-site:") for e in run["errors"])
+    site = next(s for s in client.get("/api/admin/sources").json() if s["name"] == "shy-site")
+    assert site["status"] == "blocked"
+    blocked = [e for e in client.get("/api/events/recent").json() if e["type"] == "source.blocked"]
+    assert blocked and blocked[0]["data"]["name"] == "shy-site"
+
+
 def test_profiles_crud_and_run_validation(web):
     client, _ = web()
     login(client)
