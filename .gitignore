@@ -1,17 +1,43 @@
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-.coverage
-htmlcov/
+# Secrets: keep only the example file
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data (leads, users, password hashes, vector store, MLflow runs)
 data/
 mlruns/
 mlartifacts/
-.env
-!.vscode/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Node / frontend (every workspace, not just the root)
 node_modules/
 .turbo/
 dist/
+.vite/
 *.tsbuildinfo
-.DS_Store
 coverage/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editors and OS (shared VS Code settings stay tracked)
+.idea/
+.DS_Store
+Thumbs.db
