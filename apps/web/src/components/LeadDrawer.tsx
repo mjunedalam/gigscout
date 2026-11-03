@@ -16,7 +16,7 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconAlertTriangle, IconCheck, IconCopy, IconExternalLink, IconMessage2Bolt } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconCopy, IconExternalLink, IconMessage2Bolt, IconSchool } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -111,6 +111,14 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               <b>Why it fits: </b>
               {view.reasons}
             </Text>
+          )}
+          {view.learned !== 0 && view.learned_note && (
+            <Group gap={6} wrap="nowrap">
+              <Badge size="sm" variant="light" color={view.learned > 0 ? "signal" : "orange"} leftSection={<IconSchool size={12} />}>
+                {view.learned > 0 ? "+" : ""}{Math.round(view.learned * 100)} learned
+              </Badge>
+              <Text size="xs" c="var(--gs-text-muted)">{view.learned_note}</Text>
+            </Group>
           )}
           {view.red_flags && (
             <Alert variant="light" color="red" icon={<IconAlertTriangle size={18} />} title="Red flags">

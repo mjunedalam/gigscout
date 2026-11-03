@@ -8,11 +8,14 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
+from gigscout.learning import MIN_OUTCOMES
 from gigscout.platform import analytics
 from gigscout.platform.container import Platform
+from gigscout.platform.learner import current_learning
 from gigscout.platform.tables import Run
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep
 from gigscout.web.routes_leads import load_states
+from gigscout.web.schemas import LearningOut, LearningSignalOut
 
 router = APIRouter(prefix="/api", tags=["insights"])
 
@@ -22,6 +25,18 @@ KEEPALIVE_SECONDS = 15.0
 @router.get("/metrics/overview")
 def metrics_overview(platform: PlatformDep, session: SessionDep, _: UserDep) -> dict:
     return snapshot(platform, session)
+
+
+@router.get("/metrics/learning")
+def metrics_learning(platform: PlatformDep, session: SessionDep, _: UserDep) -> LearningOut:
+    """What won and lost leads have taught so far, strongest signals first."""
+    learning = current_learning(session, platform.service.deps.index)
+    return LearningOut(
+        active=learning.active, outcomes=learning.outcomes, wins=learning.wins,
+        losses=learning.outcomes - learning.wins, needed=MIN_OUTCOMES, base_rate=learning.base_rate,
+        signals=[LearningSignalOut(label=s.label, wins=s.wins, total=s.total, lift=s.lift, explain=s.explain())
+                 for s in learning.top_signals()],
+    )
 
 
 @router.get("/metrics/analytics")

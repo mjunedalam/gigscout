@@ -48,6 +48,21 @@ export interface LeadView {
   red_flags: string;
   pitch: string;
   similarity: number | null;
+  /** How much the company's won/lost leads moved the score (score = agents' score + learned). */
+  learned: number;
+  learned_note: string;
+}
+
+/** What won and lost leads have taught so far. */
+export interface Learning {
+  active: boolean;
+  outcomes: number;
+  wins: number;
+  losses: number;
+  /** Won + lost leads needed before learning starts. */
+  needed: number;
+  base_rate: number;
+  signals: { label: string; wins: number; total: number; lift: number; explain: string }[];
 }
 
 export interface LeadPage {

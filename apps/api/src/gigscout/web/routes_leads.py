@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
+from gigscout.learning import OUTCOMES
 from gigscout.models import Candidate
+from gigscout.platform.learner import rescore_open_leads
 from gigscout.platform.tables import LeadState
 from gigscout.store.vector_store import StoredLead
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep, audit
@@ -69,12 +71,17 @@ def update_lead(
     if lead is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
     state = session.get(LeadState, lead_id) or LeadState(lead_id=lead_id)
+    previous = state.status or "new"
     changes = body.model_dump(exclude_none=True)
     for field, value in changes.items():
         setattr(state, field, value)
+    outcome_changed = previous != state.status and (previous in OUTCOMES or state.status in OUTCOMES)
     state.updated_by = user.email
     session.add(state)
     audit(session, user, "lead.update", lead_id, **changes)
+    session.flush()
+    if outcome_changed:
+        rescore_open_leads(session, platform.service.deps.index)  # a new win or loss teaches something
     session.commit()
     platform.bus.publish("lead.updated", {"id": lead_id, "title": lead.title, "by": user.name, **changes})
     return to_view(None, {lead_id: state}, Candidate(lead=lead, similarity=1))
@@ -115,7 +122,8 @@ def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: 
         similarity=candidate.similarity if candidate and stored is None else None,
         **({
             "status": state.status, "notes": state.notes, "score": state.score, "reasons": state.reasons,
-            "red_flags": state.red_flags, "pitch": state.pitch,
+            "red_flags": state.red_flags, "pitch": state.pitch, "learned": state.learned or 0.0,
+            "learned_note": state.learned_note or "",
         } if state else {}),
     )
 

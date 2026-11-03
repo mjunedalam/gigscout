@@ -70,6 +70,8 @@ class LeadView(BaseModel):
     red_flags: str = ""
     pitch: str = ""
     similarity: float | None = None
+    learned: float = 0.0  # how much won/lost leads moved the score
+    learned_note: str = ""
 
 
 class LeadPage(BaseModel):
@@ -300,3 +302,21 @@ class CrmLinkOut(BaseModel):
 class CrmSyncOut(BaseModel):
     links: list[CrmLinkOut]
     errors: list[str] = Field(default_factory=list)
+
+
+class LearningSignalOut(BaseModel):
+    label: str
+    wins: int
+    total: int
+    lift: float
+    explain: str
+
+
+class LearningOut(BaseModel):
+    active: bool
+    outcomes: int
+    wins: int
+    losses: int
+    needed: int  # outcomes before learning starts
+    base_rate: float
+    signals: list[LearningSignalOut]

@@ -17,6 +17,9 @@ ADDED_COLUMNS = {
     ("runs", "activity"): "JSON DEFAULT '[]'",
     ("connectors", "lead_kind"): "VARCHAR(16) DEFAULT 'project'",
     ("outreach", "sent_by"): "VARCHAR(254)",
+    ("lead_states", "base_score"): "FLOAT",
+    ("lead_states", "learned"): "FLOAT DEFAULT 0",
+    ("lead_states", "learned_note"): "TEXT DEFAULT ''",
 }
 
 

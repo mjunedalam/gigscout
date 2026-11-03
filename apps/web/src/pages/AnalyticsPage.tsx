@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { WhatWins } from "../components/analytics/WhatWins";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel } from "../components/layout-bits";
 import { api, messageOf } from "../lib/api";
@@ -56,6 +57,9 @@ export default function AnalyticsPage() {
             </Panel>
           </Grid.Col>
           <Grid.Col span={{ base: 12, lg: 7 }}>
+            <WhatWins />
+          </Grid.Col>
+          <Grid.Col span={12}>
             <Panel eyebrow={`Last ${a.runs.length} runs`} title="Run duration and new leads">
               <RunTimeline runs={a.runs} height={240} onSelect={(id) => navigate(`/runs/${id}`)} />
             </Panel>

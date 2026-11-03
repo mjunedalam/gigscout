@@ -109,6 +109,9 @@ class LeadState(Base):
     reasons: Mapped[str] = mapped_column(Text, default="")
     red_flags: Mapped[str] = mapped_column(Text, default="")
     pitch: Mapped[str] = mapped_column(Text, default="")
+    base_score: Mapped[float | None] = mapped_column(Float, default=None)  # the agents' score, before learning
+    learned: Mapped[float] = mapped_column(Float, default=0.0)  # nudge from won/lost leads (score = base + learned)
+    learned_note: Mapped[str] = mapped_column(Text, default="")
     last_run_id: Mapped[str | None] = mapped_column(String(36), default=None)
     updated_by: Mapped[str | None] = mapped_column(String(254), default=None)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)

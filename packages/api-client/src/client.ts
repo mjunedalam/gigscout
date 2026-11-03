@@ -27,6 +27,7 @@ import type {
   SourceHealth,
   ConnectorLeadKind,
   LibrarySource,
+  Learning,
   CrmSync,
   Outreach,
   OutreachConfig,
@@ -173,6 +174,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       overview: () => get<Overview>("/api/metrics/overview"),
       analytics: (days = 14) => get<Analytics>("/api/metrics/analytics", { days }),
       map: () => get<MapPoint[]>("/api/metrics/map"),
+      learning: () => get<Learning>("/api/metrics/learning"),
     },
     events: {
       recent: (limit = 50) => get<LiveEvent[]>("/api/events/recent", { limit }),

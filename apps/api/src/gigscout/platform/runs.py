@@ -8,9 +8,11 @@ from typing import Literal
 
 from sqlalchemy import select, update
 
+from gigscout.learning import Learning
 from gigscout.models import AgencyProfile, ScoutResult
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
+from gigscout.platform.learner import current_learning, score_with
 from gigscout.platform.tables import AgencyProfileRecord, Connector, LeadState, Run, SourceToggle, utcnow
 from gigscout.service import Mode, ScoutService
 from gigscout.sources.base import Source
@@ -182,7 +184,7 @@ class RunManager:
             run.report, run.queries = result.report, list(result.queries)
             run.errors, run.trace = list(result.errors), list(result.trace)
             run.activity = self._take_activity(run_id)
-            _record_qualifications(session, run_id, result)
+            _record_qualifications(session, run_id, result, current_learning(session, self._service.deps.index))
             blocked = _record_site_health(session, result)
             session.commit()
             self._bus.publish("run.finished", _summary(run))
@@ -208,11 +210,12 @@ class RunManager:
             self._bus.publish("run.finished", _summary(run))
 
 
-def _record_qualifications(session, run_id: str, result: ScoutResult) -> None:
-    """Keep each lead's latest score and pitch; never touch its pipeline status or notes."""
+def _record_qualifications(session, run_id: str, result: ScoutResult, learning: Learning) -> None:
+    """Keep each lead's latest score (with what won/lost leads taught) and pitch; never touch status or notes."""
     for match in result.matches:
         state = session.get(LeadState, match.lead.id) or LeadState(lead_id=match.lead.id)
-        state.score, state.reasons, state.red_flags = match.score, match.reasons, match.red_flags
+        score_with(learning, state, match.lead, match.score)
+        state.reasons, state.red_flags = match.reasons, match.red_flags
         state.pitch, state.last_run_id = match.pitch, run_id
         session.add(state)
 
