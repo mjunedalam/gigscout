@@ -1,5 +1,8 @@
 """Operations: agency profiles, agent runs and schedules."""
 
+import logging
+from dataclasses import asdict
+
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
@@ -7,8 +10,21 @@ from gigscout.models import AgencyProfile
 from gigscout.platform.runs import ProfileNotFound
 from gigscout.platform.scheduler import InvalidCron
 from gigscout.platform.tables import AgencyProfileRecord, Run, Schedule
+from gigscout.profile_templates import TEMPLATES, closest_template
 from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, UserDep, audit
-from gigscout.web.schemas import CronPreview, ProfileOut, RunCreate, RunDetail, RunOut, ScheduleIn, ScheduleOut
+from gigscout.web.schemas import (
+    CronPreview,
+    ProfileOut,
+    ProfileSuggestOut,
+    ProfileSuggestRequest,
+    RunCreate,
+    RunDetail,
+    RunOut,
+    ScheduleIn,
+    ScheduleOut,
+)
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["operations"])
 
@@ -18,6 +34,31 @@ router = APIRouter(prefix="/api", tags=["operations"])
 def list_profiles(session: SessionDep, _: UserDep) -> list[ProfileOut]:
     records = session.scalars(select(AgencyProfileRecord).order_by(AgencyProfileRecord.id))
     return [ProfileOut.model_validate(p) for p in records]
+
+
+@router.get("/profiles/templates")
+def profile_templates(_: UserDep) -> list[dict]:
+    """Starting points for common kinds of company (software, marketing, legal, construction, ...)."""
+    return [asdict(t) for t in TEMPLATES]
+
+
+@router.post("/profiles/suggest")
+def suggest_profile(body: ProfileSuggestRequest, platform: PlatformDep, _: AdminDep) -> ProfileSuggestOut:
+    """Fill a profile from one sentence: the LLM when available, else the closest template, else nothing."""
+    reasoner = platform.service.deps.reasoner
+    if reasoner is not None:
+        try:
+            s = reasoner.suggest_profile(body.company_type, body.description)
+            return ProfileSuggestOut(source="ai", **s.model_dump())
+        except Exception:
+            log.warning("Profile suggestion failed; falling back to templates", exc_info=True)
+    template = closest_template(body.company_type)
+    if template is None:
+        return ProfileSuggestOut(source="none", services=[], skills=[], keywords=[], exclude=[], industries=[])
+    return ProfileSuggestOut(
+        source="template", services=list(template.services), skills=list(template.skills),
+        keywords=list(template.keywords), exclude=list(template.exclude), industries=[],
+    )
 
 
 @router.post("/profiles", status_code=status.HTTP_201_CREATED)

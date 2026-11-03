@@ -7,7 +7,7 @@ import pytest
 
 from gigscout.agent.nodes import ScoutDeps
 from gigscout.config import Settings
-from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment
+from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, ProfileSuggestion
 from gigscout.store.vector_store import LeadIndex
 
 DIMENSIONS = 128
@@ -64,6 +64,10 @@ class FakeReasoner:
 
     def answer(self, question: str, context: str) -> str:
         return f"Answer based on {context.count('[')} leads [1]"
+
+    def suggest_profile(self, company_type: str, description: str) -> ProfileSuggestion:
+        return ProfileSuggestion(services=[f"{company_type} services"], skills=["specialist"],
+                                 keywords=[company_type.lower()], exclude=["unpaid"], industries=[])
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

@@ -179,6 +179,20 @@ class SourceHealth(BaseModel):
     status: Literal["ok", "blocked", "error"] | None = None
 
 
+class ProfileSuggestRequest(BaseModel):
+    company_type: str = Field(min_length=2, max_length=80)
+    description: str = Field(default="", max_length=1000)
+
+
+class ProfileSuggestOut(BaseModel):
+    source: Literal["ai", "template", "none"]  # where the suggestion came from
+    services: list[str]
+    skills: list[str]
+    keywords: list[str]
+    exclude: list[str]
+    industries: list[str]
+
+
 class ConnectorCreate(BaseModel):
     name: str = Field(min_length=2, max_length=60)
     url: str = Field(min_length=8, max_length=500)
