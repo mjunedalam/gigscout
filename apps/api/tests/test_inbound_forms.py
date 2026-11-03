@@ -139,3 +139,45 @@ def test_connectors_list_every_inbound_channel(web):
     login(client)
     pushed = {s["name"]: s["enabled"] for s in client.get("/api/admin/sources").json() if s["channel"] == "push"}
     assert pushed == {"google_ads": False, "website_form": False, "typeform": True, "meta_lead_ads": False}
+
+
+def test_a_body_over_the_cap_is_refused_even_without_a_length_header(web):
+    from gigscout.web import routes_inbound
+
+    client, _ = web(website_form_key=SecretStr(FORM_KEY))
+
+    def chunks():
+        for _ in range(100):
+            yield b"x" * 1024  # streamed: no Content-Length
+
+    response = client.post(f"/webhooks/form/{FORM_KEY}", content=chunks(), headers={"content-type": "application/json"})
+    assert response.status_code == 413 and routes_inbound.MAX_BODY_BYTES < 100 * 1024
+
+
+def test_multipart_forms_are_refused(web):
+    client, _ = web(website_form_key=SecretStr(FORM_KEY))
+    response = client.post(f"/webhooks/form/{FORM_KEY}", files={"f": ("a.txt", b"x")}, data={"email": "a@b.com"})
+    assert response.status_code == 415
+
+
+def test_the_limiter_forgets_quiet_senders_and_caps_everyone_together(monkeypatch):
+    from gigscout.web import routes_inbound
+
+    clock = [0.0]
+    monkeypatch.setattr(routes_inbound.time, "monotonic", lambda: clock[0])
+    limit = routes_inbound._SenderLimit(per_hour=5, total_per_hour=3)
+    assert [limit.allow(f"10.0.0.{i}") for i in range(4)] == [True, True, True, False]  # overall cap
+    clock[0] = 4000.0
+    assert limit.allow("10.0.0.9") and list(limit._seen) == ["10.0.0.9"]  # the hour passed: old senders gone
+
+
+def test_ipv6_senders_are_grouped_by_their_64_block():
+    from types import SimpleNamespace
+
+    from gigscout.web.routes_inbound import sender_of
+
+    def request(host):
+        return SimpleNamespace(client=SimpleNamespace(host=host))
+
+    assert sender_of(request("2001:db8:1:2::aaaa")) == sender_of(request("2001:db8:1:2:ffff::1")) == "2001:db8:1:2::/64"
+    assert sender_of(request("203.0.113.5")) == "203.0.113.5"

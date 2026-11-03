@@ -6,12 +6,14 @@ URL, Typeform's and Meta's HMAC signatures over the raw body, and Meta's verify 
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import re
 import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
+from urllib.parse import parse_qsl
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -26,6 +28,7 @@ router = APIRouter(prefix="/webhooks", tags=["public"])
 
 MAX_BODY_BYTES = 64_000
 FORM_LIMIT_PER_HOUR = 10  # per sender address: a contact form, not a bulk API
+FORM_LIMIT_TOTAL_PER_HOUR = 300  # all senders together, so rotating addresses cannot flood the lead store
 GRAPH_LEAD_URL = "https://graph.facebook.com/v21.0/{lead_id}"
 _LEADGEN_ID = re.compile(r"^\d{5,30}$")
 THANKS_PAGE = (
@@ -37,21 +40,43 @@ THANKS_PAGE = (
 
 
 class _SenderLimit:
-    def __init__(self, per_hour: int) -> None:
+    """Hourly limits per sender and overall. Senders with no recent calls are forgotten, so memory stays small."""
+
+    def __init__(self, per_hour: int, total_per_hour: int = FORM_LIMIT_TOTAL_PER_HOUR) -> None:
         self._per_hour = per_hour
-        self._seen: dict[str, deque[float]] = defaultdict(deque)
+        self._total_per_hour = total_per_hour
+        self._seen: dict[str, deque[float]] = {}
+        self._all: deque[float] = deque()
         self._lock = threading.Lock()
 
     def allow(self, sender: str) -> bool:
         now = time.monotonic()
         with self._lock:
-            calls = self._seen[sender]
-            while calls and now - calls[0] > 3600:
-                calls.popleft()
-            if len(calls) >= self._per_hour:
+            _trim(self._all, now)
+            for key in [k for k, calls in self._seen.items() if not _trim(calls, now)]:
+                del self._seen[key]
+            calls = self._seen.setdefault(sender, deque())
+            if len(calls) >= self._per_hour or len(self._all) >= self._total_per_hour:
                 return False
             calls.append(now)
+            self._all.append(now)
             return True
+
+
+def _trim(calls: deque[float], now: float) -> int:
+    while calls and now - calls[0] > 3600:
+        calls.popleft()
+    return len(calls)
+
+
+def sender_of(request: Request) -> str:
+    """The client address; IPv6 grouped by /64, since one household or server holds a whole /64."""
+    host = request.client.host if request.client else "unknown"
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    return str(ipaddress.ip_network(f"{address}/64", strict=False)) if address.version == 6 else host
 
 
 _form_limit = _SenderLimit(FORM_LIMIT_PER_HOUR)
@@ -63,13 +88,15 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
     expected = platform.settings.website_form_key
     if expected is None or not _same(key, expected):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-    body = await _body(request)
-    is_html_form = request.headers.get("content-type", "").startswith(
-        ("application/x-www-form-urlencoded", "multipart/form-data"))
-    sender = request.client.host if request.client else "unknown"
-    if not _form_limit.allow(sender):
+    if not _form_limit.allow(sender_of(request)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many submissions; please try again later")
-    raw = dict(await request.form()) if is_html_form else _json(body)
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("multipart/form-data"):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Send the form URL-encoded (the HTML default)")
+    is_html_form = content_type.startswith("application/x-www-form-urlencoded")
+    body = await _body(request)
+    raw = dict(parse_qsl(body.decode("utf-8", "replace"), max_num_fields=forms.MAX_FIELDS)) if is_html_form \
+        else _json(body)
     fields = forms.clean({k: v for k, v in raw.items() if isinstance(v, str | int | float | list)})
     result = "stored"
     if forms.is_spam(fields):
@@ -148,12 +175,20 @@ def _ingest(platform, lead) -> str:
 
 
 async def _body(request: Request) -> bytes:
-    if int(request.headers.get("content-length") or 0) > MAX_BODY_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Too large")
-    body = await request.body()
-    if len(body) > MAX_BODY_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Too large")
-    return body
+    """The body, read in chunks and refused as soon as it passes the cap (whatever Content-Length claims)."""
+    too_large = HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Too large")
+    try:
+        if int(request.headers.get("content-length") or 0) > MAX_BODY_BYTES:
+            raise too_large
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Bad Content-Length") from None
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_BODY_BYTES:
+            raise too_large
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _json(body: bytes) -> dict:
