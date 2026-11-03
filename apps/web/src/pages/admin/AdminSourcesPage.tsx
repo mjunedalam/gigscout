@@ -19,6 +19,17 @@ import { api, messageOf } from "../../lib/api";
 
 const SOURCES_KEY = ["admin", "sources"];
 
+/** Where each inbound channel posts, and what turns it on (apps/api/.env). */
+const PUSH_SETUP: Record<string, { label: string; path: string; env: string }> = {
+  google_ads: { label: "Google Ads lead forms", path: "/webhooks/google-ads", env: "GIGSCOUT_GOOGLE_ADS_WEBHOOK_KEY" },
+  website_form: { label: "Your website's contact form", path: "/webhooks/form/<GIGSCOUT_WEBSITE_FORM_KEY>", env: "GIGSCOUT_WEBSITE_FORM_KEY" },
+  typeform: { label: "Typeform", path: "/webhooks/typeform", env: "GIGSCOUT_TYPEFORM_WEBHOOK_SECRET" },
+  meta_lead_ads: {
+    label: "Facebook & Instagram lead ads", path: "/webhooks/meta",
+    env: "GIGSCOUT_META_APP_SECRET, GIGSCOUT_META_VERIFY_TOKEN and GIGSCOUT_META_PAGE_ACCESS_TOKEN",
+  },
+};
+
 /** Admins connect any website by name and URL, and plug every source in or out. */
 export default function AdminSourcesPage() {
   const sources = useQuery({ queryKey: SOURCES_KEY, queryFn: api.admin.sources });
@@ -126,7 +137,8 @@ function SourceCard({ source: s, result, testing, onTest }: {
   const badge = !s.enabled ? (s.channel === "push" ? "not set up" : "unplugged") : blocked ? "blocked" : s.recent_failures ? `${s.recent_failures} failures` : "healthy";
   const icon = s.channel === "push" ? <IconMailbox size={18} /> : s.kind === "feed" ? <IconRss size={18} />
     : s.custom ? <IconWorldWww size={18} /> : <IconCloudDownload size={18} />;
-  const subtitle = s.channel === "push" ? "pushes via webhook"
+  const setup = s.channel === "push" ? PUSH_SETUP[s.name] : undefined;
+  const subtitle = s.channel === "push" ? (setup?.label ?? "pushes via webhook")
     : s.custom ? `your website · reads ${s.kind === "feed" ? "its feed" : "the page"} · ${s.lead_kind ?? "project"} leads` : "built-in source";
 
   return (
@@ -141,6 +153,13 @@ function SourceCard({ source: s, result, testing, onTest }: {
         </Group>
         <Badge color={color} variant="light">{badge}</Badge>
       </Group>
+      {setup && (
+        <Stack gap={4} mt="xs">
+          <Text size="xs" c="var(--gs-text-muted)">Sends leads to</Text>
+          <Code style={{ wordBreak: "break-all" }}>{window.location.origin}{setup.path}</Code>
+          {!s.enabled && <Text size="xs" c="var(--gs-text-muted)">Set {setup.env} in apps/api/.env to turn it on.</Text>}
+        </Stack>
+      )}
       {s.url && <Anchor href={s.url} target="_blank" rel="noreferrer" size="xs" mt="xs" display="block" truncate>{s.url}</Anchor>}
       {blocked && (
         <Alert mt="md" color="red" variant="light" icon={<IconAlertTriangle size={16} />}>

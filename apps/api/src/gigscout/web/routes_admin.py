@@ -181,9 +181,9 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
         )
         for c in session.scalars(select(Connector).order_by(Connector.created_at))
     ]
-    pushed = SourceHealth(name=google_ads.SOURCE_NAME, channel="push", enabled=platform.service.inbound_enabled,
-                          recent_failures=0)
-    return [*pulled, *sites, pushed]
+    pushed = [SourceHealth(name=name, channel="push", enabled=ready, recent_failures=0)
+              for name, ready in platform.service.inbound_channels().items()]
+    return [*pulled, *sites, *pushed]
 
 
 @router.get("/connectors/library")

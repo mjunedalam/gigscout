@@ -96,7 +96,17 @@ class ScoutService:
     def inbound_enabled(self) -> bool:
         return self.deps.settings.google_ads_webhook_key is not None
 
+    def inbound_channels(self) -> dict[str, bool]:
+        """Every channel that pushes leads in, and whether it is set up."""
+        s = self.deps.settings
+        return {
+            google_ads.SOURCE_NAME: s.google_ads_webhook_key is not None,
+            "website_form": s.website_form_key is not None,
+            "typeform": s.typeform_webhook_secret is not None,
+            "meta_lead_ads": bool(s.meta_app_secret and s.meta_verify_token and s.meta_page_access_token),
+        }
+
     def source_names(self) -> list[str]:
         """Pull sources the agent searches, plus inbound channels that push leads in."""
-        inbound = [google_ads.SOURCE_NAME] if self.inbound_enabled else []
+        inbound = [name for name, ready in self.inbound_channels().items() if ready]
         return [*self.deps.sources, *inbound]

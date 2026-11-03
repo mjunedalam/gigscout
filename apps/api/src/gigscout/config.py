@@ -79,6 +79,15 @@ class Settings(BaseSettings):
 
     # Inbound leads from Google Ads lead form assets (webhook). Unset = webhook disabled.
     google_ads_webhook_key: SecretStr | None = None
+    # Your own website's contact form posts to /webhooks/form/<key>. Any long random string; unset = off.
+    website_form_key: SecretStr | None = None
+    # Typeform: the secret set on the form's webhook (Connect > Webhooks). Unset = off.
+    typeform_webhook_secret: SecretStr | None = None
+    # Meta (Facebook/Instagram) lead ads: the app secret, the verify token you choose when subscribing the
+    # webhook, and a page access token with leads_retrieval. All three, or Meta is off.
+    meta_app_secret: SecretStr | None = None
+    meta_verify_token: SecretStr | None = None
+    meta_page_access_token: SecretStr | None = None
 
     # Platform: users, runs, schedules and lead pipeline state (SQLite by default)
     database_url: str | None = Field(default=None, description="Default: sqlite in data_dir")
