@@ -151,6 +151,24 @@ def test_schedules_crud_preview_and_trigger(web):
     assert client.get("/api/schedules").json() == []
 
 
+def test_run_activity_is_streamed_and_kept_for_replay(web):
+    client, platform = web(reasoner=FakeReasoner(score=0.95))
+    login(client)
+    profile_id = client.get("/api/profiles").json()[0]["id"]
+
+    started = client.post("/api/runs", json={"profile_id": profile_id, "mode": "pipeline"}).json()
+    run = wait_for_run(client, started["id"])
+    activity = client.get(f"/api/runs/{run['id']}/activity").json()
+
+    stages = [e["stage"] for e in activity if e["kind"] == "stage"]
+    assert stages[0] == "plan" and stages[-1] == "report"
+    assert any(e["kind"] == "found" for e in activity) and any(e["kind"] == "reviewed" for e in activity)
+    assert all(e["t"] >= 0 for e in activity)
+    assert client.get("/api/runs/nope/activity").status_code == 404
+    # streamed live, but kept out of the activity feed history so it cannot flood it
+    assert "run.activity" not in {e["type"] for e in client.get("/api/events/recent").json()}
+
+
 def test_profiles_crud_and_run_validation(web):
     client, _ = web()
     login(client)

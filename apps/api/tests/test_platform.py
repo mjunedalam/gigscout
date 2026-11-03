@@ -73,6 +73,22 @@ def test_event_bus_delivers_across_threads_and_keeps_recent_history():
     assert bus.subscriber_count == 0
 
 
+def test_create_db_adds_columns_missing_from_an_older_database(tmp_path):
+    import sqlite3
+
+    from gigscout.platform.db import create_db
+
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as conn:  # a runs table from before run activity was stored
+        conn.execute("CREATE TABLE runs (id VARCHAR(36) PRIMARY KEY, profile_name VARCHAR(120))")
+
+    engine, _ = create_db(f"sqlite:///{path}")
+
+    with engine.connect() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(runs)")}
+    assert "activity" in columns
+
+
 def test_cron_parsing():
     assert parse_cron("*/30 * * * *", "UTC")
     with pytest.raises(InvalidCron):

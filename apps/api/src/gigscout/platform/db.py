@@ -3,13 +3,17 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from gigscout.platform.tables import Base
 
 SessionFactory = Callable[[], Session]
+
+# Columns added after the first release. create_all only creates missing tables, so older databases get these
+# added in place. Each needs a default that is valid for existing rows.
+ADDED_COLUMNS = {("runs", "activity"): "JSON DEFAULT '[]'"}
 
 
 def create_db(url: str) -> tuple[Engine, sessionmaker[Session]]:
@@ -21,7 +25,16 @@ def create_db(url: str) -> tuple[Engine, sessionmaker[Session]]:
     if is_sqlite:
         event.listen(engine, "connect", _sqlite_pragmas)
     Base.metadata.create_all(engine)
+    _add_missing_columns(engine)
     return engine, sessionmaker(engine, expire_on_commit=False)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for (table, column), ddl in ADDED_COLUMNS.items():
+            if inspector.has_table(table) and column not in {c["name"] for c in inspector.get_columns(table)}:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def _sqlite_pragmas(dbapi_connection, _record) -> None:

@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 QUEUE_SIZE = 500
 RECENT_EVENTS = 200
+QUIET_TYPES = {"run.activity"}  # high-volume, streamed live but not kept in recent history
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,7 @@ class EventBus:
     def publish(self, type_: str, data: dict[str, Any] | None = None) -> Event:
         event = Event(id=next(self._ids), type=type_, at=datetime.now(UTC).isoformat(), data=data or {})
         with self._lock:
-            if not type_.startswith("metrics."):  # periodic snapshots would flood the activity history
+            if not type_.startswith("metrics.") and type_ not in QUIET_TYPES:  # these would flood the activity history
                 self._recent.append(event)
             subscribers = list(self._subscribers)
         for sub in subscribers:

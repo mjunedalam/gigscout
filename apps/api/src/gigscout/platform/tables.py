@@ -73,6 +73,7 @@ class Run(Base):
     queries: Mapped[list[str]] = mapped_column(JSON, default=list)
     errors: Mapped[list[str]] = mapped_column(JSON, default=list)
     trace: Mapped[list[str]] = mapped_column(JSON, default=list)
+    activity: Mapped[list[dict]] = mapped_column(JSON, default=list)  # structured events, for cockpit replay
 
     @property
     def duration_seconds(self) -> float | None:

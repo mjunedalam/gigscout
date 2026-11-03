@@ -32,6 +32,7 @@ class RunManager:
         # One worker: runs share the vector store and the local LLM, and are cheap to queue.
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gigscout-run")
         self._lock = threading.Lock()
+        self._live_activity: dict[str, list[dict]] = {}  # activity of the run in progress, until it is stored
 
     def recover(self) -> int:
         """Runs left queued/running by a previous process can never finish; mark them failed."""
@@ -84,7 +85,10 @@ class RunManager:
             return
         mode, agency = started
         try:
-            result = self._service.scout(agency, mode, on_step=lambda line: self._step(run_id, line))
+            result = self._service.scout(
+                agency, mode, on_step=lambda line: self._step(run_id, line),
+                on_activity=lambda event: self._activity(run_id, event),
+            )
         except Exception as exc:
             log.exception("Run %s failed", run_id)
             self._finish_failed(run_id, exc)
@@ -107,6 +111,25 @@ class RunManager:
             self._bus.publish("run.started", _summary(run))
             return run.mode_requested, AgencyProfile.model_validate(record.data)
 
+    def activity(self, run_id: str) -> list[dict] | None:
+        """Activity so far for a running run, or the stored activity of a finished one; None if no such run."""
+        with self._lock:
+            live = self._live_activity.get(run_id)
+            if live is not None:
+                return list(live)
+        with self._sessions() as session:
+            run = session.get(Run, run_id)
+            return None if run is None else list(run.activity or [])
+
+    def _activity(self, run_id: str, event: dict) -> None:
+        with self._lock:
+            self._live_activity.setdefault(run_id, []).append(event)
+        self._bus.publish("run.activity", {"id": run_id, **event})
+
+    def _take_activity(self, run_id: str) -> list[dict]:
+        with self._lock:
+            return self._live_activity.pop(run_id, [])
+
     def _step(self, run_id: str, line: str) -> None:
         self._bus.publish("run.step", {"id": run_id, "line": line[:500]})
 
@@ -119,6 +142,7 @@ class RunManager:
             run.top_score = max((m.score for m in result.matches), default=0.0)
             run.report, run.queries = result.report, list(result.queries)
             run.errors, run.trace = list(result.errors), list(result.trace)
+            run.activity = self._take_activity(run_id)
             _record_qualifications(session, run_id, result)
             session.commit()
             self._bus.publish("run.finished", _summary(run))
@@ -127,6 +151,7 @@ class RunManager:
         with self._sessions() as session:
             run = session.get(Run, run_id)
             run.status, run.finished_at, run.errors = "failed", utcnow(), [f"{type(exc).__name__}: {exc}"]
+            run.activity = self._take_activity(run_id)
             session.commit()
             self._bus.publish("run.finished", _summary(run))
 

@@ -80,6 +80,15 @@ def get_run(run_id: str, session: SessionDep, _: UserDep) -> RunDetail:
     return RunDetail.model_validate(run)
 
 
+@router.get("/runs/{run_id}/activity")
+def run_activity(run_id: str, platform: PlatformDep, _: UserDep) -> list[dict]:
+    """Structured activity for the cockpit: live while the run is going, stored once it has finished."""
+    activity = platform.runs.activity(run_id)
+    if activity is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    return activity
+
+
 @router.post("/runs/{run_id}/cancel")
 def cancel_run(run_id: str, platform: PlatformDep, session: SessionDep, user: UserDep) -> dict:
     if not platform.runs.cancel(run_id):
