@@ -138,7 +138,9 @@ class RunManager:
             sites = list(session.scalars(select(Connector).where(Connector.enabled.is_(True))))
         sources: dict[str, Source] = {n: s for n, s in self._service.deps.sources.items() if n not in off}
         for site in sites:
-            sources[site.name] = WebsiteSource(self._service.web_client, site.name, site.url, site.kind, site.feed_url)
+            sources[site.name] = WebsiteSource(
+                self._service.web_client, site.name, site.url, site.kind, site.feed_url, lead_kind=site.lead_kind,
+            )
         return sources
 
     def activity(self, run_id: str) -> list[dict] | None:

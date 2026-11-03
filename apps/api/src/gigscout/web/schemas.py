@@ -177,6 +177,7 @@ class SourceHealth(BaseModel):
     url: str | None = None
     kind: Literal["feed", "page"] | None = None
     status: Literal["ok", "blocked", "error"] | None = None
+    lead_kind: str | None = None
 
 
 class ProfileSuggestRequest(BaseModel):
@@ -218,6 +219,17 @@ class DigestConfigOut(BaseModel):
 class ConnectorCreate(BaseModel):
     name: str = Field(min_length=2, max_length=60)
     url: str = Field(min_length=8, max_length=500)
+    lead_kind: Literal["project", "contract", "hiring"] = "project"
+
+
+class LibraryEntryOut(BaseModel):
+    name: str
+    url: str
+    description: str
+    region: str
+    lead_kind: str
+    company_types: list[str]
+    added: bool  # already connected
 
 
 class SourceEnabled(BaseModel):

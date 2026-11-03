@@ -10,6 +10,7 @@ import hashlib
 import ipaddress
 import re
 import socket
+import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -17,14 +18,16 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpcore
 import httpx
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, XMLParsedAsHTMLWarning
 
 from gigscout.http import PoliteClient
-from gigscout.models import Lead
+from gigscout.models import Lead, LeadKind
 from gigscout.sources.rss import RssSource, parse_feed
 from gigscout.text import html_to_text, matches_any_query
 
 Resolver = Callable[[str], list[str]]
+# Pages that turn out to be XML without feed entries are still searched for links; that is intended.
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 SiteKind = Literal["feed", "page"]
 
 MAX_REDIRECTS = 5
@@ -145,11 +148,11 @@ def _feed_relevance(page: str, feed: str) -> int:
 
 
 class WebsiteSource:
-    """A configured website. Leads are 'project' kind: someone is asking for work to be done."""
+    """A configured website. lead_kind says what its listings are (project, contract, or hiring)."""
 
     def __init__(
         self, client: PoliteClient, name: str, url: str, kind: SiteKind, feed_url: str | None = None,
-        resolve: Resolver = default_resolve,
+        resolve: Resolver = default_resolve, lead_kind: LeadKind = "project",
     ) -> None:
         self._client = client
         self.name = name
@@ -157,7 +160,8 @@ class WebsiteSource:
         self.kind = kind
         self._feed_url = feed_url or url
         self._resolve = resolve
-        self._rss = RssSource(client, name, [self._feed_url], kind="project")
+        self.lead_kind = lead_kind
+        self._rss = RssSource(client, name, [self._feed_url], kind=lead_kind)
 
     def fetch(self, queries: Sequence[str], limit: int) -> list[Lead]:
         leads = self._from_feed() if self.kind == "feed" else self._from_page()
@@ -185,7 +189,7 @@ class WebsiteSource:
             seen.add(href)
             leads.append(Lead(
                 id=f"{self.name}:{hashlib.sha1(href.encode()).hexdigest()[:16]}",
-                source=self.name, title=title, description=_context(anchor, title), url=href, kind="project",
+                source=self.name, title=title, description=_context(anchor, title), url=href, kind=self.lead_kind,
             ))
         return leads
 

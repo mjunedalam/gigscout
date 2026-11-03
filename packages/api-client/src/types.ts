@@ -316,6 +316,22 @@ export interface SourceHealth {
   kind: "feed" | "page" | null;
   /** blocked = its robots.txt no longer allows automated access. */
   status: "ok" | "blocked" | "error" | null;
+  /** What its listings are: someone wanting work done, a contract, or a company hiring. */
+  lead_kind: ConnectorLeadKind | null;
+}
+
+export type ConnectorLeadKind = "project" | "contract" | "hiring";
+
+/** A checked public website from the source library, suggested per company type. */
+export interface LibrarySource {
+  name: string;
+  url: string;
+  description: string;
+  region: string;
+  lead_kind: ConnectorLeadKind;
+  company_types: string[];
+  /** Already connected. */
+  added: boolean;
 }
 
 export interface SourceTestResult {

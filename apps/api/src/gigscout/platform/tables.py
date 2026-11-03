@@ -124,6 +124,7 @@ class Connector(Base):
     label: Mapped[str] = mapped_column(String(120), default="")
     url: Mapped[str] = mapped_column(String(500))
     kind: Mapped[str] = mapped_column(String(8))  # feed | page
+    lead_kind: Mapped[str] = mapped_column(String(16), default="project")  # what its listings are: project | hiring…
     feed_url: Mapped[str | None] = mapped_column(String(500), default=None)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | blocked | error

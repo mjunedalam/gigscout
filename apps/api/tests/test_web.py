@@ -275,7 +275,7 @@ def test_a_website_that_blocks_us_during_a_run_is_flagged_and_announced(web, mon
     from gigscout.platform.tables import Connector
 
     class BlockingSite:
-        def __init__(self, client, name, url, kind, feed_url=None):
+        def __init__(self, client, name, url, kind, feed_url=None, lead_kind="project"):
             self.name = name
 
         def fetch(self, queries, limit):

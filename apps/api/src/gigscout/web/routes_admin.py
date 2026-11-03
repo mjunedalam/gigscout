@@ -15,6 +15,7 @@ from gigscout.http import DisallowedByRobots
 from gigscout.inbound import google_ads
 from gigscout.platform.security import WeakPasswordError, hash_password
 from gigscout.platform.tables import AuditLog, AuthToken, Connector, Run, SourceToggle, User, utcnow
+from gigscout.source_library import LIBRARY, for_company_type
 from gigscout.sources.website import UnsafeUrl, WebsiteSource, probe, slugify
 from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, audit
 from gigscout.web.schemas import (
@@ -22,6 +23,7 @@ from gigscout.web.schemas import (
     ConnectorCreate,
     DigestConfigIn,
     DigestConfigOut,
+    LibraryEntryOut,
     SourceEnabled,
     SourceHealth,
     SourceTestResult,
@@ -174,13 +176,25 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
         SourceHealth(
             name=c.name, channel="pull", enabled=c.enabled, recent_failures=failures[c.name],
             last_error=c.last_error or last_error.get(c.name), custom=True, id=c.id, label=c.label or c.name,
-            url=c.url, kind=c.kind, status=c.status,
+            url=c.url, kind=c.kind, status=c.status, lead_kind=c.lead_kind,
         )
         for c in session.scalars(select(Connector).order_by(Connector.created_at))
     ]
     pushed = SourceHealth(name=google_ads.SOURCE_NAME, channel="push", enabled=platform.service.inbound_enabled,
                           recent_failures=0)
     return [*pulled, *sites, pushed]
+
+
+@router.get("/connectors/library")
+def connector_library(session: SessionDep, _: AdminDep, company_type: str | None = None) -> list[LibraryEntryOut]:
+    """Checked public websites worth searching, for a company type (or all of them)."""
+    connected = {url.rstrip("/") for url in session.scalars(select(Connector.url))}
+    entries = for_company_type(company_type) if company_type else list(LIBRARY)
+    return [
+        LibraryEntryOut(name=e.name, url=e.url, description=e.description, region=e.region, lead_kind=e.lead_kind,
+                        company_types=sorted(e.company_types), added=e.url.rstrip("/") in connected)
+        for e in entries
+    ]
 
 
 @router.post("/connectors", status_code=status.HTTP_201_CREATED)
@@ -203,13 +217,13 @@ def add_connector(body: ConnectorCreate, platform: PlatformDep, session: Session
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, reason) from exc
     url = site.url or body.url.strip()
     connector = Connector(name=name, label=body.name.strip(), url=url, kind=site.kind, feed_url=site.feed_url,
-                          created_by=admin.email, checked_at=utcnow())
+                          lead_kind=body.lead_kind, created_by=admin.email, checked_at=utcnow())
     session.add(connector)
     audit(session, admin, "connector.add", name, url=url, kind=site.kind)
     session.commit()
     platform.bus.publish("source.added", {"name": name, "url": url, "kind": site.kind})
     return SourceHealth(name=name, channel="pull", enabled=True, recent_failures=0, custom=True, id=connector.id,
-                        label=connector.label, url=url, kind=site.kind, status="ok")
+                        label=connector.label, url=url, kind=site.kind, status="ok", lead_kind=body.lead_kind)
 
 
 @router.delete("/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -246,6 +260,7 @@ def test_source(name: str, platform: PlatformDep, session: SessionDep, admin: Ad
     if connector is not None:
         source = WebsiteSource(
             platform.service.web_client, connector.name, connector.url, connector.kind, connector.feed_url,
+            lead_kind=connector.lead_kind,
         )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown pull source")

@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { SourceLibrary } from "../../components/admin/SourceLibrary";
 import { PageHeader } from "../../components/layout-bits";
 import { api, messageOf } from "../../lib/api";
 
@@ -33,6 +34,7 @@ export default function AdminSourcesPage() {
       <PageHeader eyebrow="Admin" title="Connectors"
         description="Websites the agents search for leads. Add any site by name and URL, and plug sources in or out; changes apply from the next run." />
       <AddWebsite />
+      <SourceLibrary />
       {sources.isError && <Alert color="red">{messageOf(sources.error)}</Alert>}
       {sources.isPending && <Skeleton h={260} radius="lg" />}
       <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} spacing="md" className="gs-stagger" mt="lg">
@@ -94,7 +96,10 @@ function SourceCard({ source: s, result, testing, onTest }: {
   source: SourceHealth; result?: SourceTestResult; testing: boolean; onTest: () => void;
 }) {
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: SOURCES_KEY });
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: SOURCES_KEY }),
+    queryClient.invalidateQueries({ queryKey: ["admin", "library"] }), // its "added" marks
+  ]);
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => api.admin.setSourceEnabled(s.name, enabled),
     onSuccess: refresh,
@@ -120,7 +125,7 @@ function SourceCard({ source: s, result, testing, onTest }: {
   const icon = s.channel === "push" ? <IconMailbox size={18} /> : s.kind === "feed" ? <IconRss size={18} />
     : s.custom ? <IconWorldWww size={18} /> : <IconCloudDownload size={18} />;
   const subtitle = s.channel === "push" ? "pushes via webhook"
-    : s.custom ? (s.kind === "feed" ? "your website · reads its feed" : "your website · reads the page") : "built-in source";
+    : s.custom ? `your website · reads ${s.kind === "feed" ? "its feed" : "the page"} · ${s.lead_kind ?? "project"} leads` : "built-in source";
 
   return (
     <Box className="gs-panel gs-lift" p="lg" style={{ opacity: s.enabled ? 1 : 0.7 }}>
