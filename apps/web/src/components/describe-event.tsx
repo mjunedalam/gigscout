@@ -25,9 +25,11 @@ export function describeEvent(event: LiveEvent): Described {
     case "run.started":
       return { icon: <IconPlayerPlay size={14} />, color: "blue", text: `Agents started scouting for ${d.profile_name}` };
     case "run.finished":
-      return d.status === "succeeded"
-        ? { icon: <IconCircleCheck size={14} />, color: "signal", text: `Run done: ${d.new_count} new, ${d.match_count} qualified` }
-        : { icon: <IconCircleX size={14} />, color: "red", text: `Run failed for ${d.profile_name}` };
+      if (d.status === "succeeded") return { icon: <IconCircleCheck size={14} />, color: "signal", text: `Run done: ${d.new_count} new, ${d.match_count} qualified` };
+      if (d.status === "cancelled") return { icon: <IconCircleX size={14} />, color: "gray", text: `Run stopped for ${d.profile_name}` };
+      return { icon: <IconCircleX size={14} />, color: "red", text: `Run failed for ${d.profile_name}` };
+    case "run.stopping":
+      return { icon: <IconCircleX size={14} />, color: "gray", text: "Stopping the run at the agents' next step" };
     case "run.cancelled":
       return { icon: <IconCircleX size={14} />, color: "gray", text: "Queued run cancelled" };
     case "lead.inbound":

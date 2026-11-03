@@ -1,10 +1,13 @@
 import { Alert, Button, Center, Loader, SegmentedControl, Stack, Text, useComputedColorScheme } from "@mantine/core";
-import { IconPlayerPlay } from "@tabler/icons-react";
-import { lazy, Suspense, useState } from "react";
+import { notifications } from "@mantine/notifications";
+import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { useMutation } from "@tanstack/react-query";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { AgentCards, CockpitCharts, KpiStrip, LiveFeed } from "../components/cockpit/CockpitPanels";
 import { useCockpit } from "../components/cockpit/useCockpit";
 import { StartRunButton } from "../components/StartRunButton";
+import { api, messageOf } from "../lib/api";
 import "../components/cockpit/cockpit.css";
 
 const ProductionLine = lazy(() => import("@gigscout/viz/factory"));
@@ -19,6 +22,14 @@ export default function CockpitPage() {
   const { run, mode, model, error, replay } = useCockpit();
   const [camera, setCamera] = useState<"follow" | "overview">("follow");
   const dark = useComputedColorScheme("dark") === "dark";
+  const active = run?.status === "running" || run?.status === "queued";
+  const stop = useMutation({
+    mutationFn: (id: string) => api.runs.cancel(id),
+    onError: (e) => notifications.show({ color: "red", title: "Could not stop the run", message: messageOf(e) }),
+  });
+  const { reset: resetStop } = stop;
+  useEffect(() => resetStop(), [run?.id, resetStop]);
+  const stopping = stop.isPending || (stop.isSuccess && active);
 
   if (mode === "idle") {
     return (
@@ -26,7 +37,7 @@ export default function CockpitPage() {
         <Stack align="center" gap="sm">
           <Text fw={600} size="lg">No runs yet</Text>
           <Text c="var(--gs-text-muted)" size="sm">Start a run to watch your agents build the line and qualify leads live.</Text>
-          <StartRunButton />
+          <StartRunButton openRun={false} />
         </Stack>
       </Center>
     );
@@ -35,10 +46,19 @@ export default function CockpitPage() {
   const controls = (
     <>
       <Text size="xs" fw={700} c={mode === "live" ? "signal" : "var(--gs-text-muted)"}>
-        {mode === "live" ? "● " : ""}{MODE_LABEL[mode]}{run ? ` · ${run.mode ?? run.mode_requested}` : ""}
+        {mode === "live" ? "● " : ""}{run?.status === "cancelled" && mode === "replay" ? "Stopped" : MODE_LABEL[mode]}
+        {run ? ` · ${run.mode ?? run.mode_requested}` : ""}
       </Text>
+      {active ? (
+        <Button size="compact-xs" color="red" variant="light" leftSection={<IconPlayerStop size={12} />}
+          loading={stop.isPending} disabled={stopping} onClick={() => run && stop.mutate(run.id)}>
+          {stopping ? "Stopping…" : "Stop run"}
+        </Button>
+      ) : (
+        <StartRunButton size="xs" openRun={false} />
+      )}
       {mode === "replay" && (
-        <Button size="compact-xs" variant="light" leftSection={<IconPlayerPlay size={12} />} onClick={replay}>Replay</Button>
+        <Button size="compact-xs" variant="subtle" leftSection={<IconPlayerPlay size={12} />} onClick={replay}>Replay</Button>
       )}
     </>
   );

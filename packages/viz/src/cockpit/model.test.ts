@@ -61,6 +61,12 @@ describe("cockpit model", () => {
     expect(stageState(m, "report")).toBe("done");
   });
 
+  it("leaves unreviewed leads waiting when the run was stopped, not dropped", () => {
+    const m = finishCockpit(run({ kind: "found", t: 1, source: "remotive", leads: [lead("x", 900, "remotive")] }), 3, false);
+    expect(m.finished).toBe(true);
+    expect(pileCounts(m)).toMatchObject({ waiting: 1, dropped: 0 });
+  });
+
   it("counts each agent's actions and keeps a newest-first feed", () => {
     const m = run(
       { kind: "act", t: 0, agent: "prospector", what: "searched freelancer" },

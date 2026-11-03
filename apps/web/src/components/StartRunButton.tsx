@@ -16,11 +16,13 @@ const MODES: { value: RunMode; label: string; description: string }[] = [
 ];
 
 interface StartRunButtonProps {
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
+  /** Open the run's page once it starts (default). Pages that already show the live run turn this off. */
+  openRun?: boolean;
 }
 
-/** Launch the agents for an agency profile, then jump to the live run. */
-export function StartRunButton({ size = "md" }: StartRunButtonProps) {
+/** Launch the agents for an agency profile, then (by default) jump to the live run. */
+export function StartRunButton({ size = "md", openRun = true }: StartRunButtonProps) {
   const [opened, { open, close }] = useDisclosure();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -35,7 +37,7 @@ export function StartRunButton({ size = "md" }: StartRunButtonProps) {
       close();
       void queryClient.invalidateQueries({ queryKey: ["runs"] });
       notifications.show({ color: "signal", title: "Agents dispatched", message: `Scouting for ${run.profile_name}` });
-      navigate(`/runs/${run.id}`);
+      if (openRun) navigate(`/runs/${run.id}`);
     },
     onError: (error) => notifications.show({ color: "red", title: "Could not start the run", message: messageOf(error) }),
   });

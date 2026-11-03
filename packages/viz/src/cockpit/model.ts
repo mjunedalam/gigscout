@@ -94,10 +94,13 @@ export function applyActivity(m: CockpitModel, e: RunActivity): CockpitModel {
   }
 }
 
-/** The run ended: leads nobody reviewed were not close enough to the agency profile to be looked at. */
-export function finishCockpit(m: CockpitModel, t: number): CockpitModel {
+/**
+ * The run ended. If it completed, leads nobody reviewed were not close enough to the agency profile to be looked
+ * at; if it was stopped, they simply stay waiting.
+ */
+export function finishCockpit(m: CockpitModel, t: number, completed = true): CockpitModel {
   let next: CockpitModel = { ...m, finished: true, stage: null, t: Math.max(m.t, t) };
-  for (const id of m.order) {
+  for (const id of completed ? m.order : []) {
     const lead = next.leads[id]!;
     if (!lead.reviewed) next = reviewed(next, lead, null, false, NOT_A_MATCH, t, false);
   }

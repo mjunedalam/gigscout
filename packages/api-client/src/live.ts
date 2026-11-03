@@ -8,6 +8,7 @@ export const LIVE_EVENT_TYPES = [
   "run.activity",
   "run.finished",
   "run.cancelled",
+  "run.stopping",
   "schedule.skipped",
   "lead.updated",
   "lead.inbound",

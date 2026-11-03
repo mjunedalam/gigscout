@@ -133,7 +133,9 @@ function invalidateFor(event: LiveEvent, queryClient: QueryClientLike) {
 
 function announce(event: LiveEvent) {
   const data = event.data as Record<string, unknown>;
-  if (event.type === "run.finished") {
+  if (event.type === "run.finished" && data.status === "cancelled") {
+    notifications.show({ color: "gray", title: "Run stopped", message: String(data.profile_name) });
+  } else if (event.type === "run.finished") {
     const ok = data.status === "succeeded";
     notifications.show({
       color: ok ? "signal" : "red",

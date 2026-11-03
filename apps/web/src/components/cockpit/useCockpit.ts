@@ -38,6 +38,7 @@ export function useCockpit(): Cockpit {
   const run = pickRun(runs.data ?? [], shownId.current);
   const runId = run?.id ?? null;
   const active = run ? ACTIVE.has(run.status) : false;
+  const completed = run?.status !== "cancelled"; // a stopped run leaves its unreviewed leads waiting
 
   // live: fold what happened so far, then apply streamed events (buffered while the backlog loads)
   useEffect(() => {
@@ -73,10 +74,10 @@ export function useCockpit(): Cockpit {
   // the live run just finished: close it off in place rather than restarting as a replay
   useEffect(() => {
     if (run && !active && shownId.current === run.id && mode === "live") {
-      setModel((m) => finishCockpit(m, m.t));
+      setModel((m) => finishCockpit(m, m.t, completed));
       setMode("replay");
     }
-  }, [run, active, mode]);
+  }, [run, active, mode, completed]);
 
   // replay: play the stored activity back on a compressed clock
   useEffect(() => {
@@ -102,7 +103,7 @@ export function useCockpit(): Cockpit {
           if (due.length) setModel((m) => due.reduce(applyActivity, m));
           if (next >= events.length) {
             clearInterval(timer);
-            setModel((m) => finishCockpit(m, duration));
+            setModel((m) => finishCockpit(m, duration, completed));
           }
         }, REPLAY_TICK_MS);
       },
@@ -112,7 +113,7 @@ export function useCockpit(): Cockpit {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [runId, active, replayToken]);
+  }, [runId, active, replayToken, completed]);
 
   const replay = useCallback(() => setReplayToken((n) => n + 1), []);
   return { run, mode: run ? mode : runs.isPending ? "loading" : "idle", model, error, replay };
