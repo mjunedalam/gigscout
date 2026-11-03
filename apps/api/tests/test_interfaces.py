@@ -59,7 +59,8 @@ def test_rag_stream_reports_a_failing_model_as_an_error_event(index, sample_lead
     index.add_new(sample_leads)
     events = list(ask_stream("python", index, Broken()))
 
-    assert events[-1] == {"type": "error", "message": "The model stopped answering: model went away"}
+    assert events[-1] == {"type": "error", "message": "The model stopped answering. Try again in a moment."}
+    assert "model went away" not in str(events)  # internal details stay in the server log
 
 
 def test_load_profile_validates(tmp_path):

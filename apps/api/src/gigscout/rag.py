@@ -1,5 +1,6 @@
 """Retrieval-Augmented Generation over the leads the agent has collected ("open-book exam")."""
 
+import logging
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -9,6 +10,8 @@ from gigscout.agent.nodes import budget_label, client_label
 from gigscout.agent.reasoner import Reasoner
 from gigscout.models import Candidate
 from gigscout.store.vector_store import LeadIndex
+
+log = logging.getLogger(__name__)
 
 SNIPPET_CHARS = 600
 
@@ -31,6 +34,7 @@ def build_context(candidates: list[Candidate]) -> str:
 NO_LEADS = "No leads indexed yet — run `gigscout scout` first."
 NO_LLM = "No LLM available; here are the most relevant leads."
 FALLBACK_CHUNK = 3  # words per chunk when there is no model to stream from
+STREAM_FAILED = "The model stopped answering. Try again in a moment."
 
 
 def ask_stream(question: str, index: LeadIndex, reasoner: Reasoner | None, k: int = 8) -> Iterator[dict[str, Any]]:
@@ -52,8 +56,9 @@ def ask_stream(question: str, index: LeadIndex, reasoner: Reasoner | None, k: in
             for chunk in reasoner.answer_stream(question, build_context(candidates)):
                 if chunk:
                     yield {"type": "token", "text": chunk}
-        except Exception as exc:  # keep what was streamed; tell the client why it stopped
-            yield {"type": "error", "message": f"The model stopped answering: {exc}"}
+        except Exception:  # keep what was streamed; details stay in the server log, not the browser
+            log.warning("Answer stream failed", exc_info=True)
+            yield {"type": "error", "message": STREAM_FAILED}
             return
     yield {"type": "done", "elapsed": round(time.monotonic() - started, 2)}
 
