@@ -1,0 +1,40 @@
+{
+  "name": "@gigscout/viz",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "GigScout data visualisation: d3 charts and the three.js lead galaxy, themed by CSS variables.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./galaxy": "./src/galaxy/LeadGalaxy.tsx"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@gigscout/api-client": "workspace:*",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "d3": "^7.9.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@gigscout/tsconfig": "workspace:*",
+    "@testing-library/react": "^16.3.3",
+    "@types/d3": "^7.4.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "jsdom": "^26.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  }
+}
