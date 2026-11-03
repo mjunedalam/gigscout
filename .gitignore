@@ -37,6 +37,9 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 
+# Design mockups from brainstorming sessions
+.superpowers/
+
 # Editors and OS (shared VS Code settings stay tracked)
 .idea/
 .DS_Store
