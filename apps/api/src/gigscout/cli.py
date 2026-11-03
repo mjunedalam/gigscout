@@ -13,6 +13,9 @@ from gigscout.config import get_settings
 from gigscout.profile_loader import ProfileError, load_profile
 from gigscout.service import Mode, ScoutService
 
+# Open live-event streams (an idle browser tab) never close on their own; without a limit a reload hangs.
+SHUTDOWN_GRACE_SECONDS = 3
+
 app = typer.Typer(
     help="GigScout — an AI lead scout that finds and qualifies client projects for software agencies.",
     no_args_is_help=True,
@@ -102,7 +105,10 @@ def serve(
     """Start the API for the web app (docs at /docs; Google Ads webhook at /webhooks/google-ads)."""
     import uvicorn
 
-    uvicorn.run("gigscout.api:app", host=host, port=port, reload=reload, reload_dirs=["src"] if reload else None)
+    uvicorn.run(
+        "gigscout.api:app", host=host, port=port, reload=reload, reload_dirs=["src"] if reload else None,
+        timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS,
+    )
 
 
 @app.command("create-admin")
