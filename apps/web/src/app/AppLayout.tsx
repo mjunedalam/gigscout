@@ -4,6 +4,7 @@ import {
   Avatar,
   Badge,
   Burger,
+  Divider,
   Group,
   Kbd,
   Menu,
@@ -16,7 +17,7 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useHotkeys, useLocalStorage, useMediaQuery } from "@mantine/hooks";
 import { Spotlight, type SpotlightActionData, spotlight } from "@mantine/spotlight";
 import {
   IconAdjustmentsHorizontal,
@@ -28,6 +29,8 @@ import {
   IconChartHistogram,
   IconClipboardList,
   IconHeartRateMonitor,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
   IconLogout,
   IconMessageQuestion,
   IconMoon,
@@ -73,8 +76,17 @@ const ADMIN: NavItem[] = [
   { to: "/admin/audit", label: "Audit log", icon: <IconClipboardList size={18} />, description: "Who changed what" },
 ];
 
+const NAV_WIDTH = 248;
+const NAV_RAIL_WIDTH = 72;
+
 export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
+  // desktop only: the sidebar can fold to an icon rail (remembered); the mobile drawer always shows labels
+  const [navCollapsed, setNavCollapsed] = useLocalStorage({ key: "gs-nav-collapsed", defaultValue: false });
+  const isDesktop = useMediaQuery("(min-width: 62em)") ?? false;
+  const rail = navCollapsed && isDesktop;
+  const toggleRail = () => setNavCollapsed((c) => !c);
+  useHotkeys([["mod+B", toggleRail]]);
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -98,7 +110,7 @@ export function AppLayout() {
   return (
     <AppShell
       header={{ height: 60 }}
-      navbar={{ width: 248, breakpoint: "md", collapsed: { mobile: !opened } }}
+      navbar={{ width: rail ? NAV_RAIL_WIDTH : NAV_WIDTH, breakpoint: "md", collapsed: { mobile: !opened } }}
       padding={{ base: "md", md: "xl" }}
       styles={{
         main: { background: "transparent" },
@@ -157,33 +169,57 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="sm">
-        <ScrollArea type="never">
+      <AppShell.Navbar p="sm" style={{ transition: "width var(--gs-normal) var(--gs-ease)" }}>
+        <AppShell.Section grow component={ScrollArea} type="never">
           <Stack gap="lg" py="xs">
             {sections.map(([title, items]) => (
               <Stack key={title} gap={2}>
-                <Text className="gs-eyebrow" px="sm" pb={4}>
-                  {title}
-                </Text>
+                {rail ? <Divider mx="xs" mb={4} /> : (
+                  <Text className="gs-eyebrow" px="sm" pb={4}>
+                    {title}
+                  </Text>
+                )}
                 {items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    component={RouterLink}
-                    to={item.to}
-                    end={item.to === "/" || item.to === "/admin"}
-                    label={item.label}
-                    leftSection={item.icon}
-                    onClick={close}
-                    active={item.to === "/" || item.to === "/admin" ? location.pathname === item.to : location.pathname.startsWith(item.to)}
-                    styles={{ root: { borderRadius: 10 }, label: { fontWeight: 500 } }}
-                    color="signal"
-                    variant="light"
-                  />
+                  <Tooltip key={item.to} label={item.label} position="right" withArrow disabled={!rail}>
+                    <NavLink
+                      component={RouterLink}
+                      to={item.to}
+                      end={item.to === "/" || item.to === "/admin"}
+                      label={rail ? undefined : item.label}
+                      aria-label={item.label}
+                      leftSection={item.icon}
+                      onClick={close}
+                      active={item.to === "/" || item.to === "/admin" ? location.pathname === item.to : location.pathname.startsWith(item.to)}
+                      styles={{
+                        root: { borderRadius: 10, justifyContent: rail ? "center" : undefined },
+                        section: rail ? { marginInlineEnd: 0 } : undefined,
+                        label: { fontWeight: 500 },
+                      }}
+                      color="signal"
+                      variant="light"
+                    />
+                  </Tooltip>
                 ))}
               </Stack>
             ))}
           </Stack>
-        </ScrollArea>
+        </AppShell.Section>
+        <AppShell.Section visibleFrom="md" pt="xs" style={{ borderTop: "1px solid var(--gs-line)" }}>
+          <Tooltip label={rail ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"} position="right" withArrow>
+            <NavLink
+              component="button"
+              onClick={toggleRail}
+              aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!rail}
+              label={rail ? undefined : "Collapse"}
+              leftSection={rail ? <IconLayoutSidebarLeftExpand size={18} /> : <IconLayoutSidebarLeftCollapse size={18} />}
+              styles={{
+                root: { borderRadius: 10, justifyContent: rail ? "center" : undefined, color: "var(--gs-text-muted)" },
+                section: rail ? { marginInlineEnd: 0 } : undefined,
+              }}
+            />
+          </Tooltip>
+        </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main>
