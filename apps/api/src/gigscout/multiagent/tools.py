@@ -40,6 +40,8 @@ def build_scout_tools(ctx: RunContext) -> list[BaseTool]:
             ctx.errors.append(f"{source}: {exc}")
             return f"ERROR: {source} failed ({exc}). Try another source."
         fresh = ctx.deps.index.add_new(leads)
+        ctx.activity.act("prospector", f"searched {source}")
+        ctx.activity.found(source, leads)
         ctx.fetched_ids.update(lead.id for lead in leads)
         ctx.new_count += len(fresh)
         titles = "; ".join(lead.title for lead in leads[:SAMPLE_TITLES]) or "none"
@@ -65,6 +67,7 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
             sources=with_inbound(profile.sources), kinds=profile.kinds,
         )
         kept = [c for c in results if not is_excluded(profile, c.lead)]
+        ctx.activity.act("qualifier", f"searched memory for '{query}'")
         if not kept:
             return "No matching leads in memory. Ask for more prospecting."
         ctx.seen.update({c.lead.id: c for c in kept})
@@ -97,6 +100,8 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
             return f"Shortlist is full ({settings.shortlist_size}). Finish your analysis."
         score = min(max(fit_score, 0.0), 1.0)
         ctx.shortlist[lead_id] = blend_with_llm(heuristic_score(profile, candidate), score, reason, red_flags, pitch)
+        ctx.activity.act("qualifier", f"qualified \"{ctx.shortlist[lead_id].lead.title[:60]}\"")
+        ctx.activity.reviewed(ctx.shortlist[lead_id], qualified=True)
         return f"Qualified {lead_id} ({len(ctx.shortlist)}/{settings.shortlist_size})."
 
     return [find_leads, read_lead, qualify_lead, _view_shortlist_tool(ctx)]
@@ -109,6 +114,7 @@ def build_writer_tools(ctx: RunContext) -> list[BaseTool]:
         if not markdown.strip():
             return "ERROR: report is empty."
         ctx.report = markdown.strip()
+        ctx.activity.act("writer", "submitted the briefing")
         return "Report saved."
 
     read_lead = next(t for t in build_analyst_tools(ctx) if t.name == "read_lead")

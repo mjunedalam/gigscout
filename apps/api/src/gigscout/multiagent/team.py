@@ -23,8 +23,10 @@ from langgraph.errors import GraphRecursionError
 from gigscout.multiagent import prompts
 from gigscout.multiagent.context import RunContext
 from gigscout.multiagent.tools import build_analyst_tools, build_scout_tools, build_writer_tools
+from gigscout.scoring import heuristic_score
 
 SUMMARY_CHARS = 1500
+ROLE_STAGE = {"scout": "search", "analyst": "qualify", "writer": "write"}
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ def build_team(ctx: RunContext, models: TeamModels):
 def _delegation_tools(ctx: RunContext, workers: dict) -> list[BaseTool]:
     def delegate(role: str, task: str) -> str:
         ctx.log(f"supervisor → {role}: {task}")
+        ctx.activity.act("head", f"briefed {role}")
+        ctx.activity.stage(ROLE_STAGE[role])
         brief = f"{task}\n\nAgency:\n{ctx.profile.as_query()}\n\nShared state: {ctx.progress()}"
         try:
             result = workers[role].invoke(
@@ -74,6 +78,7 @@ def _delegation_tools(ctx: RunContext, workers: dict) -> list[BaseTool]:
             summary = f"{role} failed: {exc}"
             ctx.errors.append(summary)
         ctx.log(f"{role} → supervisor: {summary}")
+        _report_outcome(ctx, role)
         return f"{summary}\n\nShared state now: {ctx.progress()}"
 
     @tool
@@ -97,6 +102,16 @@ def _delegation_tools(ctx: RunContext, workers: dict) -> list[BaseTool]:
         return ctx.progress()
 
     return [delegate_to_scout, delegate_to_analyst, delegate_to_writer, check_progress]
+
+
+def _report_outcome(ctx: RunContext, role: str) -> None:
+    """Close the loop for the cockpit: leads the analyst looked at but did not shortlist were dropped."""
+    if role == "analyst":
+        for lead_id, candidate in ctx.seen.items():
+            if lead_id not in ctx.shortlist and not ctx.activity.was_reviewed(lead_id):
+                ctx.activity.reviewed(heuristic_score(ctx.profile, candidate), qualified=False)
+    if role == "writer":
+        ctx.activity.pitched(ctx.ranked_shortlist())
 
 
 def message_text(message: BaseMessage) -> str:

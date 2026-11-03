@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from langchain_core.language_models import BaseChatModel
 from langgraph.types import Send
 
+from gigscout.activity import Activity
 from gigscout.agent.reasoner import Reasoner
 from gigscout.agent.state import FetchTask, ScoutState
 from gigscout.config import Settings
@@ -31,11 +32,13 @@ class ScoutDeps:
 
 
 class ScoutNodes:
-    def __init__(self, deps: ScoutDeps) -> None:
+    def __init__(self, deps: ScoutDeps, activity: Activity | None = None) -> None:
         self.deps = deps
+        self.activity = activity or Activity()
 
     def plan_queries(self, state: ScoutState) -> dict:
         """Turn the agency profile into source search queries; on later iterations, broaden them."""
+        self.activity.stage("plan")
         profile, previous = state["profile"], state.get("queries", [])
         proposed = [] if previous else _base_queries(profile)
         errors: list[str] = []
@@ -48,6 +51,7 @@ class ScoutNodes:
         if previous and not self.deps.reasoner:
             proposed += [s.lower() for s in (*profile.services, *profile.skills)]
         pending = [q for q in _dedupe(proposed) if q not in previous]
+        self.activity.act("head", f"planned {len(pending)} searches")
         return {
             "queries": [*previous, *pending],
             "pending_queries": pending,
@@ -66,9 +70,12 @@ class ScoutNodes:
 
     def fetch_source(self, task: FetchTask) -> dict:
         """Call one source. Failures are recorded, never fatal: one broken source must not sink the run."""
+        self.activity.stage("search")
         try:
             leads = self.deps.sources[task["source"]].fetch(task["queries"], self.deps.settings.per_query_limit)
             log.info("%s returned %d leads", task["source"], len(leads))
+            self.activity.act("prospector", f"searched {task['source']}")
+            self.activity.found(task["source"], leads)
             return {"raw_leads": leads}
         except Exception as exc:
             log.warning("Source %s failed: %s", task["source"], exc)
@@ -82,6 +89,7 @@ class ScoutNodes:
 
     def retrieve(self, state: ScoutState) -> dict:
         """RAG retrieval: find the stored leads closest in meaning to what the agency sells."""
+        self.activity.stage("qualify")
         profile, settings = state["profile"], self.deps.settings
         candidates = self.deps.index.search(
             profile.as_query(),
@@ -102,6 +110,10 @@ class ScoutNodes:
             limit = self.deps.settings.llm_grade_limit
             scored = [self._llm_qualify(profile, s, errors) for s in scored[:limit]] + scored[limit:]
             scored.sort(key=lambda s: s.score, reverse=True)
+        threshold = self.deps.settings.good_match_threshold
+        for s in scored:
+            self.activity.act("qualifier", f"reviewed \"{s.lead.title[:60]}\"")
+            self.activity.reviewed(s, qualified=s.score >= threshold)
         return {"scored": scored, "errors": errors}
 
     def should_broaden(self, state: ScoutState) -> str:
@@ -114,6 +126,11 @@ class ScoutNodes:
 
     def report(self, state: ScoutState) -> dict:
         """Render a markdown briefing of the best leads."""
+        self.activity.stage("write")
+        threshold = self.deps.settings.good_match_threshold
+        self.activity.pitched([s for s in state.get("scored", []) if s.score >= threshold])
+        self.activity.act("writer", "drafted outreach")
+        self.activity.stage("report")
         top = state.get("scored", [])[:REPORT_ROWS]
         table = render_table(top)
         summary = ""
@@ -122,6 +139,7 @@ class ScoutNodes:
                 summary = self.deps.reasoner.summarize(state["profile"], table) + "\n\n"
             except Exception as exc:
                 log.warning("Summary failed: %s", exc)
+        self.activity.act("head", "wrote the briefing")
         return {"report": report_header(state["profile"]) + summary + (table or NO_LEADS)}
 
     def _llm_qualify(self, profile: AgencyProfile, scored: ScoredLead, errors: list[str]) -> ScoredLead:

@@ -8,6 +8,7 @@ everything stored on it (Lead, Candidate, ScoredLead) is frozen.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from gigscout.activity import Activity
 from gigscout.agent.nodes import ScoutDeps
 from gigscout.models import AgencyProfile, Candidate, ScoredLead
 
@@ -25,6 +26,7 @@ class RunContext:
     errors: list[str] = field(default_factory=list)
     trace: list[str] = field(default_factory=list)
     on_step: Callable[[str], None] | None = None  # live progress listener (the UI's run console)
+    activity: Activity = field(default_factory=Activity)  # structured events for the live cockpit
 
     @property
     def searches_left(self) -> int:

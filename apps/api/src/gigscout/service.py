@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Literal
 
+from gigscout.activity import Activity, ActivityListener
 from gigscout.agent.graph import StepListener, run_scout
 from gigscout.agent.nodes import ScoutDeps
 from gigscout.agent.reasoner import OllamaReasoner, build_chat_model
@@ -46,14 +47,21 @@ class ScoutService:
             return "pipeline"
         return "team"
 
-    def scout(self, profile: AgencyProfile, mode: Mode = "auto", on_step: StepListener | None = None) -> ScoutResult:
+    def scout(
+        self,
+        profile: AgencyProfile,
+        mode: Mode = "auto",
+        on_step: StepListener | None = None,
+        on_activity: ActivityListener | None = None,
+    ) -> ScoutResult:
         resolved = self.resolve_mode(mode)
+        activity = Activity(on_activity, profile=profile, threshold=self.deps.settings.good_match_threshold)
         with tracked_run(self.deps.settings, profile, mode=resolved) as run:
             if resolved == "team":
                 models = self.team_models or TeamModels.uniform(self.deps.chat_model)
-                result = run_team(self.deps, profile, models, on_step=on_step)
+                result = run_team(self.deps, profile, models, on_step=on_step, activity=activity)
             else:
-                result = run_scout(self.deps, profile, on_step=on_step)
+                result = run_scout(self.deps, profile, on_step=on_step, activity=activity)
             run.log_result(result)
         return result
 

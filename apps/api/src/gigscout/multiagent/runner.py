@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from langgraph.errors import GraphRecursionError
 
+from gigscout.activity import Activity
 from gigscout.agent.nodes import NO_LEADS, REPORT_ROWS, ScoutDeps, render_table, report_header, with_inbound
 from gigscout.models import AgencyProfile, ScoutResult
 from gigscout.multiagent import prompts
@@ -16,9 +17,15 @@ log = logging.getLogger(__name__)
 
 
 def run_team(
-    deps: ScoutDeps, profile: AgencyProfile, models: TeamModels, on_step: Callable[[str], None] | None = None
+    deps: ScoutDeps,
+    profile: AgencyProfile,
+    models: TeamModels,
+    on_step: Callable[[str], None] | None = None,
+    activity: Activity | None = None,
 ) -> ScoutResult:
-    ctx = RunContext(deps=deps, profile=profile, on_step=on_step)
+    ctx = RunContext(deps=deps, profile=profile, on_step=on_step, activity=activity or Activity())
+    ctx.activity.stage("plan")
+    ctx.activity.act("head", "read the agency profile")
     supervisor = build_team(ctx, models)
     try:
         result = supervisor.invoke(
@@ -35,6 +42,11 @@ def run_team(
     _ensure_shortlist(ctx)
     _ensure_report(ctx)
     ranked = ctx.ranked_shortlist()
+    for scored in ranked:  # fallback shortlists never went through qualify_lead
+        ctx.activity.reviewed(scored, qualified=True)
+    ctx.activity.pitched(ranked)
+    ctx.activity.stage("report")
+    ctx.activity.act("head", "briefing ready")
     return ScoutResult(
         queries=tuple(f"{source}:{query}" for source, query in ctx.searches),
         iterations=sum(1 for entry in ctx.trace if entry.startswith("supervisor → ")),

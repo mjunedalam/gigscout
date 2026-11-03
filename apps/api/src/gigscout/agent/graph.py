@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from langgraph.graph import END, START, StateGraph
 
+from gigscout.activity import Activity
 from gigscout.agent.nodes import ScoutDeps, ScoutNodes
 from gigscout.agent.state import ScoutState
 from gigscout.models import AgencyProfile, ScoutResult
@@ -17,8 +18,8 @@ from gigscout.models import AgencyProfile, ScoutResult
 StepListener = Callable[[str], None]  # receives one human-readable progress line per step
 
 
-def build_graph(deps: ScoutDeps):
-    nodes = ScoutNodes(deps)
+def build_graph(deps: ScoutDeps, activity: Activity | None = None):
+    nodes = ScoutNodes(deps, activity)
     graph = StateGraph(ScoutState)
 
     graph.add_node("plan_queries", nodes.plan_queries)
@@ -38,10 +39,12 @@ def build_graph(deps: ScoutDeps):
     return graph.compile()
 
 
-def run_scout(deps: ScoutDeps, profile: AgencyProfile, on_step: StepListener | None = None) -> ScoutResult:
+def run_scout(
+    deps: ScoutDeps, profile: AgencyProfile, on_step: StepListener | None = None, activity: Activity | None = None
+) -> ScoutResult:
     final: dict = {}
     initial = {"profile": profile, "iteration": 0, "new_count": 0}
-    for mode, chunk in build_graph(deps).stream(initial, stream_mode=["updates", "values"]):
+    for mode, chunk in build_graph(deps, activity).stream(initial, stream_mode=["updates", "values"]):
         if mode == "values":
             final = chunk
         elif on_step is not None:

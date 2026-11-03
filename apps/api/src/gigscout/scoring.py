@@ -70,6 +70,21 @@ def blend_with_llm(scored: ScoredLead, llm_score: float, reasons: str, red_flags
     )
 
 
+def drop_reason(profile: AgencyProfile, scored: ScoredLead) -> str:
+    """The main reason a lead did not make the shortlist, as one short label for the cockpit."""
+    lead = scored.lead
+    if scored.red_flags:
+        return "red flags"
+    max_usd = lead.budget.max_usd if lead.budget else None
+    if profile.min_budget_usd and max_usd is not None and max_usd < profile.min_budget_usd:
+        return "budget too low"
+    if lead.bid_count is not None and lead.bid_count >= CROWDED_BIDS:
+        return "too many bids"
+    if profile.skills and skill_overlap(profile, lead) == 0:
+        return "off-stack"
+    return "low fit"
+
+
 def _reasons(profile: AgencyProfile, lead: Lead) -> str:
     matched = [s for s in profile.skills if contains_term(lead.document(), s)]
     parts = [f"Matches {', '.join(matched)}" if matched else "Semantically similar, no exact stack match"]
