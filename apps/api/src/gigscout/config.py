@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     rss_feeds: list[str] = Field(default_factory=list)
     rss_feeds_kind: LeadKind = "project"
 
+    # US federal tenders (SAM.gov): a free key from https://api.data.gov/signup. Unset = SAM.gov off.
+    # UK Contracts Finder, Find a Tender and EU TED need no key and are always available.
+    sam_gov_api_key: SecretStr | None = None
+
     # Email for the daily digest (any SMTP server: Gmail, Outlook, SES, Postmark...). Unset host = email off.
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)

@@ -10,6 +10,7 @@ from gigscout.sources.freelancer import FreelancerSource
 from gigscout.sources.remoteok import RemoteOkSource
 from gigscout.sources.remotive import RemotiveSource
 from gigscout.sources.rss import RssSource
+from gigscout.sources.tenders import ContractsFinderSource, FindTenderSource, SamGovSource, TedSource
 
 WWR_FEEDS = (
     "https://weworkremotely.com/categories/remote-programming-jobs.rss",
@@ -23,7 +24,12 @@ def build_sources(settings: Settings, client: PoliteClient) -> dict[str, Source]
         RemoteOkSource(client),
         RemotiveSource(client),
         RssSource(client, "weworkremotely", WWR_FEEDS, kind="hiring"),
+        ContractsFinderSource(client),
+        FindTenderSource(client),
+        TedSource(client),
     ]
+    if settings.sam_gov_api_key:
+        sources.append(SamGovSource(client, settings.sam_gov_api_key.get_secret_value()))
     if settings.rss_feeds:
         sources.append(RssSource(client, "rss", settings.rss_feeds, kind=settings.rss_feeds_kind))
     return {source.name: source for source in sources}

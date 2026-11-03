@@ -56,6 +56,9 @@ export function SourceLibrary() {
         <Select label="Company type" w={240} data={types} value={companyType} allowDeselect={false}
           onChange={setCompanyType} searchable />
       </Group>
+      <Text size="xs" c="var(--gs-text-muted)" mb="sm">
+        Public tenders are built in: UK Contracts Finder, Find a Tender and EU TED (US SAM.gov with a free key).
+      </Text>
       {library.isPending && <Skeleton h={120} radius="md" />}
       {library.data && (
         <Text size="xs" c="var(--gs-text-muted)" mb="sm">

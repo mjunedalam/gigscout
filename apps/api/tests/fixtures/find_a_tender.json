@@ -1,0 +1,229 @@
+{
+ "releases": [
+  {
+   "ocid": "ocds-h6vhtk-0796f1",
+   "id": "104375-2026",
+   "date": "2026-11-03T15:52:14Z",
+   "tag": [
+    "planning",
+    "tender"
+   ],
+   "initiationType": "tender",
+   "tender": {
+    "id": "ocds-h6vhtk-0796f1",
+    "legalBasis": {
+     "id": "32014L0024",
+     "scheme": "CELEX"
+    },
+    "title": "PME Opportunity for NDP Assessments",
+    "status": "active",
+    "classification": {
+     "scheme": "CPV",
+     "id": "85141000",
+     "description": "Services provided by medical personnel"
+    },
+    "mainProcurementCategory": "services",
+    "description": "PME opportunity for the outsourcing of ADHD and ASD Assessments.",
+    "value": {
+     "amount": 5000000.0,
+     "currency": "GBP"
+    },
+    "submissionMethod": [
+     "electronicSubmission",
+     "written"
+    ],
+    "submissionMethodDetails": "https://atamis-1928.my.site.com/s/Welcome",
+    "procurementMethod": "selective",
+    "procurementMethodDetails": "Restricted procedure",
+    "tenderPeriod": {
+     "endDate": "2026-11-16T17:00:00Z"
+    }
+   },
+   "parties": [
+    {
+     "name": "University Hospitals Birmingham NHS Foundation Trust",
+     "id": "GB-FTS-154",
+     "identifier": {
+      "legalName": "University Hospitals Birmingham NHS Foundation Trust"
+     },
+     "address": {
+      "streetAddress": "Mindelsohn Way",
+      "locality": "Birmingham",
+      "region": "UKG3",
+      "postalCode": "B15 2WB",
+      "countryName": "United Kingdom"
+     },
+     "contactPoint": {
+      "name": "Bethan Davies",
+      "email": "bethan.davies@uhb.nhs.uk",
+      "url": "https://atamis-1928.my.site.com/s/Welcome"
+     },
+     "roles": [
+      "buyer"
+     ],
+     "details": {
+      "url": "https://www.uhb.nhs.uk/",
+      "buyerProfile": "https://www.uhb.nhs.uk/",
+      "classifications": [
+       {
+        "scheme": "TED_CA_TYPE",
+        "id": "BODY_PUBLIC",
+        "description": "Body governed by public law"
+       },
+       {
+        "scheme": "COFOG",
+        "id": "07",
+        "description": "Health"
+       }
+      ]
+     }
+    },
+    {
+     "name": "Birmingham Community Healthcare NHS Foundation Trust",
+     "id": "GB-FTS-61084",
+     "identifier": {
+      "legalName": "Birmingham Community Healthcare NHS Foundation Trust"
+     },
+     "address": {
+      "streetAddress": "3 Priestley Wharf, Holt Street",
+      "locality": "Birmingham",
+      "postalCode": "B7 4BN",
+      "countryName": "United Kingdom"
+     },
+     "roles": [
+      "reviewBody"
+     ],
+     "details": {
+      "url": "https://www.bhamcommunity.nhs.uk/"
+     }
+    },
+    {
+     "name": "University Hospitals Birmingham NHS Foundation Trust",
+     "id": "GB-FTS-118686",
+     "identifier": {
+      "legalName": "University Hospitals Birmingham NHS Foundation Trust"
+     },
+     "address": {
+      "streetAddress": "Queen Elizabeth Hospital Birmingham, Mindelsohn Way, Edgbaston",
+      "locality": "Birmingham",
+      "postalCode": "B15 2GW",
+      "countryName": "United Kingdom"
+     },
+     "roles": [
+      "mediationBody"
+     ],
+     "details": {
+      "url": "https://www.uhb.nhs.uk/"
+     }
+    }
+   ],
+   "buyer": {
+    "id": "GB-FTS-154",
+    "name": "University Hospitals Birmingham NHS Foundation Trust"
+   },
+   "language": "en"
+  },
+  {
+   "ocid": "ocds-h6vhtk-0796e7",
+   "id": "104358-2026",
+   "date": "2026-11-03T15:40:11Z",
+   "tag": [
+    "tender"
+   ],
+   "description": "A Pre-Market Engagement Exercise was undertaken as part of this procurement process. Notices relating to the exercise were published on the Find a Tender Service (FTS) and in the Supplement to the Official Journal of the European Union (OJ S). Links to these notices are provided below. All information relating to the Pre-Market Engagement Exercise is included within the final suite of tender documents.\nhttps://www.find-tender.service.gov.uk/Notice/068147-2026\nhttps://ted.europa.eu/en/notice/-/detail/508408-2026",
+   "initiationType": "tender",
+   "tender": {
+    "id": "ocds-h6vhtk-0796e7",
+    "legalBasis": {
+     "id": "32014L0024",
+     "scheme": "CELEX"
+    },
+    "title": "CAWT PEACEPLUS EASY Project: Early Intervention Support for Children, Young People and Families presenting with Neurodevelopmental Needs (SHSCT Area)",
+    "status": "active",
+    "classification": {
+     "scheme": "CPV",
+     "id": "85000000",
+     "description": "Health and social work services"
+    },
+    "mainProcurementCategory": "services",
+    "description": "This is a project supported by PEACEPLUS, a programme managed by the Special EU Programmes Body (SEUPB).\nThe CAWT PEACEPLUS Early Intervention Support Youth Hubs (EASY) project aims to establish new cross border early intervention support services for families with children and young people presenting with traits consistent with a neurodevelopmental type need or who have been recently diagnosed wi",
+    "value": {
+     "amount": 653870,
+     "currency": "GBP"
+    },
+    "submissionMethod": [
+     "electronicSubmission",
+     "written"
+    ],
+    "submissionMethodDetails": "https://etendersni.gov.uk/epps",
+    "procurementMethod": "open",
+    "procurementMethodDetails": "Open procedure",
+    "tenderPeriod": {
+     "endDate": "2026-12-03T15:00:00Z"
+    }
+   },
+   "parties": [
+    {
+     "name": "Regional Business Services Organisation, Procurement and Logistics Service",
+     "id": "GB-FTS-185923",
+     "identifier": {
+      "legalName": "Regional Business Services Organisation, Procurement and Logistics Service",
+      "noIdentifierRationale": "notOnAnyRegister"
+     },
+     "address": {
+      "streetAddress": "73 Loughgall Road",
+      "locality": "Armagh",
+      "region": "UKN0",
+      "postalCode": "BT61 7PR",
+      "countryName": "United Kingdom"
+     },
+     "contactPoint": {
+      "email": "PaLSSocialcare.Sourcing@hscni.net",
+      "url": "https://etendersni.gov.uk/epps"
+     },
+     "roles": [
+      "buyer"
+     ],
+     "details": {
+      "url": "https://etendersni.gov.uk/epps",
+      "buyerProfile": "https://etendersni.gov.uk/epps",
+      "classifications": [
+       {
+        "scheme": "TED_CA_TYPE",
+        "id": "BODY_PUBLIC",
+        "description": "Body governed by public law"
+       },
+       {
+        "scheme": "COFOG",
+        "id": "07",
+        "description": "Health"
+       }
+      ]
+     }
+    },
+    {
+     "name": "Royal Courts of Justice - NI",
+     "id": "GB-FTS-185924",
+     "identifier": {
+      "legalName": "Royal Courts of Justice - NI"
+     },
+     "address": {
+      "streetAddress": "91 Chichester Street",
+      "locality": "Belfast",
+      "postalCode": "BT61 7PR",
+      "countryName": "United Kingdom"
+     },
+     "roles": [
+      "reviewBody"
+     ]
+    }
+   ],
+   "buyer": {
+    "id": "GB-FTS-185923",
+    "name": "Regional Business Services Organisation, Procurement and Logistics Service"
+   },
+   "language": "en"
+  }
+ ],
+ "links": {}
+}

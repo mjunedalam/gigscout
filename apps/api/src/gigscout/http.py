@@ -33,14 +33,23 @@ class PoliteClient:
         self._last_call: dict[str, float] = {}
         self._lock = threading.Lock()
 
-    def get(self, url: str, params: dict | None = None, follow_redirects: bool = True) -> httpx.Response:
+    def get(
+        self, url: str, params: dict | None = None, follow_redirects: bool = True, headers: dict | None = None,
+    ) -> httpx.Response:
         """GET politely. With follow_redirects=False a redirect is returned (not raised) so the caller can vet
         where it points before following it, which is how user-supplied websites are fetched."""
+        return self._request("GET", url, params=params, follow_redirects=follow_redirects, headers=headers)
+
+    def post_json(self, url: str, payload: dict):
+        """POST a JSON query (search APIs such as EU TED) with the same manners as GET."""
+        return self._request("POST", url, json=payload).json()
+
+    def _request(self, method: str, url: str, follow_redirects: bool = True, **kwargs) -> httpx.Response:
         if not self._allowed(url):
             raise DisallowedByRobots(f"robots.txt disallows {url}")
         for attempt in range(1, self._settings.http_max_retries + 1):
             self._throttle(urlsplit(url).netloc)
-            response = self._client.get(url, params=params, follow_redirects=follow_redirects)
+            response = self._client.request(method, url, follow_redirects=follow_redirects, **kwargs)
             if response.is_redirect and not follow_redirects:
                 return response
             if response.status_code not in RETRYABLE_STATUS or attempt == self._settings.http_max_retries:
@@ -51,8 +60,8 @@ class PoliteClient:
             time.sleep(wait)
         raise AssertionError("unreachable")
 
-    def get_json(self, url: str, params: dict | None = None):
-        return self.get(url, params).json()
+    def get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
+        return self.get(url, params, headers=headers).json()
 
     def get_text(self, url: str, params: dict | None = None) -> str:
         return self.get(url, params).text

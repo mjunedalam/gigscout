@@ -3,6 +3,9 @@
 Every entry was checked on 2026-11-03 with the connector probe itself: it is a public site, its robots.txt allows
 automated access, and it returned listings. Sites that refused (robots.txt) or blocked automated requests were left
 out. Adding still goes through the normal connector checks, so a site that changes its mind is refused then.
+
+Public tenders (UK Contracts Finder, Find a Tender, EU TED, US SAM.gov) are built-in sources using their official
+APIs, so they are not listed here.
 """
 
 from dataclasses import dataclass
@@ -12,6 +15,7 @@ from gigscout.profile_templates import closest_template
 
 SOFTWARE, MARKETING, DESIGN, RECRUITMENT = "Software agency", "Marketing agency", "Design studio", "Recruitment agency"
 LAW, ACCOUNTING, CONSTRUCTION, IT = "Law firm", "Accounting firm", "Construction contractor", "IT services & support"
+TENDER_LED = frozenset({LAW, CONSTRUCTION})  # their clients mostly buy through public tenders (built in)
 CONSULTING, VIDEO, TRANSLATION = "Management consulting", "Video production", "Translation agency"
 
 
@@ -30,12 +34,6 @@ def _src(name: str, url: str, description: str, types: tuple[str, ...], kind: Le
 
 
 LIBRARY: tuple[LibrarySource, ...] = (
-    _src("GOV.UK Find a Tender", "https://www.find-tender.service.gov.uk/Search",
-         "UK public-sector contracts above the procurement thresholds", (CONSTRUCTION, LAW, ACCOUNTING, IT, CONSULTING,
-                                                                          SOFTWARE, MARKETING), "project", "UK"),
-    _src("Contracts Finder", "https://www.contractsfinder.service.gov.uk/Search",
-         "UK public-sector contracts, including smaller ones", (CONSTRUCTION, LAW, ACCOUNTING, IT, CONSULTING, SOFTWARE,
-                                                                MARKETING, TRANSLATION), "project", "UK"),
     _src("PeoplePerHour", "https://www.peopleperhour.com/freelance-jobs",
          "Freelance projects posted by clients", (SOFTWARE, MARKETING, DESIGN, VIDEO, TRANSLATION, ACCOUNTING),
          "project"),

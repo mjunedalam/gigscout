@@ -1,0 +1,142 @@
+{
+ "releases": [
+  {
+   "ocid": "ocds-b5fd17-566bb982-934c-41bf-b478-f829a67c56f0",
+   "id": "8d6ee322-4f9f-4343-af0a-9769ed660d8e-920433",
+   "language": "en",
+   "date": "2026-11-03T16:42:10Z",
+   "tag": [
+    "tender"
+   ],
+   "initiationType": "tender",
+   "tender": {
+    "id": "26-021",
+    "title": "Evaluation Scoping Studies (2 Lots)",
+    "description": "The Gambling Commission is seeking to appoint one or two suppliers to conduct two separate evaluation scoping studies under two separate lots. Both studies will contribute to the Commission's aims of increasing our capacity to evaluate new requirements and policies, using data and analytics to make gambling regulation more effective and demonstrate how our understanding of our outcomes and our app",
+    "datePublished": "2026-11-03T16:42:10Z",
+    "status": "active",
+    "classification": {
+     "scheme": "CPV",
+     "id": "73110000",
+     "description": "Research services"
+    },
+    "value": {
+     "amount": 50000,
+     "currency": "GBP"
+    },
+    "procurementMethod": "selective",
+    "procurementMethodDetails": "Call-off from a dynamic purchasing system",
+    "tenderPeriod": {
+     "endDate": "2026-12-03T12:00:00Z"
+    },
+    "contractPeriod": {
+     "startDate": "2027-02-17T00:00:00Z",
+     "endDate": "2027-06-16T23:59:59+01:00"
+    },
+    "mainProcurementCategory": "services"
+   },
+   "parties": [
+    {
+     "id": "GB-GOR-PB169",
+     "name": "Gambling Commission",
+     "identifier": {
+      "legalName": "Gambling Commission",
+      "scheme": "GB-GOR",
+      "id": "PB169"
+     },
+     "address": {
+      "streetAddress": "Victoria Square House",
+      "locality": "BIRMINGHAM",
+      "postalCode": "B24BP",
+      "countryName": "England"
+     },
+     "contactPoint": {
+      "name": "Commercial Team",
+      "email": "procurement@gamblingcommission.gov.uk",
+      "telephone": "0752159291"
+     },
+     "roles": [
+      "buyer"
+     ]
+    }
+   ],
+   "buyer": {
+    "id": "GB-GOR-PB169",
+    "name": "Gambling Commission"
+   }
+  },
+  {
+   "ocid": "ocds-b5fd17-c8b3ff08-3b6f-49f5-a7d2-125680a6bc1a",
+   "id": "35433066-264c-41c5-bb3c-836e971b0da5-920412",
+   "language": "en",
+   "date": "2026-11-03T15:57:56Z",
+   "tag": [
+    "tender"
+   ],
+   "initiationType": "tender",
+   "tender": {
+    "id": "ING-HAAS-CAS-2026",
+    "title": "Candidate Assessment Services",
+    "description": "Ingeus is seeking a specialist assessment platform provider to support clinical and non-clinical volume and specialist recruitment for the Health Assessment Advisory Service (HAAS).\r\n\r\nThe requirement includes hosting bespoke assessment tools that have already been created as one element of a wider recruitment process. It may also include supplier-recommended assessment types, such as video situat",
+    "datePublished": "2026-11-03T15:57:56Z",
+    "status": "active",
+    "classification": {
+     "scheme": "CPV",
+     "id": "79300000",
+     "description": "Market and economic research; polling and statistics"
+    },
+    "minValue": {
+     "amount": 50000,
+     "currency": "GBP"
+    },
+    "value": {
+     "amount": 100000,
+     "currency": "GBP"
+    },
+    "procurementMethod": "open",
+    "procurementMethodDetails": "Open procedure (below threshold)",
+    "tenderPeriod": {
+     "endDate": "2026-11-10T17:00:00Z"
+    },
+    "contractPeriod": {
+     "startDate": "2026-12-01T00:00:00Z",
+     "endDate": "2027-11-30T23:59:59Z"
+    },
+    "mainProcurementCategory": "services"
+   },
+   "parties": [
+    {
+     "id": "GB-SRS-supplierregistration.cabinetoffice.gov.uk/qjnG752S",
+     "name": "Ingeus",
+     "identifier": {
+      "legalName": "Ingeus",
+      "scheme": "GB-SRS",
+      "id": "supplierregistration.cabinetoffice.gov.uk/qjnG752S"
+     },
+     "address": {
+      "streetAddress": "35 Livery Street",
+      "locality": "Birmingham",
+      "postalCode": "B3 2PB",
+      "countryName": "England"
+     },
+     "contactPoint": {
+      "name": "Julie Weaver",
+      "email": "jweaver@ingeus.co.uk",
+      "telephone": "02072653000"
+     },
+     "details": {
+      "url": "https://www.ingeus.co.uk/"
+     },
+     "roles": [
+      "buyer"
+     ]
+    }
+   ],
+   "buyer": {
+    "id": "GB-SRS-supplierregistration.cabinetoffice.gov.uk/qjnG752S",
+    "name": "Ingeus"
+   }
+  }
+ ],
+ "links": {}
+}

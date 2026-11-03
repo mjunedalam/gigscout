@@ -1,0 +1,73 @@
+{
+ "notices": [
+  {
+   "description-lot": {
+    "fra": [
+     "Création de Parcours interactif Conseil et Coordination"
+    ]
+   },
+   "notice-type": "cn-standard",
+   "estimated-value-lot": [
+    "120000.00"
+   ],
+   "publication-number": "741138-2026",
+   "organisation-country-buyer": [
+    "FRA"
+   ],
+   "publication-date": "2026-10-27+01:00",
+   "buyer-name": {
+    "fra": [
+     "AFNOR"
+    ]
+   },
+   "links": {
+    "html": {
+     "ENG": "https://ted.europa.eu/en/notice/-/detail/741138-2026"
+    }
+   },
+   "notice-title": {
+    "fra": "France – Services de développement de logiciels pédagogiques – Parcours interactifs - Création et Intégration",
+    "eng": "France – Educational software development services – Parcours interactifs - Création et Intégration"
+   },
+   "deadline-receipt-tender-date-lot": [
+    "2026-11-26+02:00"
+   ],
+   "estimated-value-cur-lot": [
+    "EUR"
+   ]
+  },
+  {
+   "description-lot": {
+    "pol": [
+     "Szczegółowy opis przedmiotu zamówienia zawiera załącznik nr 2 do SWZ",
+     "Szczegółowy opis przedmiotu zamówienia zawiera załącznik nr 2 do SWZ",
+     "Szczegółowy opis przedmiotu zamówienia zawiera załącznik nr 2 do SWZ"
+    ]
+   },
+   "notice-type": "cn-standard",
+   "publication-number": "741139-2026",
+   "organisation-country-buyer": [
+    "POL"
+   ],
+   "publication-date": "2026-10-27+01:00",
+   "buyer-name": {
+    "pol": [
+     "Gmina Świlcza"
+    ]
+   },
+   "links": {
+    "html": {
+     "ENG": "https://ted.europa.eu/en/notice/-/detail/741139-2026"
+    }
+   },
+   "notice-title": {
+    "fra": "Pologne – Logiciels et systèmes d'information – Dostawa oprogramowania i urządzeń IT. Dostawa UPS i agregatu Dostawa rozwiązań OT w ramach projektu „Cyberbezpieczny Wodociąg”",
+    "eng": "Poland – Software package and information systems – Dostawa oprogramowania i urządzeń IT. Dostawa UPS i agregatu Dostawa rozwiązań OT w ramach projektu „Cyberbezpieczny Wodociąg”"
+   },
+   "deadline-receipt-tender-date-lot": [
+    "2020-10-30+01:00"
+   ]
+  }
+ ],
+ "totalNoticeCount": 2
+}

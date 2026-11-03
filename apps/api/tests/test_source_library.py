@@ -3,7 +3,7 @@
 from urllib.parse import urlsplit
 
 from gigscout.profile_templates import TEMPLATES
-from gigscout.source_library import LIBRARY, for_company_type
+from gigscout.source_library import LIBRARY, TENDER_LED, for_company_type
 from tests.conftest import login
 
 
@@ -18,12 +18,12 @@ def test_every_library_source_is_a_public_https_site_for_known_company_types():
 
 def test_every_company_type_has_somewhere_to_look():
     for template in TEMPLATES:
-        assert for_company_type(template.company_type), template.company_type
+        assert for_company_type(template.company_type) or template.company_type in TENDER_LED, template.company_type
 
 
 def test_library_is_matched_loosely_to_what_the_company_typed():
-    names = {e.name for e in for_company_type("UK construction firm")}
-    assert "GOV.UK Find a Tender" in names
+    names = {e.name for e in for_company_type("boutique design studio")}
+    assert "Dribbble jobs" in names
 
 
 def test_library_endpoint_marks_sites_already_connected(web, monkeypatch):
