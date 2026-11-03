@@ -28,7 +28,9 @@ router = APIRouter(prefix="/webhooks", tags=["public"])
 
 MAX_BODY_BYTES = 64_000
 FORM_LIMIT_PER_HOUR = 10  # per sender address: a contact form, not a bulk API
-FORM_LIMIT_TOTAL_PER_HOUR = 300  # all senders together, so rotating addresses cannot flood the lead store
+BURST_PER_HOUR = 300  # above this many accepted submissions an hour (all senders), the form is under a burst
+BURST_PREFIX_PER_HOUR = 2  # during a burst: per network block (IPv4 /24, IPv6 /48), so rotating addresses stalls
+BURST_NOTE = "Note: arrived during a burst of form submissions; check it is genuine before replying."
 GRAPH_LEAD_URL = "https://graph.facebook.com/v21.0/{lead_id}"
 _LEADGEN_ID = re.compile(r"^\d{5,30}$")
 THANKS_PAGE = (
@@ -40,27 +42,31 @@ THANKS_PAGE = (
 
 
 class _SenderLimit:
-    """Hourly limits per sender and overall. Senders with no recent calls are forgotten, so memory stays small."""
+    """Hourly limits on accepted submissions. Never a cap that refuses everyone (that would let one attacker block
+    genuine enquiries): in a burst, network blocks get a much smaller allowance and what passes is flagged instead.
+    Keys with no calls in the last hour are forgotten, so memory stays small."""
 
-    def __init__(self, per_hour: int, total_per_hour: int = FORM_LIMIT_TOTAL_PER_HOUR) -> None:
-        self._per_hour = per_hour
-        self._total_per_hour = total_per_hour
+    def __init__(self, per_hour: int, burst: int = BURST_PER_HOUR, burst_prefix: int = BURST_PREFIX_PER_HOUR) -> None:
+        self._per_hour, self._burst, self._burst_prefix = per_hour, burst, burst_prefix
         self._seen: dict[str, deque[float]] = {}
         self._all: deque[float] = deque()
         self._lock = threading.Lock()
 
-    def allow(self, sender: str) -> bool:
+    def allow(self, sender: str, block: str) -> tuple[bool, bool]:
+        """(accepted, arrived during a burst)."""
         now = time.monotonic()
         with self._lock:
             _trim(self._all, now)
             for key in [k for k, calls in self._seen.items() if not _trim(calls, now)]:
                 del self._seen[key]
-            calls = self._seen.setdefault(sender, deque())
-            if len(calls) >= self._per_hour or len(self._all) >= self._total_per_hour:
-                return False
-            calls.append(now)
-            self._all.append(now)
-            return True
+            burst = len(self._all) >= self._burst
+            by_sender = self._seen.setdefault(sender, deque())
+            by_block = self._seen.setdefault(f"block:{block}", deque())
+            if len(by_sender) >= self._per_hour or (burst and len(by_block) >= self._burst_prefix):
+                return False, burst
+            for calls in (by_sender, by_block, self._all):
+                calls.append(now)
+            return True, burst
 
 
 def _trim(calls: deque[float], now: float) -> int:
@@ -69,14 +75,21 @@ def _trim(calls: deque[float], now: float) -> int:
     return len(calls)
 
 
-def sender_of(request: Request) -> str:
-    """The client address; IPv6 grouped by /64, since one household or server holds a whole /64."""
+def sender_of(request: Request) -> tuple[str, str]:
+    """(sender, network block): IPv6 senders by /64 (one household or server holds a whole /64), blocks by IPv4 /24
+    and IPv6 /48."""
     host = request.client.host if request.client else "unknown"
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        return host
-    return str(ipaddress.ip_network(f"{address}/64", strict=False)) if address.version == 6 else host
+        return host, host
+    if address.version == 6:
+        return _network(address, 64), _network(address, 48)
+    return host, _network(address, 24)
+
+
+def _network(address: ipaddress.IPv4Address | ipaddress.IPv6Address, bits: int) -> str:
+    return str(ipaddress.ip_network(f"{address}/{bits}", strict=False))
 
 
 _form_limit = _SenderLimit(FORM_LIMIT_PER_HOUR)
@@ -88,8 +101,6 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
     expected = platform.settings.website_form_key
     if expected is None or not _same(key, expected):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-    if not _form_limit.allow(sender_of(request)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many submissions; please try again later")
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("multipart/form-data"):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Send the form URL-encoded (the HTML default)")
@@ -104,8 +115,14 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
     elif not fields:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "The form was empty")
     else:
+        accepted, burst = _form_limit.allow(*sender_of(request))
+        if not accepted:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many submissions; please try again later")
         native_id = hashlib.sha256(repr(sorted(fields.items())).encode()).hexdigest()[:24]  # a double submit is one
-        result = _ingest(platform, forms.to_lead("website_form", native_id, fields, "Website"))
+        lead = forms.to_lead("website_form", native_id, fields, "Website")
+        if burst:
+            lead = lead.model_copy(update={"description": f"{BURST_NOTE}\n\n{lead.description}"})
+        result = _ingest(platform, lead)
     return HTMLResponse(THANKS_PAGE) if is_html_form else {"status": result}
 
 

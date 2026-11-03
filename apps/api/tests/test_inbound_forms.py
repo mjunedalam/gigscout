@@ -160,15 +160,39 @@ def test_multipart_forms_are_refused(web):
     assert response.status_code == 415
 
 
-def test_the_limiter_forgets_quiet_senders_and_caps_everyone_together(monkeypatch):
+def test_a_burst_never_locks_out_everyone_and_old_senders_are_forgotten(monkeypatch):
     from gigscout.web import routes_inbound
 
     clock = [0.0]
     monkeypatch.setattr(routes_inbound.time, "monotonic", lambda: clock[0])
-    limit = routes_inbound._SenderLimit(per_hour=5, total_per_hour=3)
-    assert [limit.allow(f"10.0.0.{i}") for i in range(4)] == [True, True, True, False]  # overall cap
+    limit = routes_inbound._SenderLimit(per_hour=5, burst=3, burst_prefix=1)
+    assert [limit.allow(f"10.0.0.{i}", "10.0.0.0/24") for i in range(3)] == [(True, False)] * 3
+    assert limit.allow("10.0.0.9", "10.0.0.0/24") == (False, True)  # in a burst, that block is used up
+    assert limit.allow("192.0.2.1", "192.0.2.0/24") == (True, True)  # a genuine enquiry elsewhere still lands
     clock[0] = 4000.0
-    assert limit.allow("10.0.0.9") and list(limit._seen) == ["10.0.0.9"]  # the hour passed: old senders gone
+    assert limit.allow("10.0.0.9", "10.0.0.0/24") == (True, False)
+    assert set(limit._seen) == {"10.0.0.9", "block:10.0.0.0/24"}  # the hour passed: old senders gone
+
+
+def test_spam_and_empty_forms_do_not_use_up_the_limit(web, monkeypatch):
+    from gigscout.web import routes_inbound
+
+    monkeypatch.setattr(routes_inbound, "_form_limit", routes_inbound._SenderLimit(1))
+    client, _ = web(website_form_key=SecretStr(FORM_KEY))
+    for _ in range(3):
+        client.post(f"/webhooks/form/{FORM_KEY}", json={"website_url": "http://spam", "email": "bot@x.com"})
+        client.post(f"/webhooks/form/{FORM_KEY}", json={})
+    assert client.post(f"/webhooks/form/{FORM_KEY}", json={"message": "real"}).json() == {"status": "stored"}
+
+
+def test_enquiries_during_a_burst_are_stored_but_flagged(web, monkeypatch):
+    from gigscout.web import routes_inbound
+
+    monkeypatch.setattr(routes_inbound, "_form_limit", routes_inbound._SenderLimit(10, burst=0, burst_prefix=5))
+    client, platform = web(website_form_key=SecretStr(FORM_KEY))
+    assert client.post(f"/webhooks/form/{FORM_KEY}", json={"message": "hello"}).json() == {"status": "stored"}
+    lead = next(r.lead for r in platform.service.deps.index.records() if r.lead.source == "website_form")
+    assert lead.description.startswith(routes_inbound.BURST_NOTE)
 
 
 def test_ipv6_senders_are_grouped_by_their_64_block():
@@ -179,5 +203,6 @@ def test_ipv6_senders_are_grouped_by_their_64_block():
     def request(host):
         return SimpleNamespace(client=SimpleNamespace(host=host))
 
-    assert sender_of(request("2001:db8:1:2::aaaa")) == sender_of(request("2001:db8:1:2:ffff::1")) == "2001:db8:1:2::/64"
-    assert sender_of(request("203.0.113.5")) == "203.0.113.5"
+    assert sender_of(request("2001:db8:1:2::aaaa"))[0] == sender_of(request("2001:db8:1:2:ffff::1"))[0]
+    assert sender_of(request("2001:db8:1:2::aaaa")) == ("2001:db8:1:2::/64", "2001:db8:1::/48")
+    assert sender_of(request("203.0.113.5")) == ("203.0.113.5", "203.0.113.0/24")
