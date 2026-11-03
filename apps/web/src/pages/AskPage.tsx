@@ -1,107 +1,71 @@
-import type { AskResponse } from "@gigscout/api-client";
-import { ActionIcon, Alert, Avatar, Badge, Group, Paper, Stack, Text, Textarea } from "@mantine/core";
-import { IconArrowUp, IconSparkles } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
-import Markdown from "react-markdown";
+import { ActionIcon, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconArrowUp, IconPlayerStopFilled } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 
-import { KindBadge } from "../components/badges";
+import { AskTurnView } from "../components/ask/AskTurn";
+import { RadarSpinner } from "../components/ask/RadarSpinner";
+import { useAskStream } from "../components/ask/useAskStream";
+import { PageHeader } from "../components/layout-bits";
 import { LeadDrawer } from "../components/LeadDrawer";
-import { PageHeader, Panel } from "../components/layout-bits";
-import { api, messageOf } from "../lib/api";
-
-interface Turn {
-  question: string;
-  response?: AskResponse;
-  error?: string;
-}
+import "../components/ask/ask.css";
 
 const SUGGESTIONS = [
   "Which leads involve mobile apps and what are their budgets?",
   "Any healthcare or fintech projects with few competing bids?",
   "Summarise the inbound enquiries from this week.",
 ];
+const STICK_TO_BOTTOM_PX = 160;
 
-/** Retrieval-augmented Q&A over the lead memory, with numbered citations you can open. */
+/** Ask the lead memory. Answers stream token by token, terminal-agent style, with the leads they came from. */
 export default function AskPage() {
   const [draft, setDraft] = useState("");
-  const [turns, setTurns] = useState<Turn[]>([]);
   const [openLead, setOpenLead] = useState<string | null>(null);
-
-  const ask = useMutation({
-    mutationFn: (question: string) => api.leads.ask(question),
-    onMutate: (question) => setTurns((t) => [...t, { question }]),
-    onSuccess: (response) => setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, response } : turn))),
-    onError: (error) =>
-      setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, error: messageOf(error) } : turn))),
-  });
+  const { turns, streaming, ask, stop } = useAskStream();
+  const input = useRef<HTMLTextAreaElement>(null);
 
   const submit = (question: string) => {
     const text = question.trim();
-    if (text.length < 3 || ask.isPending) return;
+    if (text.length < 3 || streaming) return;
     setDraft("");
-    ask.mutate(text);
+    ask(text);
   };
+
+  // follow the answer as it streams, unless the reader has scrolled up to read something else
+  const last = turns.at(-1);
+  useEffect(() => {
+    const fromBottom = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+    if (fromBottom < STICK_TO_BOTTOM_PX) window.scrollTo({ top: document.documentElement.scrollHeight });
+  }, [last?.answer, last?.phase, last?.sources]);
+
+  useEffect(() => {
+    if (!streaming) input.current?.focus();
+  }, [streaming]);
 
   return (
     <>
-      <PageHeader eyebrow="Lead memory" title="Ask your pipeline" description="Answers come only from collected leads, with citations." />
-      <Stack gap="md" maw={900}>
+      <PageHeader eyebrow="Lead memory" title="Ask your pipeline" description="Answers come only from collected leads, streamed as they are written, with the leads they used." />
+      <div className="gs-ask">
         {turns.length === 0 && (
-          <Panel hero eyebrow="Try asking">
-            <Group gap="xs">
-              {SUGGESTIONS.map((s) => (
-                <Badge key={s} size="lg" variant="default" style={{ cursor: "pointer", textTransform: "none" }} onClick={() => submit(s)}>
-                  {s}
-                </Badge>
-              ))}
-            </Group>
-          </Panel>
+          <div className="gs-ask-suggest">
+            <div className="gs-ask-footer"><RadarSpinner size={13} active={false} /> Try asking</div>
+            {SUGGESTIONS.map((s) => (
+              <UnstyledButton key={s} onClick={() => submit(s)}>› {s}</UnstyledButton>
+            ))}
+          </div>
         )}
-        {turns.map((turn, i) => (
-          <Stack key={i} gap="sm" className="gs-rise">
-            <Group justify="flex-end">
-              <Paper px="md" py="sm" className="gs-panel" maw="80%">
-                <Text size="sm">{turn.question}</Text>
-              </Paper>
-            </Group>
-            <Group align="flex-start" wrap="nowrap" gap="sm">
-              <Avatar color="signal" radius="xl">
-                <IconSparkles size={18} />
-              </Avatar>
-              <Paper p="md" className="gs-panel" style={{ flex: 1 }}>
-                {turn.error && <Alert color="red">{turn.error}</Alert>}
-                {!turn.response && !turn.error && <Text size="sm" className="gs-pulse">Reading your leads…</Text>}
-                {turn.response && (
-                  <Stack gap="sm">
-                    <div className="gs-markdown">
-                      <Markdown>{turn.response.answer}</Markdown>
-                    </div>
-                    <Stack gap={6}>
-                      {turn.response.sources.map((s, n) => (
-                        <Group key={s.lead.id} gap="xs" wrap="nowrap" className="gs-row-click" p={4} style={{ borderRadius: 8 }}
-                          onClick={() => setOpenLead(s.lead.id)}>
-                          <Badge variant="outline" color="gray" className="gs-mono">[{n + 1}]</Badge>
-                          <Text size="sm" lineClamp={1} style={{ flex: 1 }}>{s.lead.title}</Text>
-                          <KindBadge kind={s.lead.kind} />
-                        </Group>
-                      ))}
-                    </Stack>
-                  </Stack>
-                )}
-              </Paper>
-            </Group>
-          </Stack>
-        ))}
-        <Paper p="sm" className="gs-panel" style={{ position: "sticky", bottom: 16 }}>
-          <Group align="flex-end" wrap="nowrap">
+        {turns.map((turn) => <AskTurnView key={turn.id} turn={turn} onOpenLead={setOpenLead} />)}
+
+        <div className="gs-ask-composer">
+          <div className="row">
+            <span className="caret" aria-hidden>›</span>
             <Textarea
+              ref={input}
               style={{ flex: 1 }}
               autosize
               minRows={1}
-              maxRows={5}
+              maxRows={6}
               variant="unstyled"
-              placeholder="Ask about your leads…"
+              placeholder={streaming ? "Answering… press esc to stop" : "Ask about your leads…"}
               value={draft}
               maxLength={500}
               onChange={(e) => setDraft(e.currentTarget.value)}
@@ -113,12 +77,25 @@ export default function AskPage() {
               }}
               aria-label="Question"
             />
-            <ActionIcon variant="filled" size={38} onClick={() => submit(draft)} loading={ask.isPending} aria-label="Ask">
-              <IconArrowUp size={18} />
-            </ActionIcon>
-          </Group>
-        </Paper>
-      </Stack>
+            {streaming ? (
+              <Tooltip label="Stop (esc)">
+                <ActionIcon variant="light" color="red" size={34} onClick={stop} aria-label="Stop the answer">
+                  <IconPlayerStopFilled size={16} />
+                </ActionIcon>
+              </Tooltip>
+            ) : (
+              <ActionIcon variant="filled" size={34} onClick={() => submit(draft)} disabled={draft.trim().length < 3} aria-label="Ask">
+                <IconArrowUp size={18} />
+              </ActionIcon>
+            )}
+          </div>
+          <div className="gs-ask-keys">
+            <span>enter to send</span>
+            <span>shift+enter new line</span>
+            <span>esc to stop</span>
+          </div>
+        </div>
+      </div>
       <LeadDrawer leadId={openLead} onClose={() => setOpenLead(null)} />
     </>
   );

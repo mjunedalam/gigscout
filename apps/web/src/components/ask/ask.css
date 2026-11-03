@@ -1,0 +1,73 @@
+/* Ask: a terminal-agent conversation (Claude Code / Codex style) in GigScout's colours. */
+.gs-ask { display: flex; flex-direction: column; gap: 18px; max-width: 920px; padding-bottom: 8px; }
+.gs-ask-turn { display: flex; flex-direction: column; gap: 10px; animation: gs-ask-in 0.3s var(--gs-ease); }
+@keyframes gs-ask-in { from { opacity: 0; transform: translateY(4px); } }
+
+.gs-ask-prompt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px;
+  background: var(--gs-surface-2); border: 1px solid var(--gs-line); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13.5px; }
+.gs-ask-prompt > span { color: var(--gs-signal); font-weight: 700; }
+.gs-ask-prompt p { margin: 0; white-space: pre-wrap; }
+
+.gs-ask-reply { display: flex; flex-direction: column; gap: 8px; padding-left: 4px; font-size: 14px; }
+.gs-ask-dot { font-size: 11px; line-height: 22px; width: 14px; flex: none; }
+.gs-ask-dot.is-done { color: var(--gs-signal); }
+.gs-ask-dot.is-running { color: var(--gs-text-muted); animation: gs-ask-blink 1s steps(2, start) infinite; }
+.gs-ask-dot.is-answer { color: var(--gs-text); }
+
+.gs-ask-tool { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+.gs-ask-tool-head { display: flex; gap: 8px; align-items: center; }
+.gs-ask-tool-name { font-weight: 600; }
+.gs-ask-tool-result { display: flex; gap: 8px; color: var(--gs-text-muted); padding-left: 4px; }
+.gs-ask-elbow { color: var(--gs-text-muted); opacity: 0.7; }
+.gs-ask-tool-toggle { color: inherit; font: inherit; }
+.gs-ask-tool-toggle:hover .gs-ask-hint, .gs-ask-tool-toggle:focus-visible .gs-ask-hint { color: var(--gs-signal); }
+.gs-ask-hint { opacity: 0.7; }
+.gs-ask-sources { margin: 6px 0 2px 26px; padding: 0; display: flex; flex-direction: column; gap: 2px; list-style: decimal; color: var(--gs-text-muted); }
+.gs-ask-source { display: flex; gap: 8px; align-items: center; width: 100%; padding: 3px 6px; border-radius: 6px; color: var(--gs-text); font-family: Inter, system-ui, sans-serif; }
+.gs-ask-source:hover, .gs-ask-source:focus-visible { background: var(--gs-surface-2); }
+.gs-ask-source-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+
+.gs-ask-answer { display: flex; gap: 8px; align-items: flex-start; }
+.gs-ask-answer .gs-markdown { flex: 1; min-width: 0; }
+.gs-ask-answer .gs-markdown > :first-child { margin-top: 0; }
+.gs-ask-answer.is-streaming .gs-markdown > :last-child::after {
+  content: "▍"; color: var(--gs-signal); margin-left: 1px; animation: gs-ask-blink 1s steps(2, start) infinite; }
+@keyframes gs-ask-blink { to { visibility: hidden; } }
+
+.gs-ask-cite { display: inline; padding: 0 3px; margin: 0 1px; border-radius: 4px; font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.85em; color: var(--gs-signal); background: color-mix(in srgb, var(--gs-signal) 12%, transparent); cursor: pointer; }
+.gs-ask-cite:hover, .gs-ask-cite:focus-visible { background: color-mix(in srgb, var(--gs-signal) 24%, transparent); }
+.gs-ask-working { display: flex; gap: 8px; align-items: center; color: var(--gs-signal); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
+.gs-ask-shimmer { font-weight: 600; color: transparent; background: linear-gradient(90deg, var(--gs-signal) 0%, var(--gs-signal) 40%,
+  color-mix(in srgb, var(--gs-signal) 25%, var(--gs-text)) 50%, var(--gs-signal) 60%, var(--gs-signal) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; animation: gs-ask-shimmer 2.2s linear infinite; }
+@keyframes gs-ask-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+.gs-ask-meta { color: var(--gs-text-muted); }
+.gs-ask-meta kbd { font: inherit; font-weight: 700; color: var(--gs-text); }
+.gs-ask-footer { display: flex; gap: 6px; align-items: center; color: var(--gs-text-muted); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; }
+.gs-ask-footer.is-stopped { color: var(--gs-text-muted); }
+.gs-ask-footer.is-error { color: var(--mantine-color-red-5); }
+
+.gs-radar { color: var(--gs-signal); flex: none; }
+.gs-radar.is-active .gs-radar-sweep { transform-origin: 12px 12px; animation: gs-radar-sweep 1.4s linear infinite; }
+.gs-radar.is-active .gs-radar-blip { animation: gs-radar-blip 1.4s ease-out infinite; }
+@keyframes gs-radar-sweep { to { transform: rotate(360deg); } }
+@keyframes gs-radar-blip { 0%, 30% { opacity: 0; } 40% { opacity: 1; } 100% { opacity: 0.15; } }
+
+.gs-ask-composer { position: sticky; bottom: 16px; padding: 10px 12px 8px; border-radius: 12px; background: var(--gs-surface);
+  border: 1px solid var(--gs-line); box-shadow: var(--gs-shadow); transition: border-color var(--gs-fast); }
+.gs-ask-composer:focus-within { border-color: color-mix(in srgb, var(--gs-signal) 60%, var(--gs-line)); }
+.gs-ask-composer .row { display: flex; gap: 10px; align-items: flex-end; }
+.gs-ask-composer .caret { color: var(--gs-signal); font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 700; line-height: 30px; }
+.gs-ask-composer textarea { font-family: "IBM Plex Mono", ui-monospace, monospace !important; font-size: 13.5px !important; }
+.gs-ask-keys { display: flex; gap: 14px; color: var(--gs-text-muted); font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; padding: 4px 0 0 20px; }
+.gs-ask-suggest { display: flex; flex-direction: column; gap: 6px; }
+.gs-ask-suggest button { text-align: left; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; color: var(--gs-text-muted);
+  padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--gs-line); }
+.gs-ask-suggest button:hover, .gs-ask-suggest button:focus-visible { color: var(--gs-text); border-color: var(--gs-signal); }
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-radar.is-active .gs-radar-sweep, .gs-radar.is-active .gs-radar-blip, .gs-ask-shimmer, .gs-ask-dot.is-running,
+  .gs-ask-answer.is-streaming .gs-markdown > :last-child::after, .gs-ask-turn { animation: none; }
+  .gs-ask-shimmer { color: var(--gs-signal); background: none; }
+}
