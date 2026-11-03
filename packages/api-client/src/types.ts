@@ -1,0 +1,251 @@
+// Mirrors apps/api/src/gigscout/models.py and web/schemas.py. Keep the two in step.
+
+export type LeadKind = "project" | "contract" | "hiring" | "inbound";
+export type LeadStatus = "new" | "contacted" | "proposal" | "won" | "lost" | "archived";
+export type Role = "admin" | "member";
+export type RunMode = "auto" | "team" | "pipeline";
+export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export const LEAD_KINDS: readonly LeadKind[] = ["project", "contract", "hiring", "inbound"];
+export const LEAD_STATUSES: readonly LeadStatus[] = ["new", "contacted", "proposal", "won", "lost", "archived"];
+
+export interface Budget {
+  minimum: number | null;
+  maximum: number | null;
+  currency: string | null;
+  usd_rate: number | null;
+  kind: "fixed" | "hourly" | "salary" | "unknown";
+}
+
+export interface Client {
+  name: string | null;
+  country: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface Lead {
+  id: string;
+  source: string;
+  title: string;
+  description: string;
+  url: string;
+  kind: LeadKind;
+  skills: string[];
+  budget: Budget | null;
+  posted_at: string | null;
+  client: Client | null;
+  bid_count: number | null;
+}
+
+export interface LeadView {
+  lead: Lead;
+  seen_at: string | null;
+  status: LeadStatus;
+  notes: string;
+  score: number | null;
+  reasons: string;
+  red_flags: string;
+  pitch: string;
+  similarity: number | null;
+}
+
+export interface LeadPage {
+  items: LeadView[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface LeadQuery {
+  q?: string;
+  kind?: LeadKind[];
+  source?: string[];
+  status?: LeadStatus[];
+  min_score?: number;
+  sort?: "score" | "recent" | "budget";
+  page?: number;
+  page_size?: number;
+}
+
+export interface AgencyProfile {
+  name: string;
+  pitch: string;
+  services: string[];
+  skills: string[];
+  keywords: string[];
+  industries: string[];
+  exclude: string[];
+  min_budget_usd: number | null;
+  target_countries: string[];
+  kinds: LeadKind[];
+  sources: string[] | null;
+}
+
+export interface ProfileRecord {
+  id: number;
+  name: string;
+  data: AgencyProfile;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface Run {
+  id: string;
+  profile_id: number | null;
+  profile_name: string;
+  mode_requested: RunMode;
+  mode: "team" | "pipeline" | null;
+  status: RunStatus;
+  trigger: "manual" | "schedule";
+  triggered_by: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  duration_seconds: number | null;
+  fetched_count: number;
+  new_count: number;
+  match_count: number;
+  top_score: number;
+  errors: string[];
+}
+
+export interface RunDetail extends Run {
+  report: string;
+  queries: string[];
+  trace: string[];
+}
+
+export interface ScheduleInput {
+  name: string;
+  profile_id: number;
+  cron: string;
+  mode: RunMode;
+  enabled: boolean;
+}
+
+export interface Schedule extends ScheduleInput {
+  id: number;
+  created_by: string;
+  created_at: string;
+  last_run_at: string | null;
+  last_run_id: string | null;
+  next_run_at: string | null;
+}
+
+export interface CronPreview {
+  cron: string;
+  valid: boolean;
+  error: string | null;
+  next_runs: string[];
+}
+
+export interface Overview {
+  total_leads: number;
+  new_last_24h: number;
+  inbound_last_7d: number;
+  qualified: number;
+  by_kind: Partial<Record<LeadKind, number>>;
+  by_source: Record<string, number>;
+  by_status: Record<LeadStatus, number>;
+  runs_total: number;
+  runs_succeeded_7d: number;
+  runs_failed_7d: number;
+  avg_run_seconds: number | null;
+  last_run_at: string | null;
+  active_runs: { id: string; status: RunStatus; profile_name: string }[];
+  live_clients: number;
+}
+
+export type TimeseriesRow = { date: string } & Record<LeadKind, number>;
+
+export interface Analytics {
+  timeseries: TimeseriesRow[];
+  score_histogram: { from: number; to: number; count: number }[];
+  competition: { id: string; title: string; kind: LeadKind; bids: number; budget_usd: number; score: number | null }[];
+  funnel: { stage: string; count: number }[];
+  runs: {
+    id: string;
+    at: string;
+    status: RunStatus;
+    mode: string;
+    duration_seconds: number | null;
+    fetched: number;
+    new: number;
+    matches: number;
+    top_score: number;
+  }[];
+}
+
+export interface MapPoint {
+  id: string;
+  title: string;
+  kind: LeadKind;
+  source: string;
+  x: number;
+  y: number;
+  z: number;
+  score: number | null;
+}
+
+export interface AskResponse {
+  answer: string;
+  sources: LeadView[];
+}
+
+export interface SystemInfo {
+  version: string;
+  python: string;
+  uptime_seconds: number;
+  llm: { provider: string; model: string; available: boolean; reachable_now: boolean };
+  embedding_model: string;
+  vector_store: { leads: number; path: string };
+  database: { url: string; users: number; runs: number };
+  scheduler: { running: boolean; jobs: number; timezone: string };
+  inbound: { google_ads_webhook: boolean };
+  live_clients: number;
+  mlflow: { enabled: boolean; tracking_uri: string };
+}
+
+export interface SourceHealth {
+  name: string;
+  channel: "pull" | "push";
+  enabled: boolean;
+  recent_failures: number;
+  last_error: string | null;
+}
+
+export interface SourceTestResult {
+  name: string;
+  ok: boolean;
+  count: number;
+  latency_ms: number;
+  sample: string[];
+  error: string | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  target: string;
+  detail: Record<string, unknown>;
+}
+
+export interface LiveEvent<T = Record<string, unknown>> {
+  id: number;
+  type: string;
+  at: string;
+  data: T;
+}

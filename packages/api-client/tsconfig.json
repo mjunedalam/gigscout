@@ -1,0 +1,4 @@
+{
+  "extends": "@gigscout/tsconfig/base.json",
+  "include": ["src"]
+}
