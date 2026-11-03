@@ -1,0 +1,111 @@
+"""The lead workspace: browse, search, open, move through the sales pipeline, and ask questions."""
+
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
+
+from gigscout.models import Candidate
+from gigscout.platform.tables import LeadState
+from gigscout.store.vector_store import StoredLead
+from gigscout.web.deps import PlatformDep, SessionDep, UserDep, audit
+from gigscout.web.schemas import AskRequest, AskResponse, LeadPage, LeadUpdate, LeadView
+
+router = APIRouter(prefix="/api/leads", tags=["leads"])
+
+SEMANTIC_POOL = 200
+Sort = Literal["score", "recent", "budget"]
+
+
+@router.get("")
+def list_leads(
+    platform: PlatformDep,
+    session: SessionDep,
+    _: UserDep,
+    q: str | None = Query(default=None, max_length=300, description="Semantic search"),
+    kind: list[str] = Query(default=[]),
+    source: list[str] = Query(default=[]),
+    status_: list[str] = Query(default=[], alias="status"),
+    min_score: float | None = Query(default=None, ge=0, le=1),
+    sort: Sort = "score",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=200),
+) -> LeadPage:
+    states = load_states(session)
+    if q and len(q.strip()) >= 2:
+        hits = platform.service.deps.index.search(q, k=SEMANTIC_POOL)
+        views = [to_view(None, states, c) for c in hits]
+    else:
+        views = [to_view(stored, states) for stored in platform.service.deps.index.records()]
+    views = [
+        v for v in views
+        if (not kind or v.lead.kind in kind)
+        and (not source or v.lead.source in source)
+        and (not status_ or v.status in status_)
+        and (min_score is None or (v.score or 0) >= min_score)
+    ]
+    if not q:
+        views.sort(key=_sort_key(sort), reverse=True)
+    start = (page - 1) * page_size
+    return LeadPage(items=views[start:start + page_size], total=len(views), page=page, page_size=page_size)
+
+
+@router.get("/{lead_id:path}")
+def get_lead(lead_id: str, platform: PlatformDep, session: SessionDep, _: UserDep) -> LeadView:
+    lead = platform.service.deps.index.get(lead_id)
+    if lead is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
+    state = session.get(LeadState, lead_id)
+    return to_view(None, {lead_id: state} if state else {}, Candidate(lead=lead, similarity=1))
+
+
+@router.patch("/{lead_id:path}")
+def update_lead(
+    lead_id: str, body: LeadUpdate, platform: PlatformDep, session: SessionDep, user: UserDep,
+) -> LeadView:
+    lead = platform.service.deps.index.get(lead_id)
+    if lead is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
+    state = session.get(LeadState, lead_id) or LeadState(lead_id=lead_id)
+    changes = body.model_dump(exclude_none=True)
+    for field, value in changes.items():
+        setattr(state, field, value)
+    state.updated_by = user.email
+    session.add(state)
+    audit(session, user, "lead.update", lead_id, **changes)
+    session.commit()
+    platform.bus.publish("lead.updated", {"id": lead_id, "title": lead.title, "by": user.name, **changes})
+    return to_view(None, {lead_id: state}, Candidate(lead=lead, similarity=1))
+
+
+@router.post("/ask", tags=["leads"])
+def ask(body: AskRequest, platform: PlatformDep, session: SessionDep, _: UserDep) -> AskResponse:
+    answer = platform.service.ask(body.question, body.k)
+    states = load_states(session)
+    return AskResponse(answer=answer.text, sources=[to_view(None, states, c) for c in answer.sources])
+
+
+def load_states(session) -> dict[str, LeadState]:
+    return {s.lead_id: s for s in session.scalars(select(LeadState))}
+
+
+def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: Candidate | None = None) -> LeadView:
+    lead = stored.lead if stored else candidate.lead
+    state = states.get(lead.id)
+    return LeadView(
+        lead=lead,
+        seen_at=stored.seen_at if stored else None,
+        similarity=candidate.similarity if candidate and stored is None else None,
+        **({
+            "status": state.status, "notes": state.notes, "score": state.score, "reasons": state.reasons,
+            "red_flags": state.red_flags, "pitch": state.pitch,
+        } if state else {}),
+    )
+
+
+def _sort_key(sort: Sort):
+    if sort == "recent":
+        return lambda v: v.seen_at.timestamp() if v.seen_at else 0
+    if sort == "budget":
+        return lambda v: (v.lead.budget.max_usd or 0) if v.lead.budget else 0
+    return lambda v: (v.score if v.score is not None else -1, v.seen_at.timestamp() if v.seen_at else 0)
