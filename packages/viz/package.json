@@ -6,7 +6,8 @@
   "description": "GigScout data visualisation: d3 charts and the three.js lead galaxy, themed by CSS variables.",
   "exports": {
     ".": "./src/index.ts",
-    "./galaxy": "./src/galaxy/LeadGalaxy.tsx"
+    "./galaxy": "./src/galaxy/LeadGalaxy.tsx",
+    "./factory": "./src/factory/ProductionLine.tsx"
   },
   "scripts": {
     "lint": "eslint src",
