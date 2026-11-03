@@ -1,0 +1,28 @@
+{
+  "name": "gigscout",
+  "private": true,
+  "description": "GigScout monorepo: AI lead scout for software agencies (Python API + React web app).",
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "turbo run lint typecheck test build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.14.0",
+    "turbo": "^2.11.10",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

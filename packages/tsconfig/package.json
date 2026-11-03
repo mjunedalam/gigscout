@@ -1,0 +1,6 @@
+{
+  "name": "@gigscout/tsconfig",
+  "version": "0.2.0",
+  "private": true,
+  "files": ["base.json", "react.json"]
+}

@@ -1,0 +1,52 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Scout: multi-agent team (ReAct)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gigscout.cli",
+      "args": ["-v", "scout", "-p", "profiles/example.yaml", "--mode", "team", "--trace"],
+      "cwd": "${workspaceFolder}",
+      "env": { "MLFLOW_DISABLE_AGENT_HINT": "1" },
+      "justMyCode": true
+    },
+    {
+      "name": "Scout: pipeline (no LLM needed)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gigscout.cli",
+      "args": ["-v", "scout", "-p", "profiles/example.yaml", "--mode", "pipeline"],
+      "cwd": "${workspaceFolder}",
+      "env": { "MLFLOW_DISABLE_AGENT_HINT": "1", "GIGSCOUT_LLM_PROVIDER": "none" }
+    },
+    {
+      "name": "Ask (RAG)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gigscout.cli",
+      "args": ["ask", "${input:question}"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "API server",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["gigscout.api:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Tests: multi-agent",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["tests/test_multiagent.py", "--no-cov", "-v"],
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "inputs": [
+    { "id": "question", "type": "promptString", "description": "Question about collected leads",
+      "default": "Which client leads involve AI chatbots and what are their budgets?" }
+  ]
+}
