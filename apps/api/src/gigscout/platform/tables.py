@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 ROLES = ("admin", "member")
@@ -112,6 +112,40 @@ class LeadState(Base):
     last_run_id: Mapped[str | None] = mapped_column(String(36), default=None)
     updated_by: Mapped[str | None] = mapped_column(String(254), default=None)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class Outreach(Base):
+    """A message to a lead: drafted, edited, sent (by email, or pasted as a marketplace bid), then tracked."""
+
+    __tablename__ = "outreach"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[str] = mapped_column(String(300), index=True)
+    channel: Mapped[str] = mapped_column(String(8))  # email | bid
+    to_address: Mapped[str | None] = mapped_column(String(254), default=None)
+    subject: Mapped[str] = mapped_column(String(200), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(12), default="draft", index=True)  # draft | sent | replied | no_reply
+    source: Mapped[str] = mapped_column(String(12), default="template")  # ai | template
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class CrmRecord(Base):
+    """A lead pushed to a CRM, so it is never pushed twice."""
+
+    __tablename__ = "crm_links"
+    __table_args__ = (UniqueConstraint("lead_id", "crm"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[str] = mapped_column(String(300), index=True)
+    crm: Mapped[str] = mapped_column(String(16))
+    external_id: Mapped[str] = mapped_column(String(64))
+    url: Mapped[str | None] = mapped_column(String(500), default=None)
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class Connector(Base):

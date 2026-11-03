@@ -3,7 +3,6 @@
 Pure building blocks (build, render, send); scheduling and settings live in gigscout.platform.digests.
 """
 
-import smtplib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -15,13 +14,13 @@ import httpx
 
 from gigscout.agent.nodes import budget_label
 from gigscout.config import Settings
+from gigscout.mail import deliver
 from gigscout.platform.tables import LeadState
 from gigscout.store.vector_store import LeadIndex
 
 DEFAULT_WINDOW = timedelta(hours=24)
 SLACK_HOST = "hooks.slack.com"
 SLACK_TIMEOUT = 10
-SMTP_TIMEOUT = 20
 
 
 class UnsafeWebhook(ValueError):
@@ -143,10 +142,6 @@ def send_slack(url: str, digest: Digest) -> None:
     response.raise_for_status()
 
 
-def email_ready(settings: Settings) -> bool:
-    return bool(settings.smtp_host and settings.smtp_from)
-
-
 def send_email(settings: Settings, to: list[str], digest: Digest) -> None:
     message = EmailMessage()
     count = len(digest.leads)
@@ -155,12 +150,7 @@ def send_email(settings: Settings, to: list[str], digest: Digest) -> None:
     message["To"] = ", ".join(to)
     message.set_content(render_markdown(digest))
     message.add_alternative(render_html(digest), subtype="html")
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=SMTP_TIMEOUT) as smtp:
-        if settings.smtp_starttls:
-            smtp.starttls()
-        if settings.smtp_user and settings.smtp_password:
-            smtp.login(settings.smtp_user, settings.smtp_password.get_secret_value())
-        smtp.send_message(message)
+    deliver(settings, message)
 
 
 def _aware(value: datetime) -> datetime:

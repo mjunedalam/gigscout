@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     smtp_from: str | None = Field(default=None, description="Sender address, e.g. GigScout <scout@your-agency.com>")
     smtp_starttls: bool = True
 
+    # CRM sync: leads are pushed as deals. HubSpot private-app token (scope crm.objects.deals.write) and/or a
+    # Pipedrive personal API token. Unset = that CRM is off.
+    hubspot_token: SecretStr | None = None
+    pipedrive_token: SecretStr | None = None
+
     # Inbound leads from Google Ads lead form assets (webhook). Unset = webhook disabled.
     google_ads_webhook_key: SecretStr | None = None
 

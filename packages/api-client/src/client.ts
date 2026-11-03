@@ -27,6 +27,10 @@ import type {
   SourceHealth,
   ConnectorLeadKind,
   LibrarySource,
+  CrmSync,
+  Outreach,
+  OutreachConfig,
+  OutreachInput,
   SourceTestResult,
   SystemInfo,
   User,
@@ -128,6 +132,18 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       ask: (question: string, k = 8) => request<AskResponse>("POST", "/api/leads/ask", { question, k }),
       askStream: (question: string, onEvent: (event: AskStreamEvent) => void, options: { k?: number; signal?: AbortSignal } = {}) =>
         stream<AskStreamEvent>("/api/leads/ask/stream", { question, k: options.k ?? 8 }, onEvent, options.signal),
+    },
+    outreach: {
+      config: () => get<OutreachConfig>("/api/outreach/config"),
+      list: (leadId: string) => get<Outreach[]>("/api/outreach", { lead_id: leadId }),
+      draft: (leadId: string, profileId?: number) =>
+        request<Outreach>("POST", "/api/outreach", { lead_id: leadId, profile_id: profileId ?? null }),
+      edit: (id: number, change: OutreachInput) => request<Outreach>("PUT", `/api/outreach/${id}`, change),
+      send: (id: number) => request<Outreach>("POST", `/api/outreach/${id}/send`),
+      setStatus: (id: number, status: "replied" | "no_reply") =>
+        request<Outreach>("POST", `/api/outreach/${id}/status`, { status }),
+      crmLinks: (leadId: string) => get<CrmSync>("/api/outreach/crm", { lead_id: leadId }),
+      pushToCrm: (leadId: string) => request<CrmSync>("POST", "/api/outreach/crm", { lead_id: leadId }),
     },
     profiles: {
       list: () => get<ProfileRecord[]>("/api/profiles"),

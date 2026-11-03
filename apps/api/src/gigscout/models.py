@@ -119,6 +119,13 @@ class ProfileSuggestion(BaseModel):
     industries: list[str] = Field(default_factory=list, description="0-4 client industries it serves best")
 
 
+class OutreachText(BaseModel):
+    """A first message the LLM writes for one lead."""
+
+    subject: str = Field(default="", description="Email subject, under 9 words; empty for a marketplace bid")
+    body: str = Field(description="The message, 80-140 words, plain text, signed off with the company name")
+
+
 class LeadAssessment(BaseModel):
     """What the LLM qualifier returns for one lead."""
 

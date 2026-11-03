@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from gigscout.agent import prompts
 from gigscout.config import Settings
-from gigscout.models import AgencyProfile, Lead, LeadAssessment, ProfileSuggestion
+from gigscout.models import AgencyProfile, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ class Reasoner(Protocol):
     def suggest_profile(self, company_type: str, description: str) -> ProfileSuggestion: ...
 
     def answer_stream(self, question: str, context: str) -> Iterator[str]: ...
+
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText: ...
 
 
 class OllamaReasoner:
@@ -78,6 +80,17 @@ class OllamaReasoner:
         for chunk in self._llm.stream(prompts.ANSWER_WITH_CONTEXT.format(context=context, question=question)):
             if isinstance(chunk.content, str) and chunk.content:
                 yield chunk.content
+
+
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText:
+        prompt = prompts.DRAFT_OUTREACH.format(
+            company=profile.who(), profile=profile.as_query(), name=profile.name, kind=lead.kind, source=lead.source,
+            title=lead.title, client=describe_client(lead), budget=describe_budget(lead),
+            description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING], pitch=pitch or "none",
+            channel="an email" if channel == "email" else "a proposal pasted into the marketplace's bid form",
+            subject_rule="required" if channel == "email" else "leave it empty",
+        )
+        return self._llm.with_structured_output(OutreachText).invoke(prompt)
 
 
 def build_chat_model(settings: Settings) -> BaseChatModel | None:

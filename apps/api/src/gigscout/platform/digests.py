@@ -7,6 +7,7 @@ from sqlalchemy import select
 from gigscout import digest as digest_lib
 from gigscout.config import Settings
 from gigscout.digest import Digest, DigestSettingsView
+from gigscout.mail import email_ready
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
 from gigscout.platform.scheduler import ScheduleManager
@@ -67,7 +68,7 @@ class DigestManager:
         """Send now to every configured channel. A channel that fails does not stop the others."""
         row, digest = self.config(), self.preview()
         sent, errors = [], []
-        if row.emails and digest_lib.email_ready(self._settings):
+        if row.emails and email_ready(self._settings):
             try:
                 digest_lib.send_email(self._settings, row.emails, digest)
                 sent.append("email")

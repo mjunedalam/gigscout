@@ -320,6 +320,47 @@ export interface SourceHealth {
   lead_kind: ConnectorLeadKind | null;
 }
 
+/** A message to a lead: drafted (by the AI or a template), edited, sent, then tracked. */
+export interface Outreach {
+  id: number;
+  lead_id: string;
+  /** email = sent from your SMTP server; bid = pasted into the marketplace's proposal form. */
+  channel: "email" | "bid";
+  to: string | null;
+  subject: string;
+  body: string;
+  status: "draft" | "sent" | "replied" | "no_reply";
+  source: "ai" | "template";
+  created_by: string;
+  created_at: string;
+  sent_at: string | null;
+}
+
+export interface OutreachInput {
+  channel: "email" | "bid";
+  to: string | null;
+  subject: string;
+  body: string;
+}
+
+export interface OutreachConfig {
+  email_ready: boolean;
+  /** Connected CRMs, e.g. ["hubspot"]. */
+  crms: string[];
+}
+
+export interface CrmLink {
+  crm: string;
+  external_id: string;
+  url: string | null;
+  created_at: string;
+}
+
+export interface CrmSync {
+  links: CrmLink[];
+  errors: string[];
+}
+
 export type ConnectorLeadKind = "project" | "contract" | "hiring";
 
 /** A checked public website from the source library, suggested per company type. */

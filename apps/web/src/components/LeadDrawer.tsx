@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { api, messageOf } from "../lib/api";
 import { clientLabel, dateTime, money } from "../lib/format";
 import { KindBadge, ScoreRing } from "./badges";
+import { LeadOutreach } from "./leads/LeadOutreach";
 
 interface LeadDrawerProps {
   leadId: string | null;
@@ -116,6 +117,8 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               {view.red_flags}
             </Alert>
           )}
+
+          <LeadOutreach leadId={view.lead.id} />
 
           <Divider />
           <Stack gap={6}>

@@ -10,9 +10,10 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import SecretStr
 from sqlalchemy import func, select
 
-from gigscout.digest import UnsafeWebhook, email_ready, render_markdown
+from gigscout.digest import UnsafeWebhook, render_markdown
 from gigscout.http import DisallowedByRobots
 from gigscout.inbound import google_ads
+from gigscout.mail import email_ready
 from gigscout.platform.security import WeakPasswordError, hash_password
 from gigscout.platform.tables import AuditLog, AuthToken, Connector, Run, SourceToggle, User, utcnow
 from gigscout.source_library import LIBRARY, for_company_type

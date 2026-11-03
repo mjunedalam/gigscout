@@ -243,3 +243,60 @@ class SourceTestResult(BaseModel):
     latency_ms: float
     sample: list[str] = []
     error: str | None = None
+
+
+def _single_line(value: str) -> str:
+    if "\r" in value or "\n" in value:
+        raise ValueError("must be a single line")
+    return value
+
+
+class OutreachCreate(BaseModel):
+    lead_id: str = Field(min_length=3, max_length=300)
+    profile_id: int | None = None  # whose voice; default: the first company profile
+
+
+class OutreachUpdate(BaseModel):
+    channel: Literal["email", "bid"]
+    to: EmailStr | None = None
+    subject: Annotated[str, AfterValidator(_single_line)] = Field(default="", max_length=200)
+    body: str = Field(min_length=1, max_length=5000)
+
+
+class OutreachStatusIn(BaseModel):
+    status: Literal["replied", "no_reply"]
+
+
+class OutreachOut(BaseModel):
+    id: int
+    lead_id: str
+    channel: Literal["email", "bid"]
+    to: str | None
+    subject: str
+    body: str
+    status: Literal["draft", "sent", "replied", "no_reply"]
+    source: Literal["ai", "template"]
+    created_by: str
+    created_at: UtcDatetime
+    sent_at: UtcDatetime | None
+
+
+class OutreachConfigOut(BaseModel):
+    email_ready: bool
+    crms: list[str]
+
+
+class CrmSyncIn(BaseModel):
+    lead_id: str = Field(min_length=3, max_length=300)
+
+
+class CrmLinkOut(BaseModel):
+    crm: str
+    external_id: str
+    url: str | None
+    created_at: UtcDatetime
+
+
+class CrmSyncOut(BaseModel):
+    links: list[CrmLinkOut]
+    errors: list[str] = Field(default_factory=list)

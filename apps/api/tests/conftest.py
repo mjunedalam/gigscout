@@ -7,7 +7,7 @@ import pytest
 
 from gigscout.agent.nodes import ScoutDeps
 from gigscout.config import Settings
-from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, ProfileSuggestion
+from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 from gigscout.store.vector_store import LeadIndex
 
 DIMENSIONS = 128
@@ -68,6 +68,11 @@ class FakeReasoner:
     def suggest_profile(self, company_type: str, description: str) -> ProfileSuggestion:
         return ProfileSuggestion(services=[f"{company_type} services"], skills=["specialist"],
                                  keywords=[company_type.lower()], exclude=["unpaid"], industries=[])
+
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText:
+        if self.fail_grade:
+            raise RuntimeError("llm timeout")
+        return OutreachText(subject=f"About {lead.title}", body=f"AI draft for {lead.title} ({channel})")
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

@@ -11,7 +11,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from gigscout.config import get_settings
 from gigscout.platform.container import Platform
-from gigscout.web import routes_admin, routes_auth, routes_insights, routes_leads, routes_ops, routes_public
+from gigscout.web import (
+    routes_admin,
+    routes_auth,
+    routes_insights,
+    routes_leads,
+    routes_ops,
+    routes_outreach,
+    routes_public,
+)
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +56,8 @@ def create_app(platform_factory: PlatformFactory | None = None) -> FastAPI:
             CORSMiddleware, allow_origins=origins, allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["content-type", "authorization"],
         )
-    for module in (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin):
+    routers = (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin, routes_outreach)
+    for module in routers:
         app.include_router(module.router)
     return app
 
