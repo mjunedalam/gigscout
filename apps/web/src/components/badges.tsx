@@ -1,0 +1,60 @@
+import type { LeadKind, LeadStatus, RunStatus } from "@gigscout/api-client";
+import { KIND_COLORS, KIND_LABELS, RUN_STATUS_COLORS, scoreColor, STATUS_COLORS } from "@gigscout/viz";
+import { Badge, RingProgress, Text, Tooltip } from "@mantine/core";
+
+export function KindBadge({ kind }: { kind: LeadKind }) {
+  return (
+    <Badge
+      variant="dot"
+      styles={{ root: { "--badge-dot-color": KIND_COLORS[kind], borderColor: "var(--gs-line)" } as never }}
+    >
+      {KIND_LABELS[kind]}
+    </Badge>
+  );
+}
+
+export function StatusBadge({ status }: { status: LeadStatus }) {
+  return (
+    <Badge color={STATUS_COLORS[status]} variant="light" autoContrast>
+      {status}
+    </Badge>
+  );
+}
+
+export function RunStatusBadge({ status }: { status: RunStatus }) {
+  return (
+    <Badge
+      color={RUN_STATUS_COLORS[status]}
+      variant={status === "running" ? "filled" : "light"}
+      leftSection={status === "running" ? <span className="gs-live-dot" style={{ width: 6, height: 6 }} /> : null}
+    >
+      {status}
+    </Badge>
+  );
+}
+
+interface ScoreRingProps {
+  score: number | null;
+  size?: number;
+}
+
+/** A lead's qualification score as a ring; unscored leads show an empty ring. */
+export function ScoreRing({ score, size = 44 }: ScoreRingProps) {
+  const value = score === null ? 0 : Math.round(score * 100);
+  return (
+    <Tooltip label={score === null ? "Not qualified yet" : `Score ${score.toFixed(2)}`}>
+      <RingProgress
+        size={size}
+        thickness={size / 11}
+        roundCaps
+        sections={[{ value, color: scoreColor(score) }]}
+        rootColor="var(--gs-line)"
+        label={
+          <Text ta="center" size={size > 50 ? "sm" : "xs"} fw={600} className="gs-num">
+            {score === null ? "–" : value}
+          </Text>
+        }
+      />
+    </Tooltip>
+  );
+}

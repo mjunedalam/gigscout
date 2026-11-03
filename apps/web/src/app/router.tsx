@@ -1,0 +1,66 @@
+import { Center, Loader } from "@mantine/core";
+import { lazy, type ReactNode, Suspense } from "react";
+import { createBrowserRouter } from "react-router";
+
+import { AppLayout } from "./AppLayout";
+import { RequireAdmin, RequireAuth } from "./guards";
+
+// Route-level code splitting: each screen (and its charts) loads on first visit.
+const CommandCenterPage = lazy(() => import("../pages/CommandCenterPage"));
+const LeadsPage = lazy(() => import("../pages/LeadsPage"));
+const AnalyticsPage = lazy(() => import("../pages/AnalyticsPage"));
+const AskPage = lazy(() => import("../pages/AskPage"));
+const RunsPage = lazy(() => import("../pages/RunsPage"));
+const RunDetailPage = lazy(() => import("../pages/RunDetailPage"));
+const SchedulesPage = lazy(() => import("../pages/SchedulesPage"));
+const ProfilesPage = lazy(() => import("../pages/ProfilesPage"));
+const LoginPage = lazy(() => import("../pages/LoginPage"));
+const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
+const AdminSystemPage = lazy(() => import("../pages/admin/AdminSystemPage"));
+const AdminUsersPage = lazy(() => import("../pages/admin/AdminUsersPage"));
+const AdminSourcesPage = lazy(() => import("../pages/admin/AdminSourcesPage"));
+const AdminSettingsPage = lazy(() => import("../pages/admin/AdminSettingsPage"));
+const AdminAuditPage = lazy(() => import("../pages/admin/AdminAuditPage"));
+
+function page(element: ReactNode) {
+  return (
+    <Suspense
+      fallback={
+        <Center h={320}>
+          <Loader type="dots" />
+        </Center>
+      }
+    >
+      {element}
+    </Suspense>
+  );
+}
+
+const admin = (element: ReactNode) => page(<RequireAdmin>{element}</RequireAdmin>);
+
+export const router = createBrowserRouter([
+  { path: "/login", element: page(<LoginPage />) },
+  {
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: page(<CommandCenterPage />) },
+      { path: "leads", element: page(<LeadsPage />) },
+      { path: "analytics", element: page(<AnalyticsPage />) },
+      { path: "ask", element: page(<AskPage />) },
+      { path: "runs", element: page(<RunsPage />) },
+      { path: "runs/:runId", element: page(<RunDetailPage />) },
+      { path: "schedules", element: page(<SchedulesPage />) },
+      { path: "profiles", element: page(<ProfilesPage />) },
+      { path: "admin", element: admin(<AdminSystemPage />) },
+      { path: "admin/users", element: admin(<AdminUsersPage />) },
+      { path: "admin/sources", element: admin(<AdminSourcesPage />) },
+      { path: "admin/settings", element: admin(<AdminSettingsPage />) },
+      { path: "admin/audit", element: admin(<AdminAuditPage />) },
+      { path: "*", element: page(<NotFoundPage />) },
+    ],
+  },
+]);

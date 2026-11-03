@@ -1,0 +1,377 @@
+/*
+ * GigScout design tokens. Direction: "signal room": a dark, ink-blue operations desk where data glows
+ * (signal lime = live/qualified, one fixed hue per lead kind), with a warm paper light theme.
+ * Display: Space Grotesk · Text: Inter · Numbers & code: IBM Plex Mono.
+ */
+:root {
+  --gs-font-display: "Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif;
+  --gs-font-text: "Inter Variable", "Inter", system-ui, sans-serif;
+  --gs-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --gs-signal: #c6f432;
+  --gs-signal-ink: #0b0d12;
+  --gs-danger: #ff6b6b;
+  --gs-project: #8b7cff;
+  --gs-contract: #2dd4bf;
+  --gs-hiring: #f5b544;
+  --gs-inbound: #ff6b8b;
+
+  --gs-radius-sm: 6px;
+  --gs-radius-md: 12px;
+  --gs-radius-lg: 20px;
+  --gs-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --gs-fast: 150ms;
+  --gs-normal: 320ms;
+  --gs-space-section: clamp(1.5rem, 1rem + 2vw, 2.75rem);
+}
+
+:root[data-mantine-color-scheme="dark"] {
+  --gs-bg: #0b0d12;
+  --gs-bg-raised: #0f1219;
+  --gs-surface: #141824;
+  --gs-surface-2: #1a1f2d;
+  --gs-line: #252b3b;
+  --gs-text: #eceef4;
+  --gs-text-muted: #8a90a2;
+  --gs-glow: 0 0 0 1px rgba(198, 244, 50, 0.18), 0 8px 40px -12px rgba(198, 244, 50, 0.25);
+  --gs-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.8);
+  --gs-grain-opacity: 0.05;
+}
+
+:root[data-mantine-color-scheme="light"] {
+  --gs-bg: #f3f1ea;
+  --gs-bg-raised: #ebe8df;
+  --gs-surface: #fffdf8;
+  --gs-surface-2: #f6f3ec;
+  --gs-line: #dcd7cb;
+  --gs-text: #15171d;
+  --gs-text-muted: #61656f;
+  --gs-signal: #5f8a00;
+  --gs-glow: 0 0 0 1px rgba(95, 138, 0, 0.25), 0 8px 30px -14px rgba(95, 138, 0, 0.35);
+  --gs-shadow: 0 1px 2px rgba(20, 22, 30, 0.06), 0 18px 40px -28px rgba(20, 22, 30, 0.35);
+  --gs-grain-opacity: 0.035;
+}
+
+html,
+body {
+  background: var(--gs-bg);
+  color: var(--gs-text);
+  font-family: var(--gs-font-text);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Film grain over everything: texture without images. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: var(--gs-grain-opacity);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.gs-display {
+  font-family: var(--gs-font-display);
+  letter-spacing: -0.03em;
+}
+
+.gs-mono,
+.gs-num {
+  font-family: var(--gs-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.gs-eyebrow {
+  font-family: var(--gs-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gs-text-muted);
+}
+
+/* Panels: layered surfaces with a hairline and soft depth. */
+.gs-panel {
+  background: linear-gradient(180deg, var(--gs-surface) 0%, var(--gs-bg-raised) 140%);
+  border: 1px solid var(--gs-line);
+  border-radius: var(--gs-radius-lg);
+  box-shadow: var(--gs-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.gs-panel-hero {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gs-project) 18%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--gs-signal) 12%, transparent) 0%, transparent 60%),
+    var(--gs-surface);
+}
+
+.gs-lift {
+  transition:
+    transform var(--gs-fast) var(--gs-ease),
+    box-shadow var(--gs-fast) var(--gs-ease),
+    border-color var(--gs-fast) var(--gs-ease);
+}
+
+.gs-lift:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--gs-signal) 40%, var(--gs-line));
+  box-shadow: var(--gs-glow);
+}
+
+.gs-lift:focus-visible,
+.gs-focus:focus-visible {
+  outline: 2px solid var(--gs-signal);
+  outline-offset: 2px;
+}
+
+/* --- charts ---------------------------------------------------------------------------------------------- */
+.gs-axis {
+  font-family: var(--gs-font-mono);
+  font-size: 10px;
+  fill: var(--gs-text-muted);
+}
+
+.gs-axis-signal {
+  fill: var(--gs-signal);
+}
+
+.gs-donut-value {
+  font-family: var(--gs-font-display);
+  font-size: 28px;
+  font-weight: 600;
+  fill: var(--gs-text);
+}
+
+.gs-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 160px;
+  max-width: 260px;
+  padding: 10px 12px;
+  border-radius: var(--gs-radius-md);
+  background: color-mix(in srgb, var(--gs-surface-2) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--gs-line);
+  box-shadow: var(--gs-shadow);
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 5;
+  color: var(--gs-text);
+}
+
+.gs-galaxy-tip {
+  position: static;
+  transform: translate(14px, -50%);
+  white-space: normal;
+}
+
+.gs-tooltip strong {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--gs-font-display);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.gs-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gs-text-muted);
+}
+
+.gs-tooltip-row b {
+  margin-left: auto;
+  font-family: var(--gs-font-mono);
+  color: var(--gs-text);
+}
+
+.gs-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.gs-galaxy {
+  border-radius: var(--gs-radius-lg);
+  background: radial-gradient(80% 70% at 50% 45%, color-mix(in srgb, var(--gs-project) 14%, transparent), transparent 70%);
+}
+
+/* funnel */
+.gs-funnel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.gs-funnel-row {
+  display: grid;
+  grid-template-columns: 84px 1fr 44px 44px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.gs-funnel-label {
+  text-transform: capitalize;
+  color: var(--gs-text-muted);
+}
+
+.gs-funnel-track {
+  display: flex;
+  justify-content: center;
+  height: 22px;
+  background: var(--gs-surface-2);
+  border-radius: 6px;
+}
+
+.gs-funnel-bar {
+  display: block;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.gs-funnel-count,
+.gs-funnel-rate {
+  font-family: var(--gs-font-mono);
+  text-align: right;
+}
+
+.gs-funnel-rate {
+  color: var(--gs-text-muted);
+  font-size: 11px;
+}
+
+/* --- motion (compositor-friendly only) -------------------------------------------------------------------- */
+@keyframes gs-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gs-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gs-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes gs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes gs-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+.gs-fade-in { animation: gs-fade var(--gs-normal) var(--gs-ease) both; }
+.gs-rise { animation: gs-rise var(--gs-normal) var(--gs-ease) both; }
+.gs-grow-x { transform-origin: center; animation: gs-grow-x 600ms var(--gs-ease) both; }
+.gs-pulse { animation: gs-pulse 1.6s ease-in-out infinite; }
+.gs-draw { animation: gs-fade 700ms var(--gs-ease) both; }
+
+.gs-live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gs-signal);
+}
+
+.gs-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: gs-ping 1.8s var(--gs-ease) infinite;
+}
+
+.gs-stagger > * {
+  animation: gs-rise var(--gs-normal) var(--gs-ease) both;
+}
+
+.gs-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.gs-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.gs-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.gs-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.gs-stagger > *:nth-child(6) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* --- console & markdown ----------------------------------------------------------------------------------- */
+.gs-console {
+  font-family: var(--gs-font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  background: #07080c;
+  color: #c9cfdd;
+  border-radius: var(--gs-radius-md);
+  border: 1px solid var(--gs-line);
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+.gs-console .gs-console-time { color: #5d6478; margin-right: 10px; }
+.gs-console .gs-console-who { color: var(--gs-contract); }
+
+.gs-markdown { font-size: 14px; line-height: 1.65; }
+.gs-markdown h1, .gs-markdown h2, .gs-markdown h3 { font-family: var(--gs-font-display); letter-spacing: -0.02em; }
+.gs-markdown a { color: var(--gs-signal); }
+.gs-markdown table { width: 100%; border-collapse: collapse; font-size: 12.5px; display: block; overflow-x: auto; }
+.gs-markdown th, .gs-markdown td { border-bottom: 1px solid var(--gs-line); padding: 8px 10px; text-align: left; vertical-align: top; }
+.gs-markdown th { font-family: var(--gs-font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gs-text-muted); }
+.gs-markdown code { font-family: var(--gs-font-mono); }
+
+/* kanban */
+.gs-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(240px, 1fr));
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.gs-column {
+  background: var(--gs-bg-raised);
+  border: 1px dashed var(--gs-line);
+  border-radius: var(--gs-radius-lg);
+  padding: 12px;
+  min-height: 320px;
+  transition: border-color var(--gs-fast), background var(--gs-fast);
+}
+
+.gs-column[data-over="true"] {
+  border-color: var(--gs-signal);
+  background: color-mix(in srgb, var(--gs-signal) 6%, var(--gs-bg-raised));
+}
+
+.gs-card-drag { cursor: grab; }
+.gs-card-drag:active { cursor: grabbing; }
+
+.gs-row-click { cursor: pointer; transition: background var(--gs-fast); }
+.gs-row-click:hover { background: var(--gs-surface-2); }
+
+@keyframes gs-spin {
+  to { transform: rotate(360deg); }
+}

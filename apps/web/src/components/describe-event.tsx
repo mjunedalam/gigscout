@@ -1,0 +1,42 @@
+import type { LiveEvent } from "@gigscout/api-client";
+import {
+  IconBolt,
+  IconCalendarOff,
+  IconCircleCheck,
+  IconCircleX,
+  IconClockHour4,
+  IconMailbox,
+  IconPlayerPlay,
+  IconTag,
+} from "@tabler/icons-react";
+import type { ReactNode } from "react";
+
+interface Described {
+  icon: ReactNode;
+  color: string;
+  text: string;
+}
+
+export function describeEvent(event: LiveEvent): Described {
+  const d = event.data as Record<string, string | number | null>;
+  switch (event.type) {
+    case "run.queued":
+      return { icon: <IconClockHour4 size={14} />, color: "gray", text: `Run queued for ${d.profile_name}` };
+    case "run.started":
+      return { icon: <IconPlayerPlay size={14} />, color: "blue", text: `Agents started scouting for ${d.profile_name}` };
+    case "run.finished":
+      return d.status === "succeeded"
+        ? { icon: <IconCircleCheck size={14} />, color: "signal", text: `Run done: ${d.new_count} new, ${d.match_count} qualified` }
+        : { icon: <IconCircleX size={14} />, color: "red", text: `Run failed for ${d.profile_name}` };
+    case "run.cancelled":
+      return { icon: <IconCircleX size={14} />, color: "gray", text: "Queued run cancelled" };
+    case "lead.inbound":
+      return { icon: <IconMailbox size={14} />, color: "pink", text: `Inbound: ${d.title}` };
+    case "lead.updated":
+      return { icon: <IconTag size={14} />, color: "violet", text: `${d.by} moved "${d.title}"${d.status ? ` → ${d.status}` : ""}` };
+    case "schedule.skipped":
+      return { icon: <IconCalendarOff size={14} />, color: "yellow", text: `Schedule "${d.name}" skipped (run in progress)` };
+    default:
+      return { icon: <IconBolt size={14} />, color: "gray", text: event.type };
+  }
+}

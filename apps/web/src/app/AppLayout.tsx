@@ -1,0 +1,251 @@
+import {
+  ActionIcon,
+  AppShell,
+  Avatar,
+  Badge,
+  Burger,
+  Group,
+  Kbd,
+  Menu,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Text,
+  Tooltip,
+  UnstyledButton,
+  useComputedColorScheme,
+  useMantineColorScheme,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { Spotlight, type SpotlightActionData, spotlight } from "@mantine/spotlight";
+import {
+  IconAdjustmentsHorizontal,
+  IconAddressBook,
+  IconBolt,
+  IconBuildingStore,
+  IconCalendarTime,
+  IconChartHistogram,
+  IconClipboardList,
+  IconHeartRateMonitor,
+  IconLogout,
+  IconMessageQuestion,
+  IconMoon,
+  IconPlugConnected,
+  IconRadar2,
+  IconSearch,
+  IconShieldLock,
+  IconSun,
+  IconUsers,
+} from "@tabler/icons-react";
+import type { ReactNode } from "react";
+import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
+
+import { useAuth } from "../lib/auth";
+import { useLive } from "../lib/live";
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  description: string;
+}
+
+const WORKSPACE: NavItem[] = [
+  { to: "/", label: "Command center", icon: <IconRadar2 size={18} />, description: "Live metrics, galaxy, activity" },
+  { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
+  { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, funnel" },
+  { to: "/ask", label: "Ask", icon: <IconMessageQuestion size={18} />, description: "Question your lead memory" },
+];
+
+const OPERATIONS: NavItem[] = [
+  { to: "/runs", label: "Runs", icon: <IconBolt size={18} />, description: "Start agents, watch them live" },
+  { to: "/schedules", label: "Schedules", icon: <IconCalendarTime size={18} />, description: "Automate runs with cron" },
+  { to: "/profiles", label: "Agency profiles", icon: <IconBuildingStore size={18} />, description: "What you sell" },
+];
+
+const ADMIN: NavItem[] = [
+  { to: "/admin", label: "System", icon: <IconHeartRateMonitor size={18} />, description: "Health and capacity" },
+  { to: "/admin/users", label: "Users", icon: <IconUsers size={18} />, description: "Accounts and roles" },
+  { to: "/admin/sources", label: "Sources", icon: <IconPlugConnected size={18} />, description: "Lead source health" },
+  { to: "/admin/settings", label: "Configuration", icon: <IconAdjustmentsHorizontal size={18} />, description: "Running config" },
+  { to: "/admin/audit", label: "Audit log", icon: <IconClipboardList size={18} />, description: "Who changed what" },
+];
+
+export function AppLayout() {
+  const [opened, { toggle, close }] = useDisclosure();
+  const { user, isAdmin, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const sections: [string, NavItem[]][] = [
+    ["Workspace", WORKSPACE],
+    ["Operations", OPERATIONS],
+    ...(isAdmin ? ([["Admin", ADMIN]] as [string, NavItem[]][]) : []),
+  ];
+  const actions: SpotlightActionData[] = sections.flatMap(([group, items]) =>
+    items.map((item) => ({
+      id: item.to,
+      label: item.label,
+      description: item.description,
+      group,
+      leftSection: item.icon,
+      onClick: () => navigate(item.to),
+    })),
+  );
+
+  return (
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 248, breakpoint: "md", collapsed: { mobile: !opened } }}
+      padding={{ base: "md", md: "xl" }}
+      styles={{
+        main: { background: "transparent" },
+        header: { background: "color-mix(in srgb, var(--gs-bg) 82%, transparent)", backdropFilter: "blur(10px)", borderColor: "var(--gs-line)" },
+        navbar: { background: "var(--gs-bg-raised)", borderColor: "var(--gs-line)" },
+      }}
+    >
+      <AppShell.Header px="md">
+        <Group h="100%" justify="space-between" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
+            <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Toggle navigation" />
+            <Brand />
+          </Group>
+          <Group gap="xs" wrap="nowrap">
+            <UnstyledButton onClick={spotlight.open} className="gs-panel gs-focus" px="sm" py={6} visibleFrom="sm" aria-label="Search pages">
+              <Group gap="xs" wrap="nowrap">
+                <IconSearch size={15} />
+                <Text size="sm" c="var(--gs-text-muted)">
+                  Jump to…
+                </Text>
+                <Kbd size="xs">⌘K</Kbd>
+              </Group>
+            </UnstyledButton>
+            <LiveIndicator />
+            <ThemeToggle />
+            <Menu position="bottom-end" width={220}>
+              <Menu.Target>
+                <UnstyledButton aria-label="Account menu" className="gs-focus" style={{ borderRadius: 999 }}>
+                  <Avatar color="signal" radius="xl" size={34}>
+                    {user?.name.slice(0, 2).toUpperCase()}
+                  </Avatar>
+                </UnstyledButton>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>
+                  <Text size="sm" fw={600} c="var(--gs-text)">
+                    {user?.name}
+                  </Text>
+                  <Text size="xs">{user?.email}</Text>
+                </Menu.Label>
+                {isAdmin && <Menu.Item leftSection={<IconShieldLock size={16} />}>Administrator</Menu.Item>}
+                <Menu.Divider />
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconLogout size={16} />}
+                  onClick={async () => {
+                    await logout();
+                    navigate("/login");
+                  }}
+                >
+                  Sign out
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar p="sm">
+        <ScrollArea type="never">
+          <Stack gap="lg" py="xs">
+            {sections.map(([title, items]) => (
+              <Stack key={title} gap={2}>
+                <Text className="gs-eyebrow" px="sm" pb={4}>
+                  {title}
+                </Text>
+                {items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    component={RouterLink}
+                    to={item.to}
+                    end={item.to === "/" || item.to === "/admin"}
+                    label={item.label}
+                    leftSection={item.icon}
+                    onClick={close}
+                    active={item.to === "/" || item.to === "/admin" ? location.pathname === item.to : location.pathname.startsWith(item.to)}
+                    styles={{ root: { borderRadius: 10 }, label: { fontWeight: 500 } }}
+                    color="signal"
+                    variant="light"
+                  />
+                ))}
+              </Stack>
+            ))}
+          </Stack>
+        </ScrollArea>
+      </AppShell.Navbar>
+
+      <AppShell.Main>
+        <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+          <Outlet />
+        </div>
+      </AppShell.Main>
+
+      <Spotlight
+        actions={actions}
+        nothingFound="No page matches"
+        highlightQuery
+        shortcut={["mod + K", "/"]}
+        searchProps={{ leftSection: <IconSearch size={18} />, placeholder: "Go to…" }}
+      />
+    </AppShell>
+  );
+}
+
+function Brand() {
+  return (
+    <Group gap={10} wrap="nowrap">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden>
+        <circle cx="14" cy="14" r="7" fill="none" stroke="var(--gs-signal)" strokeWidth="3" />
+        <path d="M19 19l6 6" stroke="var(--gs-signal)" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="14" cy="14" r="2" fill="var(--gs-inbound)" />
+      </svg>
+      <Text className="gs-display" fw={600} fz={19}>
+        GigScout
+      </Text>
+      <Badge size="xs" variant="outline" color="gray" visibleFrom="xs">
+        agency
+      </Badge>
+    </Group>
+  );
+}
+
+function LiveIndicator() {
+  const { connection } = useLive();
+  const label = connection === "open" ? "Live" : connection === "connecting" ? "Connecting" : "Offline";
+  return (
+    <Tooltip label={connection === "open" ? "Receiving live updates" : "Live updates paused; reconnecting"}>
+      <Group gap={8} px="sm" py={6} className="gs-panel" wrap="nowrap" style={{ borderRadius: 999 }}>
+        <span
+          className={connection === "open" ? "gs-live-dot" : undefined}
+          style={connection === "open" ? undefined : { width: 8, height: 8, borderRadius: 8, background: "var(--gs-text-muted)" }}
+        />
+        <Text size="xs" className="gs-mono" visibleFrom="xs">
+          {label}
+        </Text>
+      </Group>
+    </Tooltip>
+  );
+}
+
+function ThemeToggle() {
+  const { setColorScheme } = useMantineColorScheme();
+  const scheme = useComputedColorScheme("dark");
+  const next = scheme === "dark" ? "light" : "dark";
+  return (
+    <Tooltip label={`Switch to ${next} theme`}>
+      <ActionIcon size={36} onClick={() => setColorScheme(next)} aria-label={`Switch to ${next} theme`}>
+        {scheme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
+      </ActionIcon>
+    </Tooltip>
+  );
+}
