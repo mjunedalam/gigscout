@@ -1,0 +1,12 @@
+{
+  "name": "@gigscout/api",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Python backend, wrapped so Turborepo can run it alongside the web app.",
+  "scripts": {
+    "dev": "uv run gigscout serve --reload",
+    "lint": "uv run ruff check src tests",
+    "test": "uv run pytest -q",
+    "typecheck": "uv run python -m compileall -q src"
+  }
+}

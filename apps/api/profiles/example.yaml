@@ -1,0 +1,18 @@
+# Your agency profile. The agent prospects, qualifies and pitches against this.
+name: Acme Software Studio
+pitch: >
+  A 12-person software studio that designs and builds custom web platforms, mobile apps and
+  AI integrations for startups and growing SMEs, from MVP to scale.
+services:                      # what you sell; seeds search queries when `keywords` is empty
+  - web application development
+  - mobile app development
+  - ai chatbot integration
+  - api development
+skills: [python, django, fastapi, react, angular, react native, postgresql, aws, langchain]  # required
+keywords: [web app, mobile app, saas mvp, ai chatbot, api integration]  # seeds the search queries
+industries: [fintech, healthcare, ecommerce]
+exclude: [wordpress, unpaid, "data entry", "logo design"]   # hard filter
+min_budget_usd: 1500           # smallest deal worth your time; affects score, not a filter
+target_countries: [United States, United Kingdom, Canada, Australia, Germany]  # empty = any
+kinds: [project, contract, hiring, inbound]
+# sources: [freelancer, remotive]   # omit to use all enabled sources (inbound leads always included)
