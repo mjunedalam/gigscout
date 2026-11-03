@@ -6,6 +6,7 @@ import { AppLayout } from "./AppLayout";
 import { RequireAdmin, RequireAuth } from "./guards";
 
 // Route-level code splitting: each screen (and its charts) loads on first visit.
+const CockpitPage = lazy(() => import("../pages/CockpitPage"));
 const CommandCenterPage = lazy(() => import("../pages/CommandCenterPage"));
 const LeadsPage = lazy(() => import("../pages/LeadsPage"));
 const AnalyticsPage = lazy(() => import("../pages/AnalyticsPage"));
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: page(<CommandCenterPage />) },
+      { path: "cockpit", element: page(<CockpitPage />) },
       { path: "leads", element: page(<LeadsPage />) },
       { path: "analytics", element: page(<AnalyticsPage />) },
       { path: "ask", element: page(<AskPage />) },

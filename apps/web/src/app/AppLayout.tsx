@@ -22,6 +22,7 @@ import {
   IconAdjustmentsHorizontal,
   IconAddressBook,
   IconBolt,
+  IconBuildingFactory2,
   IconBuildingStore,
   IconCalendarTime,
   IconChartHistogram,
@@ -51,6 +52,7 @@ interface NavItem {
 }
 
 const WORKSPACE: NavItem[] = [
+  { to: "/cockpit", label: "Agent cockpit", icon: <IconBuildingFactory2 size={18} />, description: "Watch the agents work, live" },
   { to: "/", label: "Command center", icon: <IconRadar2 size={18} />, description: "Live metrics, galaxy, activity" },
   { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
   { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, funnel" },

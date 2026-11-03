@@ -1,0 +1,53 @@
+/* Agent cockpit: fills the viewport on desktop (no page scroll); stacks on narrow screens. */
+.gs-cockpit {
+  --gs-cockpit-h: calc(100dvh - 60px - 2 * var(--mantine-spacing-xl));
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 260px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: var(--gs-cockpit-h);
+  min-height: 560px;
+}
+.gs-cockpit-kpis { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) auto; overflow: hidden; padding: 0; }
+.gs-cockpit-kpi { padding: 10px 14px; border-right: 1px solid var(--gs-line); min-width: 0; }
+.gs-cockpit-kpi .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+.gs-cockpit-kpi .d { font-size: 11px; color: var(--gs-signal); min-height: 15px; font-variant-numeric: tabular-nums; }
+.gs-cockpit-ctrls { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 0 12px; }
+.gs-cockpit-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.gs-cockpit-agents { padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.gs-cockpit-agent { border: 1px solid var(--gs-line); border-radius: 10px; padding: 7px 9px; transition: opacity var(--gs-normal), border-color var(--gs-normal); }
+.gs-cockpit-agent[data-state="pending"] { opacity: 0.45; }
+.gs-cockpit-agent[data-state="active"] { border-color: var(--c); }
+.gs-cockpit-agent .top { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+.gs-cockpit-agent .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+.gs-cockpit-agent .chip { margin-left: auto; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--gs-surface-2); color: var(--gs-text-muted); }
+.gs-cockpit-agent[data-state="active"] .chip { background: var(--c); color: #fff; }
+.gs-cockpit-agent[data-state="done"] .chip { color: #1f9d55; }
+.gs-cockpit-agent .task { color: var(--gs-text-muted); font-size: 11.5px; margin: 3px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-cockpit-agent .bar { height: 5px; background: var(--gs-surface-2); border-radius: 3px; overflow: hidden; }
+.gs-cockpit-agent .bar i { display: block; height: 100%; background: var(--c); transition: width var(--gs-normal) var(--gs-ease); }
+.gs-cockpit-agent .meta { color: var(--gs-text-muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.gs-cockpit-feed { flex: 1; min-height: 0; padding: 10px; overflow: hidden; }
+.gs-cockpit-feed ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.gs-cockpit-feed li { display: grid; grid-template-columns: 32px 1fr; gap: 5px; padding: 4px 0; border-bottom: 1px dashed var(--gs-line); font-size: 11.5px; animation: gs-cockpit-in 0.35s ease; }
+.gs-cockpit-feed time { color: var(--gs-text-muted); font-variant-numeric: tabular-nums; opacity: 0.7; }
+@keyframes gs-cockpit-in { from { opacity: 0; transform: translateY(-4px); } }
+.gs-cockpit-stage { position: relative; overflow: hidden; padding: 0; background: radial-gradient(120% 90% at 50% 35%, #fbfaf8 0%, #e9ebef 60%, #dfe2e8 100%); }
+:root[data-mantine-color-scheme="dark"] .gs-cockpit-stage { background: radial-gradient(120% 90% at 50% 35%, #1d2330 0%, #131820 70%, #0f1218 100%); }
+.gs-cockpit-stage .cap { position: absolute; top: 10px; left: 14px; z-index: 2; }
+.gs-cockpit-stage .cam { position: absolute; top: 8px; right: 10px; z-index: 3; }
+.gs-cockpit-charts { display: grid; grid-template-rows: 1.2fr 1fr 1fr 1fr; gap: 10px; min-height: 0; }
+.gs-cockpit-chart { padding: 10px 12px; min-height: 0; overflow: hidden; }
+.gs-cockpit-legend { display: flex; gap: 10px; font-size: 11px; color: var(--gs-text-muted); }
+.gs-cockpit-legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+@media (max-width: 1100px) {
+  .gs-cockpit { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
+  .gs-cockpit-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gs-cockpit-stage { height: 70vh; min-height: 420px; }
+  .gs-cockpit-charts { grid-template-rows: none; }
+  .gs-cockpit-feed { max-height: 320px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gs-cockpit-feed li { animation: none; }
+}

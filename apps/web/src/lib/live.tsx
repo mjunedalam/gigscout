@@ -1,8 +1,8 @@
-import { type ConnectionState, connectLive, type LiveEvent, type Overview } from "@gigscout/api-client";
+import { type ConnectionState, connectLive, type LiveEvent, type Overview, type RunActivity } from "@gigscout/api-client";
 import { pushWindow } from "@gigscout/viz";
 import { notifications } from "@mantine/notifications";
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "./api";
 import { useAuth } from "./auth";
@@ -20,7 +20,13 @@ export interface LiveState {
   runLines: Record<string, { at: string; line: string }[]>;
 }
 
-const LiveContext = createContext<LiveState | null>(null);
+/** Structured run activity is high-volume, so it goes to subscribers directly instead of through React state. */
+export type ActivityListener = (runId: string, activity: RunActivity) => void;
+interface LiveContextValue extends LiveState {
+  subscribeActivity: (listener: ActivityListener) => () => void;
+}
+
+const LiveContext = createContext<LiveContextValue | null>(null);
 
 /**
  * One Server-Sent Events connection for the whole app. Events update the activity feed and run consoles, and
@@ -36,6 +42,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     runLines: {},
   });
   const seen = useRef(new Set<number>());
+  const activityListeners = useRef(new Set<ActivityListener>());
+  const subscribeActivity = useCallback((listener: ActivityListener) => {
+    activityListeners.current.add(listener);
+    return () => void activityListeners.current.delete(listener);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +63,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const onEvent = (event: LiveEvent) => {
       if (seen.current.has(event.id)) return;
       seen.current.add(event.id);
+      if (event.type === "run.activity") {
+        const { id, ...activity } = event.data as unknown as { id: string } & RunActivity;
+        activityListeners.current.forEach((listener) => listener(id, activity as RunActivity));
+        return;
+      }
       if (event.type === "metrics.snapshot") {
         const overview = event.data as unknown as Overview;
         queryClient.setQueryData(["metrics", "overview"], overview);
@@ -79,10 +95,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     };
   }, [user, queryClient]);
 
-  return <LiveContext.Provider value={state}>{children}</LiveContext.Provider>;
+  const value = useMemo(() => ({ ...state, subscribeActivity }), [state, subscribeActivity]);
+  return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }
 
-export function useLive(): LiveState {
+export function useLive(): LiveContextValue {
   const context = useContext(LiveContext);
   if (!context) throw new Error("useLive must be used inside <LiveProvider>");
   return context;
