@@ -33,12 +33,16 @@ class PoliteClient:
         self._last_call: dict[str, float] = {}
         self._lock = threading.Lock()
 
-    def get(self, url: str, params: dict | None = None) -> httpx.Response:
+    def get(self, url: str, params: dict | None = None, follow_redirects: bool = True) -> httpx.Response:
+        """GET politely. With follow_redirects=False a redirect is returned (not raised) so the caller can vet
+        where it points before following it, which is how user-supplied websites are fetched."""
         if not self._allowed(url):
             raise DisallowedByRobots(f"robots.txt disallows {url}")
         for attempt in range(1, self._settings.http_max_retries + 1):
             self._throttle(urlsplit(url).netloc)
-            response = self._client.get(url, params=params)
+            response = self._client.get(url, params=params, follow_redirects=follow_redirects)
+            if response.is_redirect and not follow_redirects:
+                return response
             if response.status_code not in RETRYABLE_STATUS or attempt == self._settings.http_max_retries:
                 response.raise_for_status()
                 return response

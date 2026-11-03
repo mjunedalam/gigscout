@@ -26,11 +26,11 @@ class RssSource:
         leads: list[Lead] = []
         for feed_url in self._feeds:
             parsed = feedparser.parse(self._client.get_text(feed_url))
-            items = (self._parse(entry, feed_url) for entry in parsed.entries)
+            items = (self.parse_entry(entry, feed_url) for entry in parsed.entries)
             leads.extend(lead for lead in items if matches_any_query(lead.document(), queries))
         return leads[: limit * max(len(queries), 1)]
 
-    def _parse(self, entry, feed_url: str) -> Lead:
+    def parse_entry(self, entry, feed_url: str) -> Lead:
         link = entry.get("link") or feed_url
         native_id = entry.get("id") or link
         published = entry.get("published_parsed") or entry.get("updated_parsed")
