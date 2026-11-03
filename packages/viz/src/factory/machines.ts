@@ -105,20 +105,6 @@ export function shell(color: string, M: Materials) {
   return { rise, fluid, lamp };
 }
 
-/** Head of Sales' control booth at the back of the line. */
-export function booth(color: string, M: Materials): Group {
-  const g = new Group();
-  g.add(
-    mesh(box(2.4, 0.22, 1.3, 0.08), M.plat, 0, 0.11, 0),
-    mesh(new CylinderGeometry(0.24, 0.3, 1.7, 24), M.body, 0, 1.05, 0),
-    mesh(box(1.9, 0.8, 1.15, 0.12), M.body, 0, 2.25, 0),
-    mesh(box(1.92, 0.26, 1.17, 0.05), M.dark, 0, 2.32, 0),
-    mesh(box(2.0, 0.09, 1.25, 0.04), M.accent(color), 0, 2.7, 0),
-    mesh(new CylinderGeometry(0.02, 0.02, 0.7, 8), M.dark, 0.6, 3.05, -0.2),
-  );
-  return g;
-}
-
 /** An open tray on the floor (rejects, shortlist, finished pitches). */
 export function tray(mat: Materials["bin"], w = 1.5, d = 1.05): Group {
   const g = new Group();

@@ -1,7 +1,7 @@
 import type { RunStage } from "@gigscout/api-client";
 import {
-  ACESFilmicToneMapping, BoxGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, Group, HemisphereLight,
-  MathUtils, Mesh, MeshBasicMaterial, MeshStandardMaterial, OrthographicCamera, PCFSoftShadowMap, PlaneGeometry,
+  ACESFilmicToneMapping, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, Group,
+  HemisphereLight, Line, LineDashedMaterial, MathUtils, Mesh, MeshBasicMaterial, MeshStandardMaterial, OrthographicCamera, PCFSoftShadowMap, PlaneGeometry,
   PMREMGenerator, RepeatWrapping, Scene, ShadowMaterial, SpotLight, SRGBColorSpace, Vector3, WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -11,8 +11,9 @@ import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer
 import { type CockpitModel, isThinking, pileCounts, stageElapsed, stageProgress, stageState } from "../cockpit/model";
 import { CardFlow } from "./cards";
 import { boothCallout, drawSpark, type StationCallout, stationCallout, type TagCallout, tagCallout } from "./labels";
-import { AGENT_COLORS, BELT, BOOTH, BOUNDS, GROOVE_Z, STATIONS, TRAYS, X } from "./layout";
-import { booth, machine, type MachineParts, shell, tray } from "./machines";
+import { headquarters, HQ_DECK, HQ_SCALE, HQ_TOP, type HqParts } from "./headquarters";
+import { AGENT_COLORS, BELT, BOUNDS, GROOVE_Z, HQ, STATIONS, TRAYS, X } from "./layout";
+import { machine, type MachineParts, shell, tray } from "./machines";
 import { box, Materials, mesh } from "./materials";
 
 const VIEW_DIR = new Vector3(0.24, 1.3, 1).normalize();
@@ -20,6 +21,9 @@ const LOOK = new Vector3(0, 0.4, 0.5);
 const FOLLOW_ZOOM = 1.55;
 const SPARK_EVERY = 0.25;
 const LAMP_PENDING = 0x9aa1ab, LAMP_DONE = 0x1f9d55;
+const HQ_RISE_FROM = -7;
+const HEAD_STAGES = new Set<RunStage>(["plan", "report"]);
+const STAGE_VERB: Record<RunStage, string> = { plan: "planning the run", search: "directing search", qualify: "directing qualify", write: "directing outreach", report: "writing the briefing" };
 
 interface BuiltStation {
   born: number;
@@ -54,7 +58,8 @@ export class FactoryEngine {
   private readonly beltTex: CanvasTexture;
   private readonly grooveFill: Mesh[] = [];
   private readonly stations = new Map<RunStage, BuiltStation>();
-  private readonly booth: { rise: Group; hatch: Mesh; callout: ReturnType<typeof boothCallout>; born: number | null };
+  private readonly booth: { rise: Group; hatch: Mesh; callout: ReturnType<typeof boothCallout>; born: number | null; parts: HqParts };
+  private readonly briefLine: Line<BufferGeometry, LineDashedMaterial>;
   private readonly tags: Record<"waiting" | "dropped" | "shortlisted" | "pitched", { tag: TagCallout; obj: CSS2DObject; history: number[] }>;
   private readonly resizeObserver: ResizeObserver;
   private model: CockpitModel | null = null;
@@ -96,6 +101,7 @@ export class FactoryEngine {
     this.beltTex = this.conveyor();
     this.groove();
     this.booth = this.buildBooth();
+    this.briefLine = this.buildBriefLine();
     this.tags = this.buildTrays();
     this.cards = new CardFlow(this.scene);
     this.setDark(dark);
@@ -117,7 +123,7 @@ export class FactoryEngine {
     this.stations.clear();
     this.cards.reset();
     this.booth.born = null;
-    this.booth.rise.position.y = -3.4;
+    this.booth.rise.position.y = HQ_RISE_FROM;
     this.booth.callout.root.style.opacity = "0";
     Object.values(this.tags).forEach((t) => (t.history.length = 0));
     this.grooveFill.forEach((f) => (f.scale.x = 0.0001));
@@ -164,7 +170,7 @@ export class FactoryEngine {
     Object.assign(this.key.shadow, { radius: 4, bias: -0.0004, normalBias: 0.02 });
     const fill = new DirectionalLight(0xdfe8ff, 0.45);
     fill.position.set(12, 8, 6);
-    this.spot.position.set(0, 7.5, -5.5);
+    this.spot.position.set(HQ.x, 7, HQ.z + 1); // the Head of Sales' light shines from the control room
     this.spot.castShadow = true;
     this.scene.add(this.hemi, this.key, fill, this.spot, this.spot.target);
   }
@@ -227,18 +233,27 @@ export class FactoryEngine {
 
   private buildBooth() {
     const root = new Group();
-    root.position.set(BOOTH.x, 0, BOOTH.z);
-    const rise = booth(AGENT_COLORS.head, this.M);
-    rise.position.y = -3.4;
-    const hatch = this.hatch(2.6, 1.5);
+    root.position.set(HQ.x, 0, HQ.z);
+    const { group: rise, parts } = headquarters(this.M);
+    rise.position.y = HQ_RISE_FROM;
+    const hatch = this.hatch(5.6, 2.6);
     const callout = boothCallout(AGENT_COLORS.head);
     callout.root.style.opacity = "0";
     const obj = new CSS2DObject(callout.root);
     obj.center.set(0.5, 1);
-    obj.position.set(0, 3.15, 0);
+    obj.position.set(0, HQ_TOP, -0.98 * HQ_SCALE);
     root.add(rise, hatch, obj);
     this.scene.add(root);
-    return { rise, hatch, callout, born: null as number | null };
+    return { rise, hatch, callout, born: null as number | null, parts };
+  }
+
+  /** A dashed line from the Head of Sales' desk to the station being briefed. */
+  private buildBriefLine() {
+    const line = new Line(new BufferGeometry().setFromPoints([new Vector3(), new Vector3()]),
+      new LineDashedMaterial({ color: AGENT_COLORS.head, dashSize: 0.22, gapSize: 0.16, transparent: true, opacity: 0.85 }));
+    line.visible = false;
+    this.scene.add(line);
+    return line;
   }
 
   private buildTrays() {
@@ -335,9 +350,10 @@ export class FactoryEngine {
     if (started && this.booth.born === null) this.booth.born = this.clock;
     if (this.booth.born !== null) {
       const age = this.clock - this.booth.born;
-      this.raise(this.booth.rise, this.booth.hatch, age, -3.4);
+      this.raise(this.booth.rise, this.booth.hatch, age, HQ_RISE_FROM);
       this.booth.callout.root.style.opacity = age > 0.9 ? "1" : "0";
-      this.booth.callout.metric.textContent = m.finished ? "run complete" : m.stage ? `directing ${m.stage}` : "ready";
+      this.booth.callout.metric.textContent = m.finished ? "run complete" : m.stage ? STAGE_VERB[m.stage] : "ready";
+      this.animateHeadOfSales(m, dt);
     }
     STATIONS.forEach((spec, i) => this.animateStation(m, spec.stage, i, dt));
     this.animateMotion(m, dt);
@@ -377,6 +393,34 @@ export class FactoryEngine {
       const lastScore = m.scores.at(-1);
       const target = on && lastScore !== undefined ? (0.5 - lastScore) * 2.4 : 0;
       p.needle.rotation.z += (target - p.needle.rotation.z) * Math.min(dt * 10, 1);
+    }
+  }
+
+  /** The manager faces the station it directs, leans in over its own work, and watches the pipeline board. */
+  private animateHeadOfSales(m: CockpitModel, dt: number) {
+    const { head, torso, bars } = this.booth.parts;
+    const i = m.stage && !m.finished ? STATIONS.findIndex((s) => s.stage === m.stage) : -1;
+    const k = Math.min(dt * 4, 1);
+    const facing = i >= 0 ? MathUtils.clamp(Math.atan2(X[i]! - HQ.x, -1.5 - HQ.z), -1.1, 1.1) : 0;
+    head.rotation.y += (facing - head.rotation.y) * k;
+    const ownWork = m.stage !== null && HEAD_STAGES.has(m.stage) && !m.finished && !this.reducedMotion;
+    torso.rotation.x += ((ownWork ? 0.22 + Math.sin(this.clock * 3) * 0.04 : 0) - torso.rotation.x) * k;
+    // pipeline board: found → reviewed → qualified → pitched, on a log scale so small numbers still show
+    const counts = pileCounts(m);
+    const found = m.order.filter((id) => m.leads[id]!.found).length;
+    const values = [found, m.scores.length, m.order.filter((id) => m.leads[id]!.qualified).length, counts.pitched];
+    const top = Math.log1p(Math.max(...values, 1));
+    bars.forEach((bar, b) => {
+      const target = Math.max((Math.log1p(values[b]!) / top) * 1.3, 0.02);
+      bar.scale.y += (target - bar.scale.y) * k;
+    });
+    // briefing line to the station being directed (not while it works on its own step)
+    const line = this.briefLine;
+    line.visible = i >= 0 && !HEAD_STAGES.has(m.stage!) && this.booth.rise.position.y > -0.05;
+    if (line.visible) {
+      const spec = STATIONS[i]!;
+      line.geometry.setFromPoints([new Vector3(HQ.x, (HQ_DECK + 1.25) * HQ_SCALE, HQ.z + 0.45 * HQ_SCALE), new Vector3(X[i]!, spec.top - 0.3, -1.55)]);
+      line.computeLineDistances();
     }
   }
 

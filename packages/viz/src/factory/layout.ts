@@ -41,6 +41,7 @@ export const TRAYS = {
   shortlist: { x: X[2] + 2.25, z: 3.0 },
   pitches: { x: X[4] - 1.0, z: 3.0 },
 } as const;
-export const BOOTH = { x: 0, z: -4.05 } as const;
+/** The Head of Sales' control room: a mezzanine at the back, centred, overlooking every station. */
+export const HQ = { x: 0, z: -5.4 } as const;
 /** Scene bounds used to fit the overview camera. */
-export const BOUNDS = { x0: X[0] - 2.4, x1: X[4] + 2.4, y0: 0, y1: 3.4, z0: -4.8, z1: GROOVE_Z + 0.3 } as const;
+export const BOUNDS = { x0: X[0] - 2.4, x1: X[4] + 2.4, y0: 0, y1: 5.4, z0: -6.8, z1: GROOVE_Z + 0.3 } as const;
