@@ -1,8 +1,10 @@
 """The lead workspace: browse, search, open, move through the sales pipeline, and ask questions."""
 
+import json
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from gigscout.models import Candidate
@@ -76,6 +78,21 @@ def update_lead(
     session.commit()
     platform.bus.publish("lead.updated", {"id": lead_id, "title": lead.title, "by": user.name, **changes})
     return to_view(None, {lead_id: state}, Candidate(lead=lead, similarity=1))
+
+
+@router.post("/ask/stream", tags=["leads"])
+def ask_stream(body: AskRequest, platform: PlatformDep, session: SessionDep, _: UserDep) -> StreamingResponse:
+    """Like /ask, streamed as newline-delimited JSON: status, sources, answer tokens, then done (or error)."""
+    states = load_states(session)  # read now: the request's session is gone once streaming starts
+
+    def lines():
+        for event in platform.service.ask_stream(body.question, body.k):
+            if event["type"] == "sources":
+                views = [to_view(None, states, c).model_dump(mode="json") for c in event["sources"]]
+                event = {**event, "sources": views}
+            yield json.dumps(event, default=str) + "\n"
+
+    return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 
 
 @router.post("/ask", tags=["leads"])

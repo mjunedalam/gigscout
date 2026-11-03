@@ -4,7 +4,7 @@ import mlflow
 import pytest
 
 from gigscout.profile_loader import ProfileError, load_profile
-from gigscout.rag import ask
+from gigscout.rag import ask, ask_stream
 from gigscout.service import ScoutService
 from tests.conftest import FakeReasoner, FakeSource, make_deps
 
@@ -22,6 +22,44 @@ def test_rag_without_llm_or_data(index, sample_leads):
     assert "No leads indexed" in ask("q", index, FakeReasoner()).text
     index.add_new(sample_leads)
     assert "No LLM available" in ask("python", index, None).text
+
+
+def test_rag_streams_status_then_sources_then_the_answer_token_by_token(index, sample_leads):
+    index.add_new(sample_leads)
+
+    events = list(ask_stream("django api work?", index, FakeReasoner(), k=2))
+
+    assert [e["type"] for e in events][:3] == ["status", "sources", "status"]
+    assert len(events[1]["sources"]) == 2
+    tokens = [e["text"] for e in events if e["type"] == "token"]
+    assert len(tokens) == 4 and "".join(tokens) == "Answer based on 2 leads [1]"
+    assert events[-1]["type"] == "done" and events[-1]["elapsed"] >= 0
+
+
+@pytest.mark.parametrize(("seed", "reasoner", "expected"), [
+    (False, FakeReasoner(), "No leads indexed"),
+    (True, None, "No LLM available"),
+])
+def test_rag_stream_still_answers_without_data_or_llm(index, sample_leads, seed, reasoner, expected):
+    if seed:
+        index.add_new(sample_leads)
+
+    events = list(ask_stream("python", index, reasoner))
+
+    assert expected in "".join(e["text"] for e in events if e["type"] == "token")
+    assert events[-1]["type"] == "done"
+
+
+def test_rag_stream_reports_a_failing_model_as_an_error_event(index, sample_leads):
+    class Broken(FakeReasoner):
+        def answer_stream(self, question, context):
+            yield "Partial "
+            raise RuntimeError("model went away")
+
+    index.add_new(sample_leads)
+    events = list(ask_stream("python", index, Broken()))
+
+    assert events[-1] == {"type": "error", "message": "The model stopped answering: model went away"}
 
 
 def test_load_profile_validates(tmp_path):

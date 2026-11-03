@@ -1,7 +1,7 @@
 """The LLM-powered "judgement" the agent calls into. A Protocol so tests and offline runs can swap it."""
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Protocol
 
 import httpx
@@ -30,6 +30,8 @@ class Reasoner(Protocol):
     def summarize(self, profile: AgencyProfile, leads: str) -> str: ...
 
     def answer(self, question: str, context: str) -> str: ...
+
+    def answer_stream(self, question: str, context: str) -> Iterator[str]: ...
 
 
 class OllamaReasoner:
@@ -61,6 +63,11 @@ class OllamaReasoner:
 
     def answer(self, question: str, context: str) -> str:
         return str(self._llm.invoke(prompts.ANSWER_WITH_CONTEXT.format(context=context, question=question)).content)
+
+    def answer_stream(self, question: str, context: str) -> Iterator[str]:
+        for chunk in self._llm.stream(prompts.ANSWER_WITH_CONTEXT.format(context=context, question=question)):
+            if isinstance(chunk.content, str) and chunk.content:
+                yield chunk.content
 
 
 def build_chat_model(settings: Settings) -> BaseChatModel | None:

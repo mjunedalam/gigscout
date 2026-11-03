@@ -1,8 +1,9 @@
 """Composition root: builds the real dependencies once and exposes the use-cases to the CLI and API."""
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from gigscout.activity import Activity, ActivityListener
 from gigscout.agent.graph import StepListener, run_scout
@@ -14,7 +15,7 @@ from gigscout.inbound import google_ads
 from gigscout.models import AgencyProfile, Candidate, Lead, ScoutResult
 from gigscout.multiagent.runner import run_team
 from gigscout.multiagent.team import TeamModels
-from gigscout.rag import Answer, ask
+from gigscout.rag import Answer, ask, ask_stream
 from gigscout.sources.registry import build_sources
 from gigscout.store.embeddings import FastEmbedder
 from gigscout.store.vector_store import LeadIndex
@@ -70,6 +71,9 @@ class ScoutService:
 
     def ask(self, question: str, k: int = 8) -> Answer:
         return ask(question, self.deps.index, self.deps.reasoner, k=k)
+
+    def ask_stream(self, question: str, k: int = 8) -> Iterator[dict[str, Any]]:
+        return ask_stream(question, self.deps.index, self.deps.reasoner, k=k)
 
     def ingest_inbound(self, lead: Lead) -> bool:
         """Store a pushed lead (e.g. a Google Ads form submission). Returns False if it was already stored."""

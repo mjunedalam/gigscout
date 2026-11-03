@@ -198,6 +198,24 @@ def test_a_running_run_can_be_stopped_and_keeps_what_it_did(web, sample_leads):
     assert "run.stop" in [a["action"] for a in client.get("/api/admin/audit").json()]
 
 
+def test_ask_streams_newline_delimited_events(web):
+    import json
+
+    client, platform = web(reasoner=FakeReasoner())
+    platform.service.deps.index.add_new(platform.service.deps.sources["fake"]._leads)
+    assert client.post("/api/leads/ask/stream", json={"question": "django?"}).status_code == 401
+    login(client)
+
+    with client.stream("POST", "/api/leads/ask/stream", json={"question": "django api?", "k": 2}) as response:
+        assert response.headers["content-type"].startswith("application/x-ndjson")
+        events = [json.loads(line) for line in response.iter_lines() if line]
+
+    sources = next(e for e in events if e["type"] == "sources")["sources"]
+    assert len(sources) == 2 and sources[0]["lead"]["title"]  # full lead views, ready to open
+    assert "".join(e["text"] for e in events if e["type"] == "token").startswith("Answer based on 2 leads")
+    assert events[-1]["type"] == "done"
+
+
 def test_profiles_crud_and_run_validation(web):
     client, _ = web()
     login(client)

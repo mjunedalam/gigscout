@@ -65,6 +65,9 @@ class FakeReasoner:
     def answer(self, question: str, context: str) -> str:
         return f"Answer based on {context.count('[')} leads [1]"
 
+    def answer_stream(self, question: str, context: str):
+        yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")
+
 
 def make_lead(
     pid: str, title: str, description: str = "", source: str = "fake", skills: tuple[str, ...] = (), **kw
