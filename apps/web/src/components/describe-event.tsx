@@ -7,6 +7,8 @@ import {
   IconClockHour4,
   IconMailbox,
   IconPlayerPlay,
+  IconPlugConnected,
+  IconPlugConnectedX,
   IconTag,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
@@ -36,6 +38,10 @@ export function describeEvent(event: LiveEvent): Described {
       return { icon: <IconMailbox size={14} />, color: "pink", text: `Inbound: ${d.title}` };
     case "lead.updated":
       return { icon: <IconTag size={14} />, color: "violet", text: `${d.by} moved "${d.title}"${d.status ? ` → ${d.status}` : ""}` };
+    case "source.added":
+      return { icon: <IconPlugConnected size={14} />, color: "teal", text: `Website connected: ${d.name}` };
+    case "source.blocked":
+      return { icon: <IconPlugConnectedX size={14} />, color: "orange", text: `${d.name} now blocks automated access` };
     case "schedule.skipped":
       return { icon: <IconCalendarOff size={14} />, color: "yellow", text: `Schedule "${d.name}" skipped (run in progress)` };
     default:

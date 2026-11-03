@@ -71,7 +71,7 @@ const OPERATIONS: NavItem[] = [
 const ADMIN: NavItem[] = [
   { to: "/admin", label: "System", icon: <IconHeartRateMonitor size={18} />, description: "Health and capacity" },
   { to: "/admin/users", label: "Users", icon: <IconUsers size={18} />, description: "Accounts and roles" },
-  { to: "/admin/sources", label: "Sources", icon: <IconPlugConnected size={18} />, description: "Lead source health" },
+  { to: "/admin/sources", label: "Connectors", icon: <IconPlugConnected size={18} />, description: "Websites the agents search" },
   { to: "/admin/settings", label: "Configuration", icon: <IconAdjustmentsHorizontal size={18} />, description: "Running config" },
   { to: "/admin/audit", label: "Audit log", icon: <IconClipboardList size={18} />, description: "Who changed what" },
 ];

@@ -11,6 +11,8 @@ export const LIVE_EVENT_TYPES = [
   "run.stopping",
   "schedule.skipped",
   "lead.updated",
+  "source.added",
+  "source.blocked",
   "lead.inbound",
   "metrics.snapshot",
 ] as const;

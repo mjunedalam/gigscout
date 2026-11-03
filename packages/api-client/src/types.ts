@@ -258,6 +258,15 @@ export interface SourceHealth {
   enabled: boolean;
   recent_failures: number;
   last_error: string | null;
+  /** A website an admin added (the rest are built in). */
+  custom: boolean;
+  id: number | null;
+  label: string | null;
+  url: string | null;
+  /** How we read it: its RSS/Atom feed, or listing links on the page. */
+  kind: "feed" | "page" | null;
+  /** blocked = its robots.txt no longer allows automated access. */
+  status: "ok" | "blocked" | "error" | null;
 }
 
 export interface SourceTestResult {

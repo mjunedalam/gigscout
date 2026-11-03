@@ -163,6 +163,10 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       settings: () => get<Record<string, unknown>>("/api/admin/settings"),
       sources: () => get<SourceHealth[]>("/api/admin/sources"),
       testSource: (name: string) => request<SourceTestResult>("POST", `/api/admin/sources/${encodeURIComponent(name)}/test`),
+      addConnector: (name: string, url: string) => request<SourceHealth>("POST", "/api/admin/connectors", { name, url }),
+      removeConnector: (id: number) => request<void>("DELETE", `/api/admin/connectors/${id}`),
+      setSourceEnabled: (name: string, enabled: boolean) =>
+        request<{ name: string; enabled: boolean }>("PUT", `/api/admin/sources/${encodeURIComponent(name)}/enabled`, { enabled }),
       audit: (limit = 100) => get<AuditEntry[]>("/api/admin/audit", { limit }),
     },
   };
