@@ -4,6 +4,7 @@ We Work Remotely is registered through this adapter; add more feeds with GIGSCOU
 """
 
 import hashlib
+import io
 from calendar import timegm
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -13,6 +14,12 @@ import feedparser
 from gigscout.http import PoliteClient
 from gigscout.models import Lead, LeadKind
 from gigscout.text import html_to_text, matches_any_query
+
+
+def parse_feed(body: bytes):
+    """Parse a fetched feed body. Always as a stream: feedparser opens str *and* bytes input that looks like a URL or a
+    file path, so a site answering with "/etc/passwd" would otherwise make us read our own disk."""
+    return feedparser.parse(io.BytesIO(body))
 
 
 class RssSource:
@@ -25,7 +32,7 @@ class RssSource:
     def fetch(self, queries: Sequence[str], limit: int) -> list[Lead]:
         leads: list[Lead] = []
         for feed_url in self._feeds:
-            parsed = feedparser.parse(self._client.get_text(feed_url))
+            parsed = parse_feed(self._client.get(feed_url).content)
             items = (self.parse_entry(entry, feed_url) for entry in parsed.entries)
             leads.extend(lead for lead in items if matches_any_query(lead.document(), queries))
         return leads[: limit * max(len(queries), 1)]

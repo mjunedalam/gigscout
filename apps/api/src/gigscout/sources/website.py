@@ -15,14 +15,13 @@ from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-import feedparser
 import httpcore
 import httpx
 from bs4 import BeautifulSoup, Tag
 
 from gigscout.http import PoliteClient
 from gigscout.models import Lead
-from gigscout.sources.rss import RssSource
+from gigscout.sources.rss import RssSource, parse_feed
 from gigscout.text import html_to_text, matches_any_query
 
 Resolver = Callable[[str], list[str]]
@@ -94,13 +93,13 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "site"
 
 
-def fetch_public(client: PoliteClient, url: str, resolve: Resolver = default_resolve) -> tuple[str, str]:
-    """GET a public URL, vetting each redirect before following it. Returns (final_url, body)."""
+def fetch_public(client: PoliteClient, url: str, resolve: Resolver = default_resolve) -> tuple[str, bytes]:
+    """GET a public URL, vetting each redirect before following it. Returns (final_url, body bytes)."""
     current = check_url(url, resolve)
     for _ in range(MAX_REDIRECTS + 1):
         response = client.get(current, follow_redirects=False)
         if not response.is_redirect:
-            return current, response.text
+            return current, response.content
         current = check_url(urljoin(current, response.headers.get("location", "")), resolve)
     raise UnsafeUrl("The website redirected too many times")
 
@@ -120,7 +119,7 @@ def probe(client: PoliteClient, url: str, resolve: Resolver = default_resolve) -
     """
     start = check_url(url, resolve)
     final, body = fetch_public(client, start, resolve)
-    parsed = feedparser.parse(body)
+    parsed = parse_feed(body)
     if parsed.entries:
         return SiteProbe("feed", final, parsed.feed.get("title", "") or urlsplit(final).hostname or "", start)
     soup = BeautifulSoup(body, "html.parser")
@@ -171,7 +170,7 @@ class WebsiteSource:
 
     def _from_feed(self) -> list[Lead]:
         final, body = fetch_public(self._client, self._feed_url, self._resolve)
-        return [self._rss.parse_entry(entry, final) for entry in feedparser.parse(body).entries]
+        return [self._rss.parse_entry(entry, final) for entry in parse_feed(body).entries]
 
     def _from_page(self) -> list[Lead]:
         final, body = fetch_public(self._client, self.url, self._resolve)

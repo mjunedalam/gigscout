@@ -163,3 +163,33 @@ def test_connections_are_pinned_to_public_addresses_even_if_dns_changes_after_th
     with pytest.raises(httpx.ConnectError):  # robots.txt and the page itself both go through the pinned transport
         client.get("http://rebind.example.com/jobs")
     client.close()
+
+
+LEAKY_FEED = '<?xml version="1.0"?><rss version="2.0"><channel><item><title>LEAKED</title></item></channel></rss>'
+
+
+@respx.mock
+def test_a_body_that_looks_like_a_file_path_is_never_read_from_disk(client, tmp_path):
+    """feedparser opens str input that looks like a path or URL; bodies must be parsed as bytes."""
+    secret = tmp_path / "secret.xml"
+    secret.write_text(LEAKY_FEED)
+    respx.get("https://jobs.example.com/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://jobs.example.com/board").mock(return_value=httpx.Response(200, text=str(secret)))
+
+    site = probe(client, "https://jobs.example.com/board", resolve=resolver)
+
+    assert site.kind == "page"  # the path was treated as content, not opened
+    feed = WebsiteSource(client, "acme", "https://jobs.example.com/board", "feed", resolve=resolver)
+    assert feed.preview(5) == []
+
+
+@respx.mock
+def test_rss_source_never_reads_a_local_path_returned_as_the_body(client, tmp_path):
+    from gigscout.sources.rss import RssSource
+
+    secret = tmp_path / "secret.xml"
+    secret.write_text(LEAKY_FEED)
+    respx.get("https://feeds.example.com/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://feeds.example.com/rss").mock(return_value=httpx.Response(200, text=str(secret)))
+
+    assert RssSource(client, "rss", ["https://feeds.example.com/rss"]).fetch(["leaked"], 5) == []
