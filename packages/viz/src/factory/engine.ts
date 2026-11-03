@@ -8,7 +8,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 
-import { type CockpitModel, pileCounts, stageProgress, stageState } from "../cockpit/model";
+import { type CockpitModel, isThinking, pileCounts, stageElapsed, stageProgress, stageState } from "../cockpit/model";
 import { CardFlow } from "./cards";
 import { boothCallout, drawSpark, type StationCallout, stationCallout, type TagCallout, tagCallout } from "./labels";
 import { AGENT_COLORS, BELT, BOOTH, BOUNDS, GROOVE_Z, STATIONS, TRAYS, X } from "./layout";
@@ -58,6 +58,7 @@ export class FactoryEngine {
   private readonly tags: Record<"waiting" | "dropped" | "shortlisted" | "pitched", { tag: TagCallout; obj: CSS2DObject; history: number[] }>;
   private readonly resizeObserver: ResizeObserver;
   private model: CockpitModel | null = null;
+  private runClock = 0;
   private follow = true;
   private glideHome = false; // after leaving follow mode, ease back to the overview once, then leave zoom to the user
   private reducedMotion = false;
@@ -106,6 +107,9 @@ export class FactoryEngine {
   }
 
   setModel(model: CockpitModel) { this.model = model; }
+
+  /** Seconds into the run, so step timers and the "thinking" state keep moving between events. */
+  setRunClock(seconds: number) { this.runClock = seconds; }
 
   /** A different run: clear the floor so its stations build up again. */
   resetRun() {
@@ -356,10 +360,13 @@ export class FactoryEngine {
     lamp.color.set(state === "done" ? LAMP_DONE : state === "active" ? new Color(color) : LAMP_PENDING);
     st.lamp.scale.y = state === "active" && !this.reducedMotion ? 1 + (Math.sin(this.clock * 6) * 0.5 + 0.5) * 1.6 : 1;
     // callout
-    st.callout.root.className = `gsf-callout gsf-${state}`;
+    const thinking = state === "active" && isThinking(m, this.runClock);
+    st.callout.root.className = `gsf-callout gsf-${state}${thinking ? " gsf-thinking" : ""}`;
     st.callout.root.style.opacity = age > 0.8 ? "1" : "0";
     st.callout.metric.textContent = metric(m, stage, state);
-    st.callout.task.textContent = m.agents[spec.agent].what || "working…";
+    const label = thinking ? "thinking…" : m.agents[spec.agent].what || "working…";
+    st.callout.task.textContent = `${label} · ${clock(stageElapsed(m, stage, this.runClock))}`;
+    st.callout.bar.style.width = `${Math.round(f * 100)}%`;
     // motion only while working
     const on = state === "active" && !this.reducedMotion, p = st.parts;
     if (p.spin && on) p.spin.rotation.y += dt * 1.6;
@@ -432,11 +439,15 @@ export class FactoryEngine {
   }
 }
 
+const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
 function metric(m: CockpitModel, stage: RunStage, state: string): string {
   if (state === "pending") return "waiting";
   const counts = pileCounts(m);
   const found = m.order.filter((id) => m.leads[id]!.found).length;
-  if (stage === "search") return String(found);
+  const reported = state === "active" ? m.progress[stage] : undefined;
+  if (stage === "search") return reported && reported.total > 1 ? `${found} · ${reported.done}/${reported.total}` : String(found);
+  if (stage === "qualify" && reported && reported.total > 1 && !m.scores.length) return `${reported.done}/${reported.total} checked`;
   if (stage === "qualify") return `${m.scores.length} · ${m.order.filter((id) => m.leads[id]!.qualified).length} ✓`;
   if (stage === "write") return `${counts.pitched}/3`;
   return state === "done" ? "✓" : `${Math.round(stageProgress(m, stage) * 100)}%`;

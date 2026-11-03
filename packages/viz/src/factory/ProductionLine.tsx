@@ -11,6 +11,8 @@ export interface ProductionLineProps {
   runKey: string | null;
   follow: boolean;
   dark: boolean;
+  /** Seconds into the run (keeps timers moving between events). */
+  now: number;
   style?: CSSProperties;
 }
 
@@ -29,7 +31,7 @@ function ensureStyles() {
  * scanning gate into a reject bin or the shortlist, and the best become pitches. Lazy-load this entry
  * ("@gigscout/viz/factory"): it pulls in three.js.
  */
-export default function ProductionLine({ model, runKey, follow, dark, style }: ProductionLineProps) {
+export default function ProductionLine({ model, runKey, follow, dark, now, style }: ProductionLineProps) {
   const host = useRef<HTMLDivElement>(null);
   const engine = useRef<FactoryEngine | null>(null);
   const reducedMotion = usePrefersReducedMotion();
@@ -49,6 +51,7 @@ export default function ProductionLine({ model, runKey, follow, dark, style }: P
   useEffect(() => engine.current?.setReducedMotion(reducedMotion), [reducedMotion]);
   useEffect(() => engine.current?.resetRun(), [runKey]);
   useEffect(() => engine.current?.setModel(model), [model]);
+  useEffect(() => engine.current?.setRunClock(now), [now]);
 
   return (
     <div

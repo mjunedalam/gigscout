@@ -26,7 +26,13 @@
 .gs-cockpit-agent .task { color: var(--gs-text-muted); font-size: 11.5px; margin: 3px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gs-cockpit-agent .bar { height: 5px; background: var(--gs-surface-2); border-radius: 3px; overflow: hidden; }
 .gs-cockpit-agent .bar i { display: block; height: 100%; background: var(--c); transition: width var(--gs-normal) var(--gs-ease); }
-.gs-cockpit-agent .meta { color: var(--gs-text-muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.gs-cockpit-agent .meta { display: flex; justify-content: space-between; color: var(--gs-text-muted); font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.gs-cockpit-agent[data-state="active"] .meta span:last-child { color: var(--c); opacity: 1; font-weight: 600; }
+.gs-cockpit-agent .bar.thinking i { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4) 0 5px, transparent 5px 10px);
+  background-size: 14.1px 14.1px; animation: gs-cockpit-stripes 0.7s linear infinite; }
+@keyframes gs-cockpit-stripes { to { background-position: 14.1px 0; } }
+.gs-cockpit-dots::after { content: ""; animation: gs-cockpit-dots 1.2s steps(4, end) infinite; }
+@keyframes gs-cockpit-dots { 0% { content: ""; } 25% { content: " ."; } 50% { content: " .."; } 75% { content: " ..."; } }
 .gs-cockpit-feed { flex: 1; min-height: 0; padding: 10px; overflow: hidden; }
 .gs-cockpit-feed ul { list-style: none; margin: 8px 0 0; padding: 0; }
 .gs-cockpit-feed li { display: grid; grid-template-columns: 32px 1fr; gap: 5px; padding: 4px 0; border-bottom: 1px dashed var(--gs-line); font-size: 11.5px; animation: gs-cockpit-in 0.35s ease; }
@@ -49,5 +55,5 @@
   .gs-cockpit-feed { max-height: 320px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .gs-cockpit-feed li { animation: none; }
+  .gs-cockpit-feed li, .gs-cockpit-agent .bar.thinking i, .gs-cockpit-dots::after { animation: none; }
 }

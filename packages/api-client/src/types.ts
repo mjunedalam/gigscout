@@ -147,6 +147,7 @@ export type RunActivity = ActivityBase &
   (
     | { kind: "stage"; stage: RunStage; agent: AgentKey }
     | { kind: "act"; agent: AgentKey; what: string }
+    | { kind: "progress"; agent: AgentKey; stage: RunStage | null; done: number; total: number; label: string }
     | { kind: "found"; source: string; leads: ActivityLead[] }
     | { kind: "reviewed"; lead: ActivityLead; score: number; qualified: boolean; reason: string | null }
     | { kind: "pitched"; lead: ActivityLead }

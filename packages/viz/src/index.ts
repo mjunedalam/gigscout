@@ -11,8 +11,9 @@ export { compactNumber, funnelBars, pushWindow, stackByKind, stackMax } from "./
 export { KIND_COLORS, KIND_LABELS, RUN_STATUS_COLORS, scoreColor, STATUS_COLORS } from "./palette";
 export { usePrefersReducedMotion, useSize } from "./useSize";
 export {
-  applyActivity, type CockpitLead, type CockpitModel, emptyCockpit, type FeedItem, finishCockpit, NOT_A_MATCH,
-  pileCounts, type PileCounts, type SeriesPoint, STAGE_AGENT, stageProgress, stageState, type StageState, STAGES,
+  applyActivity, type CockpitLead, type CockpitModel, emptyCockpit, type FeedItem, finishCockpit, isThinking, NOT_A_MATCH,
+  pileCounts, type PileCounts, type SeriesPoint, STAGE_AGENT, stageElapsed, stageProgress, stageState, type StageState,
+  STAGES, type StepProgress,
 } from "./cockpit/model";
 export { AGENT_COLORS, AGENT_NAMES } from "./factory/layout";
 export { BarList, type BarRow, LeadsOverTime } from "./cockpit/charts";

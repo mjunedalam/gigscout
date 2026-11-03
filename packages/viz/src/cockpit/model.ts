@@ -10,6 +10,7 @@ export const STAGE_AGENT: Record<RunStage, AgentKey> = {
 };
 export const NOT_A_MATCH = "not a match";
 const FEED_SIZE = 40;
+const THINKING_AFTER = 2; // seconds of silence in an active step before it reads as "thinking"
 const PITCHES = 3;
 
 export interface CockpitLead extends ActivityLead {
@@ -26,6 +27,12 @@ export interface FeedItem {
   t: number;
   agent: AgentKey;
   text: string;
+}
+
+export interface StepProgress {
+  done: number;
+  total: number;
+  label: string;
 }
 
 export interface SeriesPoint {
@@ -50,6 +57,11 @@ export interface CockpitModel {
   scores: number[];
   value: number;
   stageWork: Record<RunStage, number>;
+  progress: Partial<Record<RunStage, StepProgress>>;
+  /** Seconds spent in each step so far (a broadened run can visit a step twice), excluding the active visit. */
+  durations: Record<RunStage, number>;
+  /** When the active step was entered (activity time). */
+  enteredAt: number;
 }
 
 const idleAgent = () => ({ actions: 0, what: "" });
@@ -60,6 +72,7 @@ export function emptyCockpit(): CockpitModel {
     agents: { head: idleAgent(), prospector: idleAgent(), qualifier: idleAgent(), writer: idleAgent() },
     feed: [], series: [], bySource: {}, drops: {}, scores: [], value: 0,
     stageWork: { plan: 0, search: 0, qualify: 0, write: 0, report: 0 },
+    progress: {}, durations: { plan: 0, search: 0, qualify: 0, write: 0, report: 0 }, enteredAt: 0,
   };
 }
 
@@ -68,9 +81,17 @@ export function applyActivity(m: CockpitModel, e: RunActivity): CockpitModel {
   switch (e.kind) {
     case "stage":
       return {
-        ...next, stage: e.stage,
+        ...closeStage(next, e.t), stage: e.stage, enteredAt: e.t,
         stagesSeen: m.stagesSeen.includes(e.stage) ? m.stagesSeen : [...m.stagesSeen, e.stage],
       };
+    case "progress": {
+      const stage = e.stage ?? m.stage;
+      return {
+        ...next,
+        progress: stage ? { ...m.progress, [stage]: { done: e.done, total: e.total, label: e.label } } : m.progress,
+        agents: e.label ? { ...m.agents, [e.agent]: { ...m.agents[e.agent], what: e.label } } : m.agents,
+      };
+    }
     case "act":
       return {
         ...next,
@@ -99,7 +120,7 @@ export function applyActivity(m: CockpitModel, e: RunActivity): CockpitModel {
  * at; if it was stopped, they simply stay waiting.
  */
 export function finishCockpit(m: CockpitModel, t: number, completed = true): CockpitModel {
-  let next: CockpitModel = { ...m, finished: true, stage: null, t: Math.max(m.t, t) };
+  let next: CockpitModel = { ...closeStage(m, t), finished: true, stage: null, t: Math.max(m.t, t) };
   for (const id of completed ? m.order : []) {
     const lead = next.leads[id]!;
     if (!lead.reviewed) next = reviewed(next, lead, null, false, NOT_A_MATCH, t, false);
@@ -118,6 +139,8 @@ export function stageState(m: CockpitModel, stage: RunStage): StageState {
 export function stageProgress(m: CockpitModel, stage: RunStage): number {
   const state = stageState(m, stage);
   if (state !== "active") return state === "done" ? 1 : 0;
+  const reported = m.progress[stage];
+  if (reported && reported.total > 0) return Math.min(Math.max(reported.done / reported.total, 0.04), 0.97);
   const counts = pileCounts(m);
   const found = m.order.filter((id) => m.leads[id]!.found).length;
   const scored = m.scores.length;
@@ -129,6 +152,16 @@ export function stageProgress(m: CockpitModel, stage: RunStage): number {
     report: 1 - Math.exp(-(m.stageWork.report + 1) / 2),
   };
   return Math.min(Math.max(work[stage], 0.04), 0.95);
+}
+
+/** Seconds spent in a step: finished visits plus, if it is active, the time since it was entered. */
+export function stageElapsed(m: CockpitModel, stage: RunStage, now: number): number {
+  return m.durations[stage] + (m.stage === stage ? Math.max(now - m.enteredAt, 0) : 0);
+}
+
+/** The active step has gone quiet: an agent is waiting on a slow model call or source. */
+export function isThinking(m: CockpitModel, now: number): boolean {
+  return !m.finished && m.stage !== null && now - m.t > THINKING_AFTER;
 }
 
 export interface PileCounts {
@@ -148,6 +181,11 @@ export function pileCounts(m: CockpitModel): PileCounts {
     else counts.dropped++;
   }
   return counts;
+}
+
+function closeStage(m: CockpitModel, t: number): CockpitModel {
+  if (!m.stage) return m;
+  return { ...m, durations: { ...m.durations, [m.stage]: m.durations[m.stage] + Math.max(t - m.enteredAt, 0) } };
 }
 
 function found(m: CockpitModel, source: string, leads: ActivityLead[], t: number): CockpitModel {

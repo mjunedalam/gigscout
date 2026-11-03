@@ -1,7 +1,7 @@
 import type { AgentKey, Run } from "@gigscout/api-client";
 import {
-  AGENT_COLORS, AGENT_NAMES, BarList, type CockpitModel, LeadsOverTime, NOT_A_MATCH, pileCounts, ScoreHistogram,
-  Sparkline, STAGE_AGENT, stageProgress, stageState, type StageState, STAGES,
+  AGENT_COLORS, AGENT_NAMES, BarList, type CockpitModel, isThinking, LeadsOverTime, NOT_A_MATCH, pileCounts,
+  ScoreHistogram, Sparkline, STAGE_AGENT, stageElapsed, stageProgress, stageState, type StageState, STAGES,
 } from "@gigscout/viz";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -13,7 +13,7 @@ const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60))
 
 // ------------------------------------------------------------------ top: KPI strip
 
-export function KpiStrip({ model, run, controls }: { model: CockpitModel; run: Run | null; controls: ReactNode }) {
+export function KpiStrip({ model, run, now, controls }: { model: CockpitModel; run: Run | null; now: number; controls: ReactNode }) {
   const found = model.series.at(-1)?.found ?? 0;
   const scored = model.scores.length;
   const qualified = model.series.at(-1)?.qualified ?? 0;
@@ -26,7 +26,7 @@ export function KpiStrip({ model, run, controls }: { model: CockpitModel; run: R
     { label: "Qualify rate", value: scored ? `${Math.round((qualified / scored) * 100)}%` : "–" },
     { label: "Pipeline value", value: money.format(model.value) },
     { label: "Pitches", value: `${counts.pitched}/3` },
-    { label: "Run time", value: clock(model.t), },
+    { label: "Run time", value: clock(now) },
   ];
   return (
     <section className="gs-panel gs-cockpit-kpis" aria-label="Run totals">
@@ -59,23 +59,49 @@ function agentProgress(model: CockpitModel, agent: AgentKey): number {
   return Math.max(...stages.map((s) => stageProgress(model, s)));
 }
 
-export function AgentCards({ model }: { model: CockpitModel }) {
+/** Time the agent has spent on its own steps; the Head of Sales directs the whole run. */
+function agentElapsed(model: CockpitModel, agent: AgentKey, now: number): number {
+  if (agent === "head") return now;
+  return STAGES.filter((s) => STAGE_AGENT[s] === agent).reduce((sum, s) => sum + stageElapsed(model, s, now), 0);
+}
+
+/** "2/4" for the agent's active step when it reported a real total. */
+function agentCount(model: CockpitModel, agent: AgentKey): string | null {
+  const stage = model.stage && STAGE_AGENT[model.stage] === agent ? model.stage : null;
+  const p = stage ? model.progress[stage] : undefined;
+  return p && p.total > 1 ? `${p.done}/${p.total}` : null;
+}
+
+export function AgentCards({ model, now }: { model: CockpitModel; now: number }) {
   return (
     <div className="gs-panel gs-cockpit-agents" aria-label="Agents on this run">
       <span className="gs-eyebrow">Agents on this run</span>
       {AGENTS.map((agent) => {
         const state = agentState(model, agent);
+        const ownStep = model.stage !== null && STAGE_AGENT[model.stage] === agent;
+        const thinking = state === "active" && ownStep && isThinking(model, now);
         const { actions, what } = model.agents[agent];
+        const count = agentCount(model, agent);
+        const progress = Math.round(agentProgress(model, agent) * 100);
         return (
           <div key={agent} className="gs-cockpit-agent" data-state={state} style={{ "--c": AGENT_COLORS[agent] } as CSSProperties}>
             <div className="top">
               <span className="sw" />
               {AGENT_NAMES[agent]}
-              <span className="chip">{state === "active" ? "working" : state === "done" ? "✓ done" : "waiting"}</span>
+              <span className="chip">{state === "active" ? (thinking ? "thinking" : "working") : state === "done" ? "✓ done" : "waiting"}</span>
             </div>
-            <div className="task">{what || (state === "pending" ? "not needed yet" : "…")}</div>
-            <div className="bar"><i style={{ width: `${Math.round(agentProgress(model, agent) * 100)}%` }} /></div>
-            <div className="meta">{actions} {actions === 1 ? "action" : "actions"}</div>
+            <div className="task">
+              {what || (state === "pending" ? "not needed yet" : "starting…")}
+              {thinking && <span className="gs-cockpit-dots" aria-hidden />}
+            </div>
+            <div className={`bar${thinking ? " thinking" : ""}`} role="progressbar" aria-label={`${AGENT_NAMES[agent]} progress`}
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+              <i style={{ width: `${progress}%` }} />
+            </div>
+            <div className="meta">
+              <span>{count ?? `${actions} ${actions === 1 ? "action" : "actions"}`}</span>
+              <span>{state === "pending" ? "–" : `${state === "done" ? "✓ " : ""}${clock(agentElapsed(model, agent, now))}`}</span>
+            </div>
           </div>
         );
       })}

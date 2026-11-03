@@ -16,6 +16,8 @@ export interface Cockpit {
   run: Run | null;
   mode: CockpitMode;
   model: CockpitModel;
+  /** Seconds into the run right now (ticks while live; follows the replay clock when replaying). */
+  now: number;
   error: string | null;
   replay: () => void;
 }
@@ -31,6 +33,7 @@ export function useCockpit(): Cockpit {
   const [mode, setMode] = useState<CockpitMode>("idle");
   const [error, setError] = useState<string | null>(null);
   const [replayToken, setReplayToken] = useState(0);
+  const [now, setNow] = useState(0);
   const shownId = useRef<string | null>(null);
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -71,6 +74,16 @@ export function useCockpit(): Cockpit {
     };
   }, [runId, active, subscribeActivity]);
 
+  // live clock: seconds since the run started, so timers keep moving while an agent waits on a slow model
+  const startedAt = run?.started_at ? Date.parse(run.started_at) : null;
+  useEffect(() => {
+    if (!active || startedAt === null) return;
+    const tick = () => setNow(Math.max((Date.now() - startedAt) / 1000, 0));
+    tick();
+    const timer = setInterval(tick, 250);
+    return () => clearInterval(timer);
+  }, [active, startedAt]);
+
   // the live run just finished: close it off in place rather than restarting as a replay
   useEffect(() => {
     if (run && !active && shownId.current === run.id && mode === "live") {
@@ -97,7 +110,8 @@ export function useCockpit(): Cockpit {
         const started = performance.now();
         let next = 0;
         timer = setInterval(() => {
-          const elapsed = ((performance.now() - started) / 1000) / scale;
+          const elapsed = Math.min(((performance.now() - started) / 1000) / scale, duration);
+          setNow(elapsed);
           const due: RunActivity[] = [];
           while (next < events.length && events[next]!.t <= elapsed) due.push(events[next++]!);
           if (due.length) setModel((m) => due.reduce(applyActivity, m));
@@ -116,7 +130,7 @@ export function useCockpit(): Cockpit {
   }, [runId, active, replayToken, completed]);
 
   const replay = useCallback(() => setReplayToken((n) => n + 1), []);
-  return { run, mode: run ? mode : runs.isPending ? "loading" : "idle", model, error, replay };
+  return { run, mode: run ? mode : runs.isPending ? "loading" : "idle", model, now: Math.max(now, model.t), error, replay };
 }
 
 /** Prefer a run in progress; otherwise keep showing the run on screen, else the most recent finished one. */

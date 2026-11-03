@@ -19,7 +19,7 @@ const MODE_LABEL = { idle: "", loading: "Loading…", live: "Live", replay: "Rep
  * what each agent is doing, and charts of where the leads went.
  */
 export default function CockpitPage() {
-  const { run, mode, model, error, replay } = useCockpit();
+  const { run, mode, model, now, error, replay } = useCockpit();
   const [camera, setCamera] = useState<"follow" | "overview">("follow");
   const dark = useComputedColorScheme("dark") === "dark";
   const active = run?.status === "running" || run?.status === "queued";
@@ -65,9 +65,9 @@ export default function CockpitPage() {
 
   return (
     <div className="gs-cockpit">
-      <KpiStrip model={model} run={run} controls={controls} />
+      <KpiStrip model={model} run={run} now={now} controls={controls} />
       <aside className="gs-cockpit-side">
-        <AgentCards model={model} />
+        <AgentCards model={model} now={now} />
         <LiveFeed model={model} />
       </aside>
       <main className="gs-panel gs-cockpit-stage">
@@ -76,7 +76,7 @@ export default function CockpitPage() {
           data={[{ label: "Follow active", value: "follow" }, { label: "Overview", value: "overview" }]} />
         {error && <Alert color="red" m="xl">{error}</Alert>}
         <Suspense fallback={<Center h="100%"><Loader type="dots" /></Center>}>
-          <ProductionLine model={model} runKey={run?.id ?? null} follow={camera === "follow"} dark={dark} />
+          <ProductionLine model={model} now={now} runKey={run?.id ?? null} follow={camera === "follow"} dark={dark} />
         </Suspense>
       </main>
       <CockpitCharts model={model} />

@@ -25,6 +25,12 @@ export const LABEL_CSS = `
 .gsf-active .gsf-card { border-color: color-mix(in srgb, var(--c) 70%, white); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent), 0 12px 30px -14px rgba(16,24,40,.5); }
 .gsf-active .gsf-m { color: var(--c); opacity: 1; } .gsf-active .gsf-task { display: block; }
 .gsf-done .gsf-card { opacity: .82; } .gsf-done .gsf-m { color: #1f9d55; opacity: 1; }
+.gsf-bar { height: 3px; margin-top: 5px; border-radius: 2px; background: color-mix(in srgb, var(--c) 16%, transparent); overflow: hidden; }
+.gsf-bar i { display: block; height: 100%; width: 0; background: var(--c); border-radius: 2px; transition: width .4s; }
+.gsf-thinking .gsf-bar i { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.45) 0 4px, transparent 4px 8px); background-size: 11.3px 11.3px; animation: gsf-stripes .7s linear infinite; }
+@keyframes gsf-stripes { to { background-position: 11.3px 0; } }
+@media (prefers-reduced-motion: reduce) { .gsf-thinking .gsf-bar i { animation: none; } }
+.gsf-pending .gsf-bar, .gsf-done .gsf-bar { display: none; }
 .gsf-tag .gsf-card { padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 11px; }
 .gsf-tag .gsf-stem { opacity: .4; }
 .gsf-spark { width: 74px; height: 20px; display: block; overflow: visible; }
@@ -64,6 +70,7 @@ export interface StationCallout {
   metric: HTMLSpanElement;
   task: HTMLDivElement;
   spark: SVGSVGElement;
+  bar: HTMLElement;
 }
 
 function frame(color: string, stem: number, cls: string, card: HTMLDivElement): HTMLDivElement {
@@ -83,8 +90,11 @@ export function stationCallout(color: string, index: number, title: string, stem
   const s = spark(74, 20);
   const task = el("div", "gsf-task");
   r2.append(s, task);
-  card.append(r1, r2);
-  return { root: frame(color, stem, "", card), metric, task, spark: s };
+  const bar = el("div", "gsf-bar");
+  const fill = el("i", "");
+  bar.append(fill);
+  card.append(r1, r2, bar);
+  return { root: frame(color, stem, "", card), metric, task, spark: s, bar: fill };
 }
 
 export interface TagCallout {

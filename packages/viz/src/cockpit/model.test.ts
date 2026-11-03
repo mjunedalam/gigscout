@@ -1,7 +1,7 @@
 import type { ActivityLead, RunActivity } from "@gigscout/api-client";
 import { describe, expect, it } from "vitest";
 
-import { applyActivity, emptyCockpit, finishCockpit, pileCounts, stageProgress, stageState } from "./model";
+import { applyActivity, emptyCockpit, finishCockpit, isThinking, pileCounts, stageElapsed, stageProgress, stageState } from "./model";
 
 const lead = (id: string, budget: number | null = 1000, source = "freelancer"): ActivityLead => ({ id, title: `Lead ${id}`, source, budget });
 const run = (...events: RunActivity[]) => events.reduce(applyActivity, emptyCockpit());
@@ -65,6 +65,34 @@ describe("cockpit model", () => {
     const m = finishCockpit(run({ kind: "found", t: 1, source: "remotive", leads: [lead("x", 900, "remotive")] }), 3, false);
     expect(m.finished).toBe(true);
     expect(pileCounts(m)).toMatchObject({ waiting: 1, dropped: 0 });
+  });
+
+  it("uses reported progress for the active step and shows what the agent is busy with", () => {
+    const m = run(
+      { kind: "stage", t: 0, stage: "search", agent: "prospector" },
+      { kind: "progress", t: 1, agent: "prospector", stage: "search", done: 1, total: 4, label: "searched remotive" },
+    );
+    expect(stageProgress(m, "search")).toBe(0.25);
+    expect(m.agents.prospector.what).toBe("searched remotive");
+    expect(m.progress.search).toEqual({ done: 1, total: 4, label: "searched remotive" });
+  });
+
+  it("times each step: the active one keeps counting, finished ones keep their duration", () => {
+    const m = run(
+      { kind: "stage", t: 2, stage: "plan", agent: "head" },
+      { kind: "stage", t: 12, stage: "search", agent: "prospector" },
+      { kind: "stage", t: 20, stage: "plan", agent: "head" }, // broadened: plan again
+    );
+    expect(stageElapsed(m, "search", 30)).toBe(8);
+    expect(stageElapsed(m, "plan", 25)).toBe(15); // 10s the first time + 5s so far
+    expect(stageElapsed(finishCockpit(m, 26), "plan", 99)).toBe(16);
+  });
+
+  it("is thinking when the active step has been quiet for a while", () => {
+    const m = run({ kind: "stage", t: 5, stage: "plan", agent: "head" });
+    expect(isThinking(m, 6)).toBe(false);
+    expect(isThinking(m, 9)).toBe(true);
+    expect(isThinking(finishCockpit(m, 9), 20)).toBe(false);
   });
 
   it("counts each agent's actions and keeps a newest-first feed", () => {
