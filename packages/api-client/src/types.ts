@@ -70,6 +70,8 @@ export interface LeadQuery {
 
 export interface AgencyProfile {
   name: string;
+  /** What kind of company: "Software agency", "Marketing agency", "Law firm"… (free text). */
+  company_type: string;
   pitch: string;
   services: string[];
   skills: string[];
@@ -80,6 +82,27 @@ export interface AgencyProfile {
   target_countries: string[];
   kinds: LeadKind[];
   sources: string[] | null;
+}
+
+/** A starting point for a common kind of company. */
+export interface ProfileTemplate {
+  company_type: string;
+  description: string;
+  services: string[];
+  skills: string[];
+  keywords: string[];
+  exclude: string[];
+  kinds: LeadKind[];
+}
+
+/** What the model (or the closest template) suggests for a company described in a sentence. */
+export interface ProfileSuggestion {
+  source: "ai" | "template" | "none";
+  services: string[];
+  skills: string[];
+  keywords: string[];
+  exclude: string[];
+  industries: string[];
 }
 
 export interface ProfileRecord {

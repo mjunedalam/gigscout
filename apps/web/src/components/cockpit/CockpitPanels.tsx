@@ -5,7 +5,7 @@ import {
 } from "@gigscout/viz";
 import type { CSSProperties, ReactNode } from "react";
 
-const DROP_REASONS = ["budget too low", "off-stack", "too many bids", "red flags", "low fit", NOT_A_MATCH];
+const DROP_REASONS = ["budget too low", "off-target", "too many bids", "red flags", "low fit", NOT_A_MATCH];
 const SOURCE_COLOR = AGENT_COLORS.prospector;
 const DROP_COLOR = "#9aa1ab";
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });

@@ -65,7 +65,7 @@ const WORKSPACE: NavItem[] = [
 const OPERATIONS: NavItem[] = [
   { to: "/runs", label: "Runs", icon: <IconBolt size={18} />, description: "Start agents, watch them live" },
   { to: "/schedules", label: "Schedules", icon: <IconCalendarTime size={18} />, description: "Automate runs with cron" },
-  { to: "/profiles", label: "Agency profiles", icon: <IconBuildingStore size={18} />, description: "What you sell" },
+  { to: "/profiles", label: "Company profiles", icon: <IconBuildingStore size={18} />, description: "What you sell" },
 ];
 
 const ADMIN: NavItem[] = [

@@ -14,6 +14,8 @@ import type {
   ProfileRecord,
   Role,
   Run,
+  ProfileSuggestion,
+  ProfileTemplate,
   RunActivity,
   AskStreamEvent,
   RunDetail,
@@ -128,6 +130,9 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       create: (profile: AgencyProfile) => request<ProfileRecord>("POST", "/api/profiles", profile),
       update: (id: number, profile: AgencyProfile) => request<ProfileRecord>("PUT", `/api/profiles/${id}`, profile),
       remove: (id: number) => request<void>("DELETE", `/api/profiles/${id}`),
+      templates: () => get<ProfileTemplate[]>("/api/profiles/templates"),
+      suggest: (company_type: string, description: string) =>
+        request<ProfileSuggestion>("POST", "/api/profiles/suggest", { company_type, description }),
     },
     runs: {
       list: (limit = 50) => get<Run[]>("/api/runs", { limit }),
