@@ -126,6 +126,32 @@ export interface RunDetail extends Run {
   trace: string[];
 }
 
+/** Steps of a run, in order. A broadened pipeline run can revisit earlier steps. */
+export type RunStage = "plan" | "search" | "qualify" | "write" | "report";
+export type AgentKey = "head" | "prospector" | "qualifier" | "writer";
+
+export interface ActivityLead {
+  id: string;
+  title: string;
+  source: string;
+  budget: number | null;
+}
+
+interface ActivityBase {
+  /** Seconds since the run started. */
+  t: number;
+}
+
+/** Structured run activity that drives the agent cockpit (streamed as `run.activity`, kept for replay). */
+export type RunActivity = ActivityBase &
+  (
+    | { kind: "stage"; stage: RunStage; agent: AgentKey }
+    | { kind: "act"; agent: AgentKey; what: string }
+    | { kind: "found"; source: string; leads: ActivityLead[] }
+    | { kind: "reviewed"; lead: ActivityLead; score: number; qualified: boolean; reason: string | null }
+    | { kind: "pitched"; lead: ActivityLead }
+  );
+
 export interface ScheduleInput {
   name: string;
   profile_id: number;

@@ -5,6 +5,7 @@ export const LIVE_EVENT_TYPES = [
   "run.queued",
   "run.started",
   "run.step",
+  "run.activity",
   "run.finished",
   "run.cancelled",
   "schedule.skipped",

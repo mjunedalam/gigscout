@@ -14,6 +14,7 @@ import type {
   ProfileRecord,
   Role,
   Run,
+  RunActivity,
   RunDetail,
   RunMode,
   Schedule,
@@ -104,6 +105,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       get: (id: string) => get<RunDetail>(`/api/runs/${id}`),
       start: (profile_id: number, mode: RunMode) => request<Run>("POST", "/api/runs", { profile_id, mode }),
       cancel: (id: string) => request<{ status: string }>("POST", `/api/runs/${id}/cancel`),
+      activity: (id: string) => get<RunActivity[]>(`/api/runs/${id}/activity`),
     },
     schedules: {
       list: () => get<Schedule[]>("/api/schedules"),
