@@ -47,6 +47,14 @@ def test_login_limiter_blocks_after_max_failures_and_resets():
     assert not limiter.blocked("k")
 
 
+def test_login_limiter_reserves_attempts_atomically():
+    limiter = LoginLimiter(max_failures=2, window_seconds=60)
+    assert limiter.try_attempt("k") and limiter.try_attempt("k")
+    assert not limiter.try_attempt("k")
+    limiter.reset("k")
+    assert limiter.try_attempt("k")
+
+
 def test_event_bus_delivers_across_threads_and_keeps_recent_history():
     bus = EventBus()
 

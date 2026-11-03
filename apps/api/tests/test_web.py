@@ -35,6 +35,29 @@ def test_wrong_password_is_rejected_then_rate_limited(web):
     assert client.post("/api/auth/login", json={"email": MEMBER_EMAIL, "password": PASSWORD}).status_code == 429
 
 
+def test_account_is_rate_limited_across_client_addresses(web):
+    from gigscout.platform.security import LoginLimiter
+
+    client, platform = web()
+    platform.login_limiter = LoginLimiter(max_failures=100)  # as if each guess came from a new address
+    platform.account_limiter = LoginLimiter(max_failures=3)
+    for _ in range(3):
+        assert client.post("/api/auth/login", json={"email": MEMBER_EMAIL, "password": "nope"}).status_code == 401
+    assert client.post("/api/auth/login", json={"email": MEMBER_EMAIL, "password": PASSWORD}).status_code == 429
+
+
+def test_unknown_email_still_checks_a_password_hash(web, monkeypatch):
+    from gigscout.web import routes_auth
+
+    checked = []
+    real = routes_auth.verify_password
+    monkeypatch.setattr(routes_auth, "verify_password", lambda pw, stored: checked.append(stored) or real(pw, stored))
+    client, _ = web()
+    response = client.post("/api/auth/login", json={"email": "ghost@acme-studio.com", "password": "nope"})
+    assert response.status_code == 401
+    assert checked and checked[0].startswith("scrypt$")
+
+
 def test_members_cannot_use_admin_endpoints(web):
     client, _ = web()
     login(client, MEMBER_EMAIL)
@@ -165,7 +188,7 @@ def test_admin_users_guardrails_and_audit(web):
 
 
 def test_admin_system_settings_and_sources(web):
-    client, _ = web(google_ads_webhook_key=SecretStr(KEY))
+    client, _ = web(google_ads_webhook_key=SecretStr(KEY), ollama_base_url="http://ops:hunter22@ollama.internal:11434")
     login(client)
 
     system = client.get("/api/admin/system").json()
@@ -174,6 +197,7 @@ def test_admin_system_settings_and_sources(web):
 
     settings = client.get("/api/admin/settings").json()
     assert settings["google_ads_webhook_key"] == "••••••"
+    assert settings["ollama_base_url"] == "http://••••@ollama.internal:11434"
 
     sources = {s["name"]: s for s in client.get("/api/admin/sources").json()}
     assert sources["fake"]["channel"] == "pull" and sources["google_ads"]["enabled"] is True

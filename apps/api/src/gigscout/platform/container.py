@@ -15,7 +15,7 @@ from gigscout.platform.db import SessionFactory, create_db
 from gigscout.platform.events import EventBus
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
-from gigscout.platform.security import LoginLimiter, hash_password
+from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, hash_password
 from gigscout.platform.tables import AgencyProfileRecord, User
 from gigscout.service import ScoutService
 
@@ -33,7 +33,8 @@ class Platform:
     bus: EventBus
     runs: RunManager
     schedules: ScheduleManager
-    login_limiter: LoginLimiter = field(default_factory=LoginLimiter)
+    login_limiter: LoginLimiter = field(default_factory=LoginLimiter)  # per account + client address
+    account_limiter: LoginLimiter = field(default_factory=lambda: LoginLimiter(max_failures=ACCOUNT_MAX_FAILURES))
     started_at: float = field(default_factory=time.time)
 
     @classmethod

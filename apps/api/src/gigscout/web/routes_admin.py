@@ -86,7 +86,7 @@ def system(platform: PlatformDep, session: SessionDep, _: AdminDep) -> dict:
                       "timezone": settings.timezone},
         "inbound": {"google_ads_webhook": platform.service.inbound_enabled},
         "live_clients": platform.bus.subscriber_count,
-        "mlflow": {"enabled": settings.mlflow_enabled, "tracking_uri": settings.mlflow_tracking_uri},
+        "mlflow": {"enabled": settings.mlflow_enabled, "tracking_uri": _redact_url(settings.mlflow_tracking_uri)},
     }
 
 
@@ -94,7 +94,8 @@ def system(platform: PlatformDep, session: SessionDep, _: AdminDep) -> dict:
 def effective_settings(platform: PlatformDep, _: AdminDep) -> dict:
     """Read-only view of the running configuration. Secrets are masked; change values in .env and restart."""
     values = platform.settings.model_dump(mode="python")
-    return {key: ("••••••" if isinstance(value, SecretStr) else _jsonable(value)) for key, value in values.items()}
+    return {key: ("••••••" if isinstance(value, SecretStr) else _redact_urls(_jsonable(value)))
+            for key, value in values.items()}
 
 
 # --- sources ----------------------------------------------------------------------------------------------------
@@ -162,11 +163,20 @@ def _ollama_up(settings) -> bool:
 
 
 def _redact_url(url: str) -> str:
-    """Hide credentials in database URLs like postgresql://user:pass@host/db."""
+    """Hide credentials in URLs like postgresql://user:pass@host/db."""
     if "@" not in url or "://" not in url:
         return url
     scheme, rest = url.split("://", 1)
     return f"{scheme}://••••@{rest.split('@', 1)[1]}"
+
+
+def _redact_urls(value):
+    """Masks credentials in any URL-shaped setting (database, MLflow, Ollama, feeds), not just known fields."""
+    if isinstance(value, str):
+        return _redact_url(value)
+    if isinstance(value, list):
+        return [_redact_urls(v) for v in value]
+    return value
 
 
 def _jsonable(value):

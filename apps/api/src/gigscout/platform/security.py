@@ -12,6 +12,7 @@ SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**14, 8, 1
 SALT_BYTES = 16
 TOKEN_BYTES = 32
 MIN_PASSWORD_LENGTH = 5  # TODO: restore to 10 before deploying; lowered for local dev
+ACCOUNT_MAX_FAILURES = 20  # per account from any address; higher than the per-address limit to blunt lockout abuse
 
 
 class WeakPasswordError(ValueError):
@@ -63,6 +64,15 @@ class LoginLimiter:
         with self._lock:
             return len(self._recent(key)) >= self._max
 
+    def try_attempt(self, key: str) -> bool:
+        """Reserves an attempt slot under the lock, so concurrent guesses cannot all slip past the check."""
+        with self._lock:
+            recent = self._recent(key)
+            if len(recent) >= self._max:
+                return False
+            recent.append(time.monotonic())
+            return True
+
     def record_failure(self, key: str) -> None:
         with self._lock:
             self._recent(key).append(time.monotonic())
@@ -85,3 +95,7 @@ def _b64(raw: bytes) -> str:
 
 def _unb64(text: str) -> bytes:
     return base64.b64decode(text)
+
+
+# Checked when the email is unknown, so a missing account costs the same scrypt time as a wrong password.
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(16))

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import delete, select
 
-from gigscout.platform.security import hash_token, new_token, verify_password
+from gigscout.platform.security import DUMMY_PASSWORD_HASH, hash_token, new_token, verify_password
 from gigscout.platform.tables import AuthToken, User, utcnow
 from gigscout.web.deps import SESSION_COOKIE, PlatformDep, SessionDep, UserDep, audit, bearer_or_cookie
 from gigscout.web.schemas import LoginRequest, UserOut
@@ -17,13 +17,14 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 def login(body: LoginRequest, request: Request, response: Response, platform: PlatformDep, session: SessionDep) -> dict:
     email = body.email.lower()
     key = f"{email}|{request.client.host if request.client else '-'}"
-    if platform.login_limiter.blocked(key):
+    if not (platform.login_limiter.try_attempt(key) and platform.account_limiter.try_attempt(email)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many failed attempts. Try again in a few minutes.")
     user = session.scalar(select(User).where(User.email == email))
-    if user is None or not user.is_active or not verify_password(body.password, user.password_hash):
-        platform.login_limiter.record_failure(key)
+    password_ok = verify_password(body.password, user.password_hash if user else DUMMY_PASSWORD_HASH)
+    if user is None or not user.is_active or not password_ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong email or password")
     platform.login_limiter.reset(key)
+    platform.account_limiter.reset(email)
 
     token = new_token()
     ttl = timedelta(hours=platform.settings.session_ttl_hours)
