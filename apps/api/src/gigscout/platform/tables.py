@@ -130,6 +130,7 @@ class Outreach(Base):
     created_by: Mapped[str] = mapped_column(String(254))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+    sent_by: Mapped[str | None] = mapped_column(String(254), default=None, index=True)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 

@@ -2,6 +2,7 @@
 
 import logging
 import smtplib
+import threading
 from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, status
@@ -28,6 +29,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/outreach", tags=["outreach"])
 
 HOURLY_EMAIL_LIMIT = 30  # per person: protects the sender domain's reputation
+_sending = threading.Lock()  # count, send and record as one step, so parallel sends cannot pass the limit
 SMTP_HELP = "Email is not set up: set GIGSCOUT_SMTP_HOST and GIGSCOUT_SMTP_FROM in apps/api/.env"
 CRM_HELP = "No CRM connected: set GIGSCOUT_HUBSPOT_TOKEN or GIGSCOUT_PIPEDRIVE_TOKEN in apps/api/.env"
 
@@ -73,9 +75,14 @@ def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, _: U
 def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: UserDep) -> OutreachOut:
     """Email it, or for a marketplace bid record that it was pasted into the bid form. A draft is sent once."""
     row = _draft(session, outreach_id)
-    if row.channel == "email":
-        _email(platform, session, user, row)
-    row.status, row.sent_at = "sent", utcnow()
+    with _sending:
+        session.refresh(row)
+        if row.status != "draft":
+            raise HTTPException(status.HTTP_409_CONFLICT, "Already sent: start a new draft to follow up")
+        if row.channel == "email":
+            _email(platform, session, user, row)
+        row.status, row.sent_at, row.sent_by = "sent", utcnow(), user.email
+        session.commit()
     state = session.get(LeadState, row.lead_id) or LeadState(lead_id=row.lead_id)
     if (state.status or "new") == "new":
         state.status, state.updated_by = "contacted", user.email
@@ -138,11 +145,11 @@ def push_to_crm(body: CrmSyncIn, platform: PlatformDep, session: SessionDep, use
 def _email(platform, session, user: User, row: Outreach) -> None:
     if not email_ready(platform.settings):
         raise HTTPException(status.HTTP_409_CONFLICT, SMTP_HELP)
-    if not row.to_address or not row.subject:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs an address and a subject")
+    if not outreach_lib.single_address(row.to_address) or not row.subject:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs one valid address and a subject")
     since = utcnow() - timedelta(hours=1)
     recent = session.scalar(select(func.count()).select_from(Outreach).where(
-        Outreach.created_by == user.email, Outreach.channel == "email", Outreach.sent_at >= since,
+        Outreach.sent_by == user.email, Outreach.channel == "email", Outreach.sent_at >= since,
     ))
     if recent >= HOURLY_EMAIL_LIMIT:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"At most {HOURLY_EMAIL_LIMIT} emails an hour")

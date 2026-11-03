@@ -11,7 +11,7 @@ from gigscout.crm import CrmError, HubSpot, Pipedrive
 from gigscout.models import AgencyProfile, Budget, Client
 from gigscout.outreach import OutreachDraft, draft_outreach, template_draft
 from gigscout.platform.tables import LeadState
-from tests.conftest import FakeReasoner, login, make_lead
+from tests.conftest import ADMIN_EMAIL, FakeReasoner, login, make_lead
 
 
 def stocked(web, **settings):
@@ -167,3 +167,28 @@ def test_outreach_times_are_marked_utc(web):
     client, _ = stocked(web)
     d = client.post("/api/outreach", json={"lead_id": "fake:2"}).json()
     assert d["created_at"].endswith(("Z", "+00:00"))
+
+
+@pytest.mark.parametrize("address", ["a@x.com, b@y.com", "a@x.com;b@y.com", "Boss <a@x.com>", "not-an-email", ""])
+def test_a_lead_email_that_is_not_exactly_one_address_falls_back_to_a_bid(address):
+    lead = make_lead("1", "Need SEO", kind="inbound", client=Client(email=address or None))
+    draft = template_draft(PROFILE, lead, pitch="")
+    assert draft.channel == "bid" and draft.to is None
+
+
+def test_the_hourly_email_cap_counts_who_sent_not_who_drafted(web, monkeypatch):
+    from gigscout import outreach as outreach_module
+    from gigscout.platform.tables import Outreach, utcnow
+    from gigscout.web import routes_outreach
+
+    monkeypatch.setattr(outreach_module, "send_email", lambda *a: None)
+    monkeypatch.setattr(routes_outreach, "HOURLY_EMAIL_LIMIT", 2)
+    client, platform = stocked(web, smtp_host="smtp.example.com", smtp_from="scout@example.com")
+    with platform.sessions() as session:  # two emails this admin sent from drafts someone else wrote
+        for _ in range(2):
+            session.add(Outreach(lead_id="fake:1", channel="email", to_address="a@b.com", subject="s", body="b",
+                                 status="sent", created_by="other@x.com", sent_by=ADMIN_EMAIL, sent_at=utcnow()))
+        session.commit()
+    d = client.post("/api/outreach", json={"lead_id": "fake:1"}).json()
+    client.put(f"/api/outreach/{d['id']}", json={"channel": "email", "to": "c@d.com", "subject": "s", "body": "b"})
+    assert client.post(f"/api/outreach/{d['id']}/send").status_code == 429

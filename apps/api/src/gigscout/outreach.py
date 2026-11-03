@@ -8,6 +8,7 @@ import logging
 from email.message import EmailMessage
 from typing import Literal, Protocol
 
+from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, Field, field_validator
 
 from gigscout.config import Settings
@@ -40,13 +41,23 @@ class OutreachDraft(BaseModel):
         return value
 
 
+def single_address(value: str | None) -> str | None:
+    """Exactly one valid address, normalised; anything else (lists, display names, junk) is None."""
+    if not value or any(c in value for c in ",;<>\r\n"):
+        return None
+    try:
+        return validate_email(value.strip(), check_deliverability=False).normalized
+    except EmailNotValidError:
+        return None
+
+
 def one_line(text: str, limit: int = SUBJECT_MAX) -> str:
     return " ".join(text.split())[:limit]
 
 
 def template_draft(profile: AgencyProfile, lead: Lead, pitch: str) -> OutreachDraft:
     client = lead.client
-    email = client.email if client and client.email else None
+    email = single_address(client.email) if client else None  # lead data is untrusted: one recipient, or a bid
     title = one_line(lead.title, 150)
     opening = {
         "inbound": f"Thanks for getting in touch about {title}.",

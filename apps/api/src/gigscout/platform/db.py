@@ -16,6 +16,7 @@ SessionFactory = Callable[[], Session]
 ADDED_COLUMNS = {
     ("runs", "activity"): "JSON DEFAULT '[]'",
     ("connectors", "lead_kind"): "VARCHAR(16) DEFAULT 'project'",
+    ("outreach", "sent_by"): "VARCHAR(254)",
 }
 
 
