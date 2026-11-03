@@ -80,6 +80,17 @@ class ScheduleManager:
             previous = nxt
         return times
 
+    def set_daily(self, job_id: str, hour: int | None, func) -> None:
+        """(Re)schedule a daily job at `hour` (scheduler timezone), or remove it when hour is None."""
+        existing = self._scheduler.get_job(job_id)
+        if existing is not None:
+            existing.remove()
+        if hour is not None:
+            self._scheduler.add_job(func, CronTrigger(hour=hour, minute=0, timezone=self._timezone), id=job_id)
+
+    def has_job(self, job_id: str) -> bool:
+        return self._scheduler.get_job(job_id) is not None
+
     @property
     def job_count(self) -> int:
         return len(self._scheduler.get_jobs())

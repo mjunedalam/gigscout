@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import SecretStr
 from sqlalchemy import func, select
 
+from gigscout.digest import UnsafeWebhook, email_ready, render_markdown
 from gigscout.http import DisallowedByRobots
 from gigscout.inbound import google_ads
 from gigscout.platform.security import WeakPasswordError, hash_password
@@ -19,6 +20,8 @@ from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, audit
 from gigscout.web.schemas import (
     AuditOut,
     ConnectorCreate,
+    DigestConfigIn,
+    DigestConfigOut,
     SourceEnabled,
     SourceHealth,
     SourceTestResult,
@@ -108,6 +111,45 @@ def effective_settings(platform: PlatformDep, _: AdminDep) -> dict:
     values = platform.settings.model_dump(mode="python")
     return {key: ("••••••" if isinstance(value, SecretStr) else _redact_urls(_jsonable(value)))
             for key, value in values.items()}
+
+
+# --- daily digest ---------------------------------------------------------------------------------------------
+def _digest_out(platform, row) -> DigestConfigOut:
+    return DigestConfigOut(
+        enabled=row.enabled, hour=row.hour, timezone=platform.settings.timezone, emails=list(row.emails or []),
+        slack_configured=bool(row.slack_webhook), min_score=row.min_score, max_leads=row.max_leads,
+        last_sent_at=row.last_sent_at, last_result=row.last_result or "", email_ready=email_ready(platform.settings),
+    )
+
+
+@router.get("/digest")
+def digest_config(platform: PlatformDep, _: AdminDep) -> DigestConfigOut:
+    return _digest_out(platform, platform.digests.config())
+
+
+@router.put("/digest")
+def save_digest(body: DigestConfigIn, platform: PlatformDep, session: SessionDep, admin: AdminDep) -> DigestConfigOut:
+    try:
+        row = platform.digests.save(body.model_dump())
+    except UnsafeWebhook as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    audit(session, admin, "digest.update", "digest", enabled=body.enabled, hour=body.hour)
+    session.commit()
+    return _digest_out(platform, row)
+
+
+@router.post("/digest/preview")
+def preview_digest(platform: PlatformDep, _: AdminDep) -> dict:
+    digest = platform.digests.preview()
+    return {"count": len(digest.leads), "markdown": render_markdown(digest)}
+
+
+@router.post("/digest/send")
+def send_digest(platform: PlatformDep, session: SessionDep, admin: AdminDep) -> dict:
+    result = platform.digests.send()
+    audit(session, admin, "digest.send", "digest", sent=result["sent"], count=result["count"])
+    session.commit()
+    return result
 
 
 # --- sources ----------------------------------------------------------------------------------------------------

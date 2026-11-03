@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile
 from gigscout.platform.db import SessionFactory, create_db
+from gigscout.platform.digests import DigestManager
 from gigscout.platform.events import EventBus
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
@@ -33,6 +34,7 @@ class Platform:
     bus: EventBus
     runs: RunManager
     schedules: ScheduleManager
+    digests: DigestManager
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)  # per account + client address
     account_limiter: LoginLimiter = field(default_factory=lambda: LoginLimiter(max_failures=ACCOUNT_MAX_FAILURES))
     started_at: float = field(default_factory=time.time)
@@ -44,7 +46,8 @@ class Platform:
         bus = EventBus()
         runs = RunManager(service, sessions, bus)
         schedules = ScheduleManager(sessions, runs, bus, settings.timezone)
-        return cls(settings, service, engine, sessions, bus, runs, schedules)
+        digests = DigestManager(sessions, service.deps.index, settings, bus, schedules)
+        return cls(settings, service, engine, sessions, bus, runs, schedules, digests)
 
     def start(self) -> None:
         recovered = self.runs.recover()
@@ -52,6 +55,7 @@ class Platform:
             log.warning("Marked %d interrupted run(s) as failed", recovered)
         self._bootstrap_admin()
         self._seed_default_profile()
+        self.digests.sync()
         self.schedules.start()
 
     def stop(self) -> None:

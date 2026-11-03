@@ -14,6 +14,8 @@ import type {
   ProfileRecord,
   Role,
   Run,
+  DigestConfig,
+  DigestConfigInput,
   ProfileSuggestion,
   ProfileTemplate,
   RunActivity,
@@ -173,6 +175,10 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       setSourceEnabled: (name: string, enabled: boolean) =>
         request<{ name: string; enabled: boolean }>("PUT", `/api/admin/sources/${encodeURIComponent(name)}/enabled`, { enabled }),
       audit: (limit = 100) => get<AuditEntry[]>("/api/admin/audit", { limit }),
+      digest: () => get<DigestConfig>("/api/admin/digest"),
+      saveDigest: (input: DigestConfigInput) => request<DigestConfig>("PUT", "/api/admin/digest", input),
+      previewDigest: () => request<{ count: number; markdown: string }>("POST", "/api/admin/digest/preview"),
+      sendDigest: () => request<{ sent: string[]; count: number; errors: string[] }>("POST", "/api/admin/digest/send"),
     },
   };
 }

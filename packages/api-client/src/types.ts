@@ -275,6 +275,32 @@ export interface SystemInfo {
   mlflow: { enabled: boolean; tracking_uri: string };
 }
 
+export interface DigestConfig {
+  enabled: boolean;
+  /** Hour of day (0-23) in `timezone` it is sent at. */
+  hour: number;
+  timezone: string;
+  emails: string[];
+  /** A Slack webhook is saved (the URL itself is never returned). */
+  slack_configured: boolean;
+  min_score: number;
+  max_leads: number;
+  last_sent_at: string | null;
+  last_result: string;
+  /** SMTP is configured on the server, so email can be sent. */
+  email_ready: boolean;
+}
+
+export interface DigestConfigInput {
+  enabled: boolean;
+  hour: number;
+  emails: string[];
+  /** null keeps the saved webhook; "" removes it. */
+  slack_webhook: string | null;
+  min_score: number;
+  max_leads: number;
+}
+
 export interface SourceHealth {
   name: string;
   channel: "pull" | "push";

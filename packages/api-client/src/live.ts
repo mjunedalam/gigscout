@@ -13,6 +13,7 @@ export const LIVE_EVENT_TYPES = [
   "lead.updated",
   "source.added",
   "source.blocked",
+  "digest.sent",
   "lead.inbound",
   "metrics.snapshot",
 ] as const;

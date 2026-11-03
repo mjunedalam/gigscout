@@ -5,6 +5,7 @@ import {
   IconCircleCheck,
   IconCircleX,
   IconClockHour4,
+  IconMail,
   IconMailbox,
   IconPlayerPlay,
   IconPlugConnected,
@@ -42,6 +43,8 @@ export function describeEvent(event: LiveEvent): Described {
       return { icon: <IconPlugConnected size={14} />, color: "teal", text: `Website connected: ${d.name}` };
     case "source.blocked":
       return { icon: <IconPlugConnectedX size={14} />, color: "orange", text: `${d.name} now blocks automated access` };
+    case "digest.sent":
+      return { icon: <IconMail size={14} />, color: "signal", text: `Daily digest: ${d.count} leads sent` };
     case "schedule.skipped":
       return { icon: <IconCalendarOff size={14} />, color: "yellow", text: `Schedule "${d.name}" skipped (run in progress)` };
     default:

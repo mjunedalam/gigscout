@@ -193,6 +193,28 @@ class ProfileSuggestOut(BaseModel):
     industries: list[str]
 
 
+class DigestConfigIn(BaseModel):
+    enabled: bool
+    hour: int = Field(ge=0, le=23)
+    emails: list[EmailStr] = Field(default_factory=list, max_length=20)
+    slack_webhook: str | None = Field(default=None, max_length=300, description="None keeps the saved one; '' clears")
+    min_score: float = Field(ge=0, le=1)
+    max_leads: int = Field(ge=1, le=50)
+
+
+class DigestConfigOut(BaseModel):
+    enabled: bool
+    hour: int
+    timezone: str
+    emails: list[str]
+    slack_configured: bool  # the webhook itself is a secret and is never returned
+    min_score: float
+    max_leads: int
+    last_sent_at: UtcDatetime | None
+    last_result: str
+    email_ready: bool  # SMTP is configured on the server
+
+
 class ConnectorCreate(BaseModel):
     name: str = Field(min_length=2, max_length=60)
     url: str = Field(min_length=8, max_length=500)

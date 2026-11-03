@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     rss_feeds: list[str] = Field(default_factory=list)
     rss_feeds_kind: LeadKind = "project"
 
+    # Email for the daily digest (any SMTP server: Gmail, Outlook, SES, Postmark...). Unset host = email off.
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
+    smtp_from: str | None = Field(default=None, description="Sender address, e.g. GigScout <scout@your-agency.com>")
+    smtp_starttls: bool = True
+
     # Inbound leads from Google Ads lead form assets (webhook). Unset = webhook disabled.
     google_ads_webhook_key: SecretStr | None = None
 

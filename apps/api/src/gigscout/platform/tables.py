@@ -142,6 +142,22 @@ class SourceToggle(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class DigestSettings(Base):
+    """The daily digest's configuration: a single row (id=1)."""
+
+    __tablename__ = "digest_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    hour: Mapped[int] = mapped_column(Integer, default=8)  # local hour (Settings.timezone) it is sent at
+    emails: Mapped[list[str]] = mapped_column(JSON, default=list)
+    slack_webhook: Mapped[str | None] = mapped_column(Text, default=None)
+    min_score: Mapped[float] = mapped_column(Float, default=0.6)
+    max_leads: Mapped[int] = mapped_column(Integer, default=10)
+    last_sent_at: Mapped[datetime | None] = mapped_column(default=None)
+    last_result: Mapped[str] = mapped_column(Text, default="")
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
