@@ -114,3 +114,21 @@ def test_team_run_reports_each_delegation_and_the_shortlist(settings, index, pro
     assert all(r["reason"] for r in dropped)  # leads the analyst looked at but did not shortlist
     assert {p["lead"]["id"] for p in kinds(events, "pitched")} == {"fake:1", "fake:3"}
     assert len(kinds(events, "found")[0]["leads"]) == 3
+
+
+@pytest.mark.parametrize("mode", ["pipeline", "team"])
+def test_a_stop_signal_escapes_both_run_modes(settings, index, profile, sample_leads, mode):
+    from gigscout.platform.runs import RunStopped
+
+    def stop_after_first_search(event):
+        if event["kind"] == "found":
+            raise RunStopped
+
+    deps = make_deps(settings, index, [FakeSource("fake", sample_leads)])
+    activity = Activity(stop_after_first_search, profile=profile)
+
+    with pytest.raises(RunStopped):
+        if mode == "team":
+            run_team(deps, profile, happy_team(), activity=activity)
+        else:
+            run_scout(deps, profile, activity=activity)

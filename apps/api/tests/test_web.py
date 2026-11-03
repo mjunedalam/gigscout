@@ -169,6 +169,35 @@ def test_run_activity_is_streamed_and_kept_for_replay(web):
     assert "run.activity" not in {e["type"] for e in client.get("/api/events/recent").json()}
 
 
+def test_a_running_run_can_be_stopped_and_keeps_what_it_did(web, sample_leads):
+    import time
+
+    from tests.conftest import FakeSource
+
+    class SlowSource(FakeSource):
+        def fetch(self, queries, limit):
+            time.sleep(0.4)
+            return super().fetch(queries, limit)
+
+    client, _ = web(sources=[SlowSource("slow", sample_leads), SlowSource("slower", sample_leads)])
+    login(client)
+    profile_id = client.get("/api/profiles").json()[0]["id"]
+    run_id = client.post("/api/runs", json={"profile_id": profile_id, "mode": "pipeline"}).json()["id"]
+    deadline = time.monotonic() + 5
+    while client.get(f"/api/runs/{run_id}").json()["status"] != "running" and time.monotonic() < deadline:
+        time.sleep(0.02)
+
+    stop = client.post(f"/api/runs/{run_id}/cancel")
+    run = wait_for_run(client, run_id)
+
+    assert stop.json() == {"status": "stopping"}
+    assert run["status"] == "cancelled" and any("stopped" in e for e in run["errors"])
+    stages = [e["stage"] for e in client.get(f"/api/runs/{run_id}/activity").json() if e["kind"] == "stage"]
+    assert stages and "report" not in stages  # it stopped before finishing
+    assert client.post(f"/api/runs/{run_id}/cancel").status_code == 409  # already over
+    assert "run.stop" in [a["action"] for a in client.get("/api/admin/audit").json()]
+
+
 def test_profiles_crud_and_run_validation(web):
     client, _ = web()
     login(client)

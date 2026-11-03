@@ -91,11 +91,13 @@ def run_activity(run_id: str, platform: PlatformDep, _: UserDep) -> list[dict]:
 
 @router.post("/runs/{run_id}/cancel")
 def cancel_run(run_id: str, platform: PlatformDep, session: SessionDep, user: UserDep) -> dict:
-    if not platform.runs.cancel(run_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only queued runs can be cancelled")
-    audit(session, user, "run.cancel", run_id)
+    """Cancel a queued run, or ask a running one to stop at its next step."""
+    outcome = platform.runs.cancel(run_id)
+    if outcome is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This run has already finished")
+    audit(session, user, "run.cancel" if outcome == "cancelled" else "run.stop", run_id)
     session.commit()
-    return {"status": "cancelled"}
+    return {"status": outcome}
 
 
 # --- schedules --------------------------------------------------------------------------------------------------
