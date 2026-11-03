@@ -204,5 +204,16 @@ def test_ipv6_senders_are_grouped_by_their_64_block():
         return SimpleNamespace(client=SimpleNamespace(host=host))
 
     assert sender_of(request("2001:db8:1:2::aaaa"))[0] == sender_of(request("2001:db8:1:2:ffff::1"))[0]
-    assert sender_of(request("2001:db8:1:2::aaaa")) == ("2001:db8:1:2::/64", "2001:db8:1::/48")
+    assert sender_of(request("2001:db8:1:2::aaaa")) == ("2001:db8:1:2::/64", "2001:db8::/32")
     assert sender_of(request("203.0.113.5")) == ("203.0.113.5", "203.0.113.0/24")
+
+
+def test_memory_and_volume_stay_bounded_even_under_attack():
+    from gigscout.web import routes_inbound
+
+    limit = routes_inbound._SenderLimit(per_hour=5, burst=2, burst_prefix=5, ceiling=4, max_keys=6)
+    results = [limit.allow(f"10.0.{i}.1", f"10.0.{i}.0/24")[0] for i in range(10)]
+    assert results[:3] == [True] * 3 and not any(results[3:])  # key cap (6 keys = 3 senders) then refusals
+    assert len(limit._seen) <= 6
+    flood = routes_inbound._SenderLimit(per_hour=99, burst=1, burst_prefix=99, ceiling=4, max_keys=1000)
+    assert [flood.allow(f"s{i}", f"b{i}")[0] for i in range(6)] == [True] * 4 + [False] * 2  # absolute ceiling

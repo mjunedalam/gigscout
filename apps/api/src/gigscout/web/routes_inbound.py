@@ -30,6 +30,9 @@ MAX_BODY_BYTES = 64_000
 FORM_LIMIT_PER_HOUR = 10  # per sender address: a contact form, not a bulk API
 BURST_PER_HOUR = 300  # above this many accepted submissions an hour (all senders), the form is under a burst
 BURST_PREFIX_PER_HOUR = 2  # during a burst: per network block (IPv4 /24, IPv6 /48), so rotating addresses stalls
+HARD_CEILING_PER_HOUR = 3_000  # far above any real contact form: only an attack reaches it, and storage stays bounded
+MAX_TRACKED_KEYS = 20_000  # bounded memory; when full, unknown senders wait for the next sweep
+SWEEP_SECONDS = 60
 BURST_NOTE = "Note: arrived during a burst of form submissions; check it is genuine before replying."
 GRAPH_LEAD_URL = "https://graph.facebook.com/v21.0/{lead_id}"
 _LEADGEN_ID = re.compile(r"^\d{5,30}$")
@@ -46,10 +49,13 @@ class _SenderLimit:
     genuine enquiries): in a burst, network blocks get a much smaller allowance and what passes is flagged instead.
     Keys with no calls in the last hour are forgotten, so memory stays small."""
 
-    def __init__(self, per_hour: int, burst: int = BURST_PER_HOUR, burst_prefix: int = BURST_PREFIX_PER_HOUR) -> None:
+    def __init__(self, per_hour: int, burst: int = BURST_PER_HOUR, burst_prefix: int = BURST_PREFIX_PER_HOUR,
+                 ceiling: int = HARD_CEILING_PER_HOUR, max_keys: int = MAX_TRACKED_KEYS) -> None:
         self._per_hour, self._burst, self._burst_prefix = per_hour, burst, burst_prefix
+        self._ceiling, self._max_keys = ceiling, max_keys
         self._seen: dict[str, deque[float]] = {}
         self._all: deque[float] = deque()
+        self._swept_at = float("-inf")
         self._lock = threading.Lock()
 
     def allow(self, sender: str, block: str) -> tuple[bool, bool]:
@@ -57,11 +63,20 @@ class _SenderLimit:
         now = time.monotonic()
         with self._lock:
             _trim(self._all, now)
-            for key in [k for k, calls in self._seen.items() if not _trim(calls, now)]:
-                del self._seen[key]
+            if now - self._swept_at >= SWEEP_SECONDS:  # forget quiet keys now and then, not on every call
+                self._seen = {k: calls for k, calls in self._seen.items() if _trim(calls, now)}
+                self._swept_at = now
             burst = len(self._all) >= self._burst
+            if len(self._all) >= self._ceiling:
+                return False, burst
+            block_key = f"block:{block}"
+            new_keys = (sender not in self._seen) + (block_key not in self._seen)
+            if len(self._seen) + new_keys > self._max_keys:
+                return False, burst
             by_sender = self._seen.setdefault(sender, deque())
-            by_block = self._seen.setdefault(f"block:{block}", deque())
+            by_block = self._seen.setdefault(block_key, deque())
+            _trim(by_sender, now)
+            _trim(by_block, now)
             if len(by_sender) >= self._per_hour or (burst and len(by_block) >= self._burst_prefix):
                 return False, burst
             for calls in (by_sender, by_block, self._all):
@@ -77,14 +92,14 @@ def _trim(calls: deque[float], now: float) -> int:
 
 def sender_of(request: Request) -> tuple[str, str]:
     """(sender, network block): IPv6 senders by /64 (one household or server holds a whole /64), blocks by IPv4 /24
-    and IPv6 /48."""
+    and IPv6 /32 (a provider's allocation, so rotating within it does not help)."""
     host = request.client.host if request.client else "unknown"
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
         return host, host
     if address.version == 6:
-        return _network(address, 64), _network(address, 48)
+        return _network(address, 64), _network(address, 32)
     return host, _network(address, 24)
 
 
