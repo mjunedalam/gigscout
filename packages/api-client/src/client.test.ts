@@ -24,6 +24,31 @@ describe("errorMessage", () => {
   });
 });
 
+describe("askStream", () => {
+  it("parses newline-delimited events even when a line is split across chunks", async () => {
+    const body = [
+      '{"type":"status","text":"Searching lead memory"}\n{"type":"sour',
+      'ces","sources":[],"elapsed":0.1}\n{"type":"token","text":"Hel"}\n',
+      '{"type":"token","text":"lo"}\n{"type":"done","elapsed":1.2}\n',
+    ];
+    const stream = new ReadableStream({ start(c) { body.forEach((b) => c.enqueue(new TextEncoder().encode(b))); c.close(); } });
+    const fetchImpl = vi.fn(async () => new Response(stream, { status: 200 }));
+    const events: string[] = [];
+
+    await createClient("", fetchImpl).leads.askStream("hi?", (e) => events.push(e.type === "token" ? e.text : e.type));
+
+    expect(events).toEqual(["status", "sources", "Hel", "lo", "done"]);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/leads/ask/stream");
+    expect(init).toMatchObject({ method: "POST", credentials: "include" });
+  });
+
+  it("raises API errors before streaming starts", async () => {
+    const api = createClient("", fakeFetch(401, { detail: "Not signed in" }));
+    await expect(api.leads.askStream("hi?", () => {})).rejects.toThrow("Not signed in");
+  });
+});
+
 describe("createClient", () => {
   it("sends JSON with cookies and returns the parsed body", async () => {
     const fetchImpl = fakeFetch(200, { user: { id: 1 } });

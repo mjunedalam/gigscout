@@ -15,6 +15,7 @@ import type {
   Role,
   Run,
   RunActivity,
+  AskStreamEvent,
   RunDetail,
   RunMode,
   Schedule,
@@ -81,6 +82,32 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
 
   const get = <T>(path: string, params?: Params) => request<T>("GET", path + toQuery(params));
 
+  /** POST and read a newline-delimited JSON stream, one event per line, until it ends or is aborted. */
+  async function stream<E>(path: string, body: unknown, onEvent: (event: E) => void, signal?: AbortSignal) {
+    const response = await fetchImpl(`${baseUrl}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!response.ok || !response.body) {
+      const payload: unknown = await response.json().catch(() => null);
+      throw new ApiError(response.status, errorMessage(payload, response.statusText));
+    }
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? ""; // a line split across chunks waits for the rest
+      for (const line of lines) if (line.trim()) onEvent(JSON.parse(line) as E);
+    }
+    if (buffer.trim()) onEvent(JSON.parse(buffer) as E);
+  }
+
   return {
     auth: {
       login: (email: string, password: string) => request<{ user: User }>("POST", "/api/auth/login", { email, password }),
@@ -93,6 +120,8 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       update: (id: string, change: { status?: LeadStatus; notes?: string }) =>
         request<LeadView>("PATCH", `/api/leads/${encodeURIComponent(id)}`, change),
       ask: (question: string, k = 8) => request<AskResponse>("POST", "/api/leads/ask", { question, k }),
+      askStream: (question: string, onEvent: (event: AskStreamEvent) => void, options: { k?: number; signal?: AbortSignal } = {}) =>
+        stream<AskStreamEvent>("/api/leads/ask/stream", { question, k: options.k ?? 8 }, onEvent, options.signal),
     },
     profiles: {
       list: () => get<ProfileRecord[]>("/api/profiles"),

@@ -230,6 +230,14 @@ export interface AskResponse {
   sources: LeadView[];
 }
 
+/** One step of a streamed answer: what it is doing, which leads it read, the answer as it is written. */
+export type AskStreamEvent =
+  | { type: "status"; text: string }
+  | { type: "sources"; sources: LeadView[]; elapsed: number }
+  | { type: "token"; text: string }
+  | { type: "done"; elapsed: number }
+  | { type: "error"; message: string };
+
 export interface SystemInfo {
   version: string;
   python: string;
