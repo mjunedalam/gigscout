@@ -15,6 +15,7 @@ from gigscout.web import (
     routes_admin,
     routes_auth,
     routes_insights,
+    routes_integrations,
     routes_leads,
     routes_ops,
     routes_outreach,
@@ -56,7 +57,8 @@ def create_app(platform_factory: PlatformFactory | None = None) -> FastAPI:
             CORSMiddleware, allow_origins=origins, allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["content-type", "authorization"],
         )
-    routers = (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin, routes_outreach)
+    routers = (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin, routes_outreach,
+               routes_integrations)
     for module in routers:
         app.include_router(module.router)
     return app

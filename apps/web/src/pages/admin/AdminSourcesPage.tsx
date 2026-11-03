@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { SourceLibrary } from "../../components/admin/SourceLibrary";
+import { UpworkPanel } from "../../components/admin/UpworkPanel";
 import { PageHeader } from "../../components/layout-bits";
 import { api, messageOf } from "../../lib/api";
 
@@ -34,6 +35,7 @@ export default function AdminSourcesPage() {
       <PageHeader eyebrow="Admin" title="Connectors"
         description="Websites the agents search for leads. Add any site by name and URL, and plug sources in or out; changes apply from the next run." />
       <AddWebsite />
+      <UpworkPanel />
       <SourceLibrary />
       {sources.isError && <Alert color="red">{messageOf(sources.error)}</Alert>}
       {sources.isPending && <Skeleton h={260} radius="lg" />}

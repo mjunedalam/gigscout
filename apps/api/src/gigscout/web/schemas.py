@@ -320,3 +320,10 @@ class LearningOut(BaseModel):
     needed: int  # outcomes before learning starts
     base_rate: float
     signals: list[LearningSignalOut]
+
+
+class IntegrationStatusOut(BaseModel):
+    configured: bool  # keys are in .env
+    connected: bool  # an admin signed in
+    connected_by: str | None
+    connected_at: UtcDatetime | None

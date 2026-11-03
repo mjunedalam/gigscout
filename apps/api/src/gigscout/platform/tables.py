@@ -152,6 +152,20 @@ class CrmRecord(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class IntegrationToken(Base):
+    """An account connected by OAuth (e.g. Upwork). Tokens are stored encrypted."""
+
+    __tablename__ = "integration_tokens"
+
+    name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    access_token: Mapped[str] = mapped_column(Text)
+    refresh_token: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    connected_by: Mapped[str] = mapped_column(String(254))
+    connected_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class Connector(Base):
     """A website an admin added as a lead source (name is the source name the agents see)."""
 

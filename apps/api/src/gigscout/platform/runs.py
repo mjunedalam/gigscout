@@ -3,6 +3,7 @@
 import logging
 import threading
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
@@ -35,8 +36,12 @@ class RunStopped(BaseException):  # noqa: N818 - a control-flow signal, like Key
 
 
 class RunManager:
-    def __init__(self, service: ScoutService, sessions: SessionFactory, bus: EventBus) -> None:
+    def __init__(
+        self, service: ScoutService, sessions: SessionFactory, bus: EventBus,
+        extra_sources: Callable[[], dict[str, Source]] = dict,
+    ) -> None:
         self._service = service
+        self._extra_sources = extra_sources  # connected accounts, e.g. Upwork
         self._sessions = sessions
         self._bus = bus
         # One worker: runs share the vector store and the local LLM, and are cheap to queue.
@@ -138,7 +143,8 @@ class RunManager:
         with self._sessions() as session:
             off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.enabled.is_(False))))
             sites = list(session.scalars(select(Connector).where(Connector.enabled.is_(True))))
-        sources: dict[str, Source] = {n: s for n, s in self._service.deps.sources.items() if n not in off}
+        built_in = {**self._service.deps.sources, **self._extra_sources()}
+        sources: dict[str, Source] = {n: s for n, s in built_in.items() if n not in off}
         for site in sites:
             sources[site.name] = WebsiteSource(
                 self._service.web_client, site.name, site.url, site.kind, site.feed_url, lead_kind=site.lead_kind,

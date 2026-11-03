@@ -376,6 +376,15 @@ export interface CrmSync {
   errors: string[];
 }
 
+/** An account connected by signing in (OAuth), e.g. Upwork. */
+export interface IntegrationStatus {
+  /** Its API keys are in the server's .env. */
+  configured: boolean;
+  connected: boolean;
+  connected_by: string | null;
+  connected_at: string | null;
+}
+
 export type ConnectorLeadKind = "project" | "contract" | "hiring";
 
 /** A checked public website from the source library, suggested per company type. */

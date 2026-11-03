@@ -27,6 +27,7 @@ import type {
   SourceHealth,
   ConnectorLeadKind,
   LibrarySource,
+  IntegrationStatus,
   Learning,
   CrmSync,
   Outreach,
@@ -192,6 +193,9 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       testSource: (name: string) => request<SourceTestResult>("POST", `/api/admin/sources/${encodeURIComponent(name)}/test`),
       addConnector: (name: string, url: string, lead_kind: ConnectorLeadKind = "project") =>
         request<SourceHealth>("POST", "/api/admin/connectors", { name, url, lead_kind }),
+      upwork: () => get<IntegrationStatus>("/api/admin/upwork"),
+      connectUpwork: () => request<{ url: string }>("POST", "/api/admin/upwork/connect"),
+      disconnectUpwork: () => request<void>("DELETE", "/api/admin/upwork"),
       connectorLibrary: (companyType?: string) =>
         get<LibrarySource[]>("/api/admin/connectors/library", companyType ? { company_type: companyType } : undefined),
       removeConnector: (id: number) => request<void>("DELETE", `/api/admin/connectors/${id}`),

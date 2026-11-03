@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     # UK Contracts Finder, Find a Tender and EU TED need no key and are always available.
     sam_gov_api_key: SecretStr | None = None
 
+    # Upwork's official API: an approved key (client id + secret) from https://www.upwork.com/developer/keys/apply.
+    # Register the callback below with the key; an admin then connects Upwork from Admin > Connectors.
+    upwork_client_id: str | None = None
+    upwork_client_secret: SecretStr | None = None
+    upwork_redirect_uri: str = "http://localhost:5173/api/admin/upwork/callback"
+
     # Email for the daily digest (any SMTP server: Gmail, Outlook, SES, Postmark...). Unset host = email off.
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
