@@ -108,3 +108,23 @@ def test_admin_configures_previews_and_sends_the_digest(web, monkeypatch):
     assert not platform.schedules.has_job("digest")
     with platform.sessions() as session:
         assert session.get(DigestSettings, 1).slack_webhook == HOOK  # None means keep the saved webhook
+
+
+def test_slack_text_cannot_ping_channels_or_hide_links_from_lead_content():
+    from datetime import UTC, datetime
+
+    from gigscout.digest import Digest, DigestLead, render_slack
+
+    nasty = DigestLead(
+        id="x", title="<!channel> Win $$$ <https://evil.example|click>", url="javascript:alert(1)", kind="project",
+        source="site", budget="—", score=0.9, pitch="<@U123> call me & <!here>", reasons="a > b",
+    )
+    text = render_slack(Digest(leads=[nasty], since=datetime.now(UTC), generated_at=datetime.now(UTC)))
+
+    assert "<!channel>" not in text and "<!here>" not in text and "<@U123>" not in text
+    assert "&lt;!channel&gt;" in text and "&amp;" in text and "a &gt; b" in text
+    assert "javascript:" not in text  # links are only built for http(s) URLs
+    safe = DigestLead(id="y", title="Real lead", url="https://jobs.example.com/1?a=1&b=2", kind="project",
+                      source="s", budget="—", score=0.8, pitch="", reasons="")
+    assert "<https://jobs.example.com/1?a=1&amp;b=2|Real lead>" in render_slack(
+        Digest(leads=[safe], since=datetime.now(UTC), generated_at=datetime.now(UTC)))

@@ -106,6 +106,29 @@ def render_html(digest: Digest) -> str:
             f"<ol style='font-family:sans-serif;line-height:1.5'>{''.join(items)}</ol>")
 
 
+def render_slack(digest: Digest) -> str:
+    """Slack mrkdwn built from scratch: lead fields come from outside websites, so &, < and > are escaped (Slack's own
+    rule) and links are only made from http(s) URLs. Otherwise a title like "<!channel>" would ping everyone."""
+    if not digest.leads:
+        return _slack_escape(render_markdown(digest))
+    lines = [f"*{len(digest.leads)} new lead{'s' if len(digest.leads) != 1 else ''} worth your time*", ""]
+    for i, lead in enumerate(digest.leads, 1):
+        title = _slack_escape(lead.title)
+        if lead.url and urlsplit(lead.url).scheme in ("http", "https"):
+            title = f"<{_slack_escape(lead.url)}|{title.replace('|', '¦')}>"
+        meta = _slack_escape(f"{lead.kind} · {lead.source} · {lead.budget} · score {lead.score:.2f}")
+        lines.append(f"{i}. {title} · {meta}")
+        if lead.reasons:
+            lines.append(f"    Why: {_slack_escape(lead.reasons)}")
+        if lead.pitch:
+            lines.append(f"    Open with: “{_slack_escape(lead.pitch)}”")
+    return "\n".join(lines)
+
+
+def _slack_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def check_slack_webhook(url: str) -> str:
     parts = urlsplit(url.strip())
     if parts.scheme != "https" or parts.hostname != SLACK_HOST or not parts.path.startswith("/services/"):
@@ -114,8 +137,8 @@ def check_slack_webhook(url: str) -> str:
 
 
 def send_slack(url: str, digest: Digest) -> None:
-    text = render_markdown(digest).replace("**", "*")  # Slack mrkdwn bold is *single*
-    response = httpx.post(check_slack_webhook(url), json={"text": text, "unfurl_links": False}, timeout=SLACK_TIMEOUT,
+    response = httpx.post(check_slack_webhook(url), json={"text": render_slack(digest), "unfurl_links": False},
+                          timeout=SLACK_TIMEOUT,
                           follow_redirects=False)
     response.raise_for_status()
 
