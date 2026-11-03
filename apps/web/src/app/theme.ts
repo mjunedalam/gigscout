@@ -1,8 +1,19 @@
-import { createTheme, type MantineColorsTuple } from "@mantine/core";
+import { createTheme, defaultVariantColorsResolver, type MantineColorsTuple, type VariantColorsResolver } from "@mantine/core";
 
-// Signal lime: the brand accent (primary actions, "live", qualified). Generated around #C6F432.
+/*
+ * Colour roles
+ * - brand: actions. Buttons are high-contrast neutrals (near-white on dark, near-black on light), so an action never
+ *   competes with data for colour. Light/subtle variants are quiet greys.
+ * - signal: meaning. Emerald marks what is live, healthy, qualified or switched on (mint on dark, deep on light).
+ * - lead kinds and agents keep their own fixed hues for charts and the cockpit.
+ */
+const brand: MantineColorsTuple = [
+  "#f7f8fa", "#eceef3", "#d5d9e2", "#b4bac8", "#8a91a3", "#5f6678", "#3d4352", "#262b37", "#181c25", "#0f1218",
+];
+
+// Emerald (Tailwind's emerald scale): readable as text on tinted backgrounds in both themes.
 const signal: MantineColorsTuple = [
-  "#f8fee6", "#effccc", "#dff99a", "#cff663", "#c6f432", "#b7e81b", "#a2cf0c", "#7fa300", "#5f7a00", "#3f5200",
+  "#ecfdf5", "#d1fae5", "#a7f3d0", "#6ee7b7", "#34d399", "#10b981", "#059669", "#047857", "#065f46", "#064e3b",
 ];
 
 // Ink: the neutral ramp for the dark theme (Mantine's "dark" palette).
@@ -14,10 +25,26 @@ const violet: MantineColorsTuple = [
   "#f0eeff", "#dcd7ff", "#b7adff", "#9887ff", "#8b7cff", "#7666f2", "#5f4fd9", "#4b3cb3", "#3a2e8c", "#2a2166",
 ];
 
+/** Brand buttons read CSS tokens (see global.css), so they invert cleanly between the light and dark themes. */
+const variantColorResolver: VariantColorsResolver = (input) => {
+  if (input.color === "brand" || (input.color === undefined && input.theme.primaryColor === "brand")) {
+    if (input.variant === "filled") {
+      return { background: "var(--gs-btn-bg)", hover: "var(--gs-btn-bg-hover)", color: "var(--gs-btn-fg)", hoverColor: "var(--gs-btn-fg)", border: "none" };
+    }
+    if (input.variant === "light") {
+      return { background: "var(--gs-btn-soft)", hover: "var(--gs-btn-soft-hover)", color: "var(--gs-text)", hoverColor: "var(--gs-text)", border: "none" };
+    }
+  }
+  return defaultVariantColorsResolver(input);
+};
+
+const accent = { defaultProps: { color: "signal" } };
+
 export const theme = createTheme({
-  primaryColor: "signal",
+  primaryColor: "brand",
   primaryShade: { light: 7, dark: 4 },
-  colors: { signal, dark: ink, violet },
+  colors: { brand, signal, dark: ink, violet },
+  variantColorResolver,
   fontFamily: "var(--gs-font-text)",
   fontFamilyMonospace: "var(--gs-font-mono)",
   headings: {
@@ -36,9 +63,16 @@ export const theme = createTheme({
   autoContrast: true,
   luminanceThreshold: 0.45,
   components: {
-    Button: { defaultProps: { radius: "xl" } },
+    Button: { defaultProps: { radius: "xl" }, styles: { root: { fontWeight: 600, letterSpacing: "-0.005em" } } },
     ActionIcon: { defaultProps: { variant: "subtle", radius: "xl" } },
     Badge: { defaultProps: { radius: "sm", variant: "light" }, styles: { label: { letterSpacing: "0.04em" } } },
+    // controls that show a state (on, checked, progress) use the meaning colour, not the action colour
+    Switch: accent,
+    Checkbox: accent,
+    Radio: accent,
+    Slider: accent,
+    Progress: accent,
+    Loader: accent,
     Paper: { defaultProps: { radius: "lg" } },
     Card: { defaultProps: { radius: "lg" } },
     Modal: { defaultProps: { radius: "lg", overlayProps: { backgroundOpacity: 0.6, blur: 6 } } },

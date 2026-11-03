@@ -1,5 +1,5 @@
 import type { LeadKind, LeadStatus, RunStatus } from "@gigscout/api-client";
-import { KIND_COLORS, KIND_LABELS, RUN_STATUS_COLORS, scoreColor, STATUS_COLORS } from "@gigscout/viz";
+import { KIND_COLORS, KIND_LABELS, scoreColor } from "@gigscout/viz";
 import { Badge, RingProgress, Text, Tooltip } from "@mantine/core";
 
 export function KindBadge({ kind }: { kind: LeadKind }) {
@@ -13,9 +13,17 @@ export function KindBadge({ kind }: { kind: LeadKind }) {
   );
 }
 
+/* Badges use theme colour names (readable in both themes); the viz hex colours stay for charts. */
+const LEAD_STATUS_BADGE: Record<LeadStatus, string> = {
+  new: "gray", contacted: "blue", proposal: "violet", won: "signal", lost: "red", archived: "gray",
+};
+const RUN_STATUS_BADGE: Record<RunStatus, string> = {
+  queued: "gray", running: "blue", succeeded: "signal", failed: "red", cancelled: "gray",
+};
+
 export function StatusBadge({ status }: { status: LeadStatus }) {
   return (
-    <Badge color={STATUS_COLORS[status]} variant="light" autoContrast>
+    <Badge color={LEAD_STATUS_BADGE[status]} variant="light">
       {status}
     </Badge>
   );
@@ -24,7 +32,7 @@ export function StatusBadge({ status }: { status: LeadStatus }) {
 export function RunStatusBadge({ status }: { status: RunStatus }) {
   return (
     <Badge
-      color={RUN_STATUS_COLORS[status]}
+      color={RUN_STATUS_BADGE[status]}
       variant={status === "running" ? "filled" : "light"}
       leftSection={status === "running" ? <span className="gs-live-dot" style={{ width: 6, height: 6 }} /> : null}
     >

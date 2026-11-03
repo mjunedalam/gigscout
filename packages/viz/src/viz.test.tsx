@@ -40,7 +40,7 @@ describe("layout helpers", () => {
   it("formats compact numbers and colours scores", () => {
     expect(compactNumber(1530)).toBe("1.5K");
     expect(scoreColor(null)).toBe("#4A5063");
-    expect(scoreColor(1)).toBe("rgb(198, 244, 50)");
+    expect(scoreColor(1)).toBe("rgb(52, 211, 153)");
   });
 });
 

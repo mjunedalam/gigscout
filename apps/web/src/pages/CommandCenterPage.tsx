@@ -113,4 +113,4 @@ export default function CommandCenterPage() {
   );
 }
 
-const SOURCE_TINTS = ["#C6F432", "#8B7CFF", "#2DD4BF", "#F5B544", "#FF6B8B", "#5AA9FF", "#B794F6"];
+const SOURCE_TINTS = ["#34D399", "#8B7CFF", "#38BDF8", "#F5B544", "#FF6B8B", "#5AA9FF", "#B794F6"];

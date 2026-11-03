@@ -1,6 +1,7 @@
 /*
- * GigScout design tokens. Direction: "signal room": a dark, ink-blue operations desk where data glows
- * (signal lime = live/qualified, one fixed hue per lead kind), with a warm paper light theme.
+ * GigScout design tokens. Direction: "signal room": a dark, ink-blue operations desk with a warm paper light theme.
+ * Actions are high-contrast neutrals (--gs-btn-*); emerald (--gs-signal) means live / healthy / qualified;
+ * each lead kind keeps one fixed hue.
  * Display: Space Grotesk · Text: Inter · Numbers & code: IBM Plex Mono.
  */
 :root {
@@ -8,11 +9,11 @@
   --gs-font-text: "Inter Variable", "Inter", system-ui, sans-serif;
   --gs-font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  --gs-signal: #c6f432;
-  --gs-signal-ink: #0b0d12;
+  --gs-signal: #34d399;
+  --gs-signal-ink: #052e1f;
   --gs-danger: #ff6b6b;
   --gs-project: #8b7cff;
-  --gs-contract: #2dd4bf;
+  --gs-contract: #38bdf8;
   --gs-hiring: #f5b544;
   --gs-inbound: #ff6b8b;
 
@@ -33,7 +34,12 @@
   --gs-line: #252b3b;
   --gs-text: #eceef4;
   --gs-text-muted: #8a90a2;
-  --gs-glow: 0 0 0 1px rgba(198, 244, 50, 0.18), 0 8px 40px -12px rgba(198, 244, 50, 0.25);
+  --gs-glow: 0 0 0 1px rgba(52, 211, 153, 0.18), 0 8px 40px -12px rgba(52, 211, 153, 0.22);
+  --gs-btn-bg: #eceef4;
+  --gs-btn-bg-hover: #ffffff;
+  --gs-btn-fg: #0b0d12;
+  --gs-btn-soft: rgba(236, 238, 244, 0.07);
+  --gs-btn-soft-hover: rgba(236, 238, 244, 0.13);
   --gs-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.8);
   --gs-grain-opacity: 0.05;
 }
@@ -46,10 +52,26 @@
   --gs-line: #dcd7cb;
   --gs-text: #15171d;
   --gs-text-muted: #61656f;
-  --gs-signal: #5f8a00;
-  --gs-glow: 0 0 0 1px rgba(95, 138, 0, 0.25), 0 8px 30px -14px rgba(95, 138, 0, 0.35);
+  --gs-signal: #047857;
+  --gs-glow: 0 0 0 1px rgba(4, 120, 87, 0.22), 0 8px 30px -14px rgba(4, 120, 87, 0.3);
+  --gs-btn-bg: #15171d;
+  --gs-btn-bg-hover: #2a2d36;
+  --gs-btn-fg: #fffdf8;
+  --gs-btn-soft: rgba(21, 23, 29, 0.06);
+  --gs-btn-soft-hover: rgba(21, 23, 29, 0.11);
   --gs-shadow: 0 1px 2px rgba(20, 22, 30, 0.06), 0 18px 40px -28px rgba(20, 22, 30, 0.35);
   --gs-grain-opacity: 0.035;
+}
+
+/* Mantine paints colour-less buttons, focus rings and the like from its primary-colour variables; point them at the
+   neutral action tokens so every primary action reads the same in both themes. */
+html:root[data-mantine-color-scheme] {
+  --mantine-primary-color-filled: var(--gs-btn-bg);
+  --mantine-primary-color-filled-hover: var(--gs-btn-bg-hover);
+  --mantine-primary-color-contrast: var(--gs-btn-fg);
+  --mantine-primary-color-light: var(--gs-btn-soft);
+  --mantine-primary-color-light-hover: var(--gs-btn-soft-hover);
+  --mantine-primary-color-light-color: var(--gs-text);
 }
 
 html,
