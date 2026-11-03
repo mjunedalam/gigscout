@@ -30,8 +30,10 @@ MAX_BODY_BYTES = 64_000
 FORM_LIMIT_PER_HOUR = 10  # per sender address: a contact form, not a bulk API
 BURST_PER_HOUR = 300  # above this many accepted submissions an hour (all senders), the form is under a burst
 BURST_PREFIX_PER_HOUR = 2  # during a burst: per network block (IPv4 /24, IPv6 /48), so rotating addresses stalls
-HARD_CEILING_PER_HOUR = 3_000  # far above any real contact form: only an attack reaches it, and storage stays bounded
-MAX_TRACKED_KEYS = 20_000  # bounded memory; when full, unknown senders wait for the next sweep
+# The one deliberate global bound: far above any real contact form, so only an attack reaches it, and it is what
+# keeps stored leads bounded. Without a challenge step (e.g. a CAPTCHA) any limiter must trade lockout against storage.
+HARD_CEILING_PER_HOUR = 3_000
+MAX_TRACKED_KEYS = 20_000  # bounded memory; when full, new senders are accepted and flagged rather than refused
 SWEEP_SECONDS = 60
 BURST_NOTE = "Note: arrived during a burst of form submissions; check it is genuine before replying."
 GRAPH_LEAD_URL = "https://graph.facebook.com/v21.0/{lead_id}"
@@ -70,17 +72,18 @@ class _SenderLimit:
             if len(self._all) >= self._ceiling:
                 return False, burst
             block_key = f"block:{block}"
-            new_keys = (sender not in self._seen) + (block_key not in self._seen)
-            if len(self._seen) + new_keys > self._max_keys:
-                return False, burst
-            by_sender = self._seen.setdefault(sender, deque())
-            by_block = self._seen.setdefault(block_key, deque())
-            _trim(by_sender, now)
-            _trim(by_block, now)
-            if len(by_sender) >= self._per_hour or (burst and len(by_block) >= self._burst_prefix):
-                return False, burst
-            for calls in (by_sender, by_block, self._all):
-                calls.append(now)
+            by_sender = _trim(self._seen.get(sender, deque()), now)
+            by_block = _trim(self._seen.get(block_key, deque()), now)
+            if by_sender >= self._per_hour or (burst and by_block >= self._burst_prefix):
+                return False, burst  # refused: nothing is stored for it
+            self._all.append(now)
+            for key in (sender, block_key):
+                if key in self._seen:
+                    self._seen[key].append(now)
+                elif len(self._seen) < self._max_keys:
+                    self._seen[key] = deque([now])
+                else:
+                    burst = True  # table full: accept and flag instead of refusing someone new
             return True, burst
 
 
@@ -92,14 +95,14 @@ def _trim(calls: deque[float], now: float) -> int:
 
 def sender_of(request: Request) -> tuple[str, str]:
     """(sender, network block): IPv6 senders by /64 (one household or server holds a whole /64), blocks by IPv4 /24
-    and IPv6 /32 (a provider's allocation, so rotating within it does not help)."""
+    and IPv6 /48 (one site's allocation, so rotating within it does not help)."""
     host = request.client.host if request.client else "unknown"
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
         return host, host
     if address.version == 6:
-        return _network(address, 64), _network(address, 32)
+        return _network(address, 64), _network(address, 48)
     return host, _network(address, 24)
 
 
