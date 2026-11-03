@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # project  = a client posted a project to outsource (freelance marketplaces, RFP/tender feeds)
 # contract = a company wants contractors (staff augmentation opportunity)
@@ -65,14 +65,16 @@ class Lead(BaseModel):
 
 
 class AgencyProfile(BaseModel):
-    """The software company the agent prospects for."""
+    """The company the agents prospect for: any kind of business that sells services or work to clients."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str = Field(default="our agency", min_length=1, max_length=120)
-    pitch: str = Field(default="", max_length=2000, description="What the agency does, in a few sentences")
+    company_type: str = Field(default="Software agency", min_length=1, max_length=80,
+                              description="What kind of company this is, e.g. Marketing agency, Law firm")
+    pitch: str = Field(default="", max_length=2000, description="What the company does, in a few sentences")
     services: tuple[str, ...] = ()
-    skills: tuple[str, ...] = Field(min_length=1, description="Tech stack the team delivers in")
+    skills: tuple[str, ...] = Field(default=(), description="Capabilities: tech stack, specialities, certifications")
     keywords: tuple[str, ...] = ()
     industries: tuple[str, ...] = ()
     exclude: tuple[str, ...] = ()
@@ -81,17 +83,40 @@ class AgencyProfile(BaseModel):
     kinds: tuple[LeadKind, ...] = ALL_LEAD_KINDS
     sources: tuple[str, ...] | None = Field(default=None, description="None = all enabled sources")
 
+    @model_validator(mode="after")
+    def _says_what_it_sells(self) -> "AgencyProfile":
+        if not (self.services or self.skills or self.keywords):
+            raise ValueError("Describe what you sell: add at least one service, capability or search keyword")
+        return self
+
+    def who(self) -> str:
+        """How prompts name the company, e.g. 'Marketing agency "Bright Lane"'."""
+        return f'{self.company_type} "{self.name}"'
+
     def as_query(self) -> str:
         """Natural-language description used for semantic retrieval."""
-        parts = [self.pitch]
+        parts = [f"Company type: {self.company_type}", self.pitch]
         if self.services:
             parts.append("Services: " + ", ".join(self.services))
-        parts.append("Tech stack: " + ", ".join(self.skills))
+        if self.skills:
+            parts.append("Capabilities: " + ", ".join(self.skills))
         if self.industries:
             parts.append("Industries: " + ", ".join(self.industries))
         if self.keywords:
             parts.append("Looking for: " + ", ".join(self.keywords))
         return "\n".join(p for p in parts if p)
+
+
+class ProfileSuggestion(BaseModel):
+    """What the LLM proposes when a company describes itself in a sentence."""
+
+    services: list[str] = Field(default_factory=list, description="3-6 services the company sells, short phrases")
+    skills: list[str] = Field(default_factory=list, description="3-8 capabilities or specialities, short phrases")
+    keywords: list[str] = Field(
+        default_factory=list, description="4-8 short search queries (1-3 words) for finding clients"
+    )
+    exclude: list[str] = Field(default_factory=list, description="2-5 topics to never show (unpaid, off-target work)")
+    industries: list[str] = Field(default_factory=list, description="0-4 client industries it serves best")
 
 
 class LeadAssessment(BaseModel):
@@ -100,7 +125,7 @@ class LeadAssessment(BaseModel):
     score: float = Field(ge=0, le=1, description="0 = not worth pursuing, 1 = ideal client project")
     reasons: str = Field(description="One or two sentences on why")
     red_flags: str = Field(default="", description="Scam signals, unrealistic budget, vague scope")
-    pitch: str = Field(default="", description="One-line outreach angle the agency could open with")
+    pitch: str = Field(default="", description="One-line outreach angle the company could open with")
 
 
 class Candidate(BaseModel):

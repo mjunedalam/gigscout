@@ -1,5 +1,6 @@
-# Your agency profile. The agent prospects, qualifies and pitches against this.
+# Your company profile. The agents prospect, qualify and pitch against this.
 name: Acme Software Studio
+company_type: Software agency   # any kind of company: Marketing agency, Law firm, Recruitment agency, ...
 pitch: >
   A 12-person software studio that designs and builds custom web platforms, mobile apps and
   AI integrations for startups and growing SMEs, from MVP to scale.
@@ -8,7 +9,7 @@ services:                      # what you sell; seeds search queries when `keywo
   - mobile app development
   - ai chatbot integration
   - api development
-skills: [python, django, fastapi, react, angular, react native, postgresql, aws, langchain]  # required
+skills: [python, django, fastapi, react, angular, react native, postgresql, aws, langchain]  # capabilities (optional if services or keywords are set)
 keywords: [web app, mobile app, saas mvp, ai chatbot, api integration]  # seeds the search queries
 industries: [fintech, healthcare, ecommerce]
 exclude: [wordpress, unpaid, "data entry", "logo design"]   # hard filter

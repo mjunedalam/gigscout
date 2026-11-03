@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from gigscout.agent import prompts
 from gigscout.config import Settings
-from gigscout.models import AgencyProfile, Lead, LeadAssessment
+from gigscout.models import AgencyProfile, Lead, LeadAssessment, ProfileSuggestion
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ class Reasoner(Protocol):
 
     def answer(self, question: str, context: str) -> str: ...
 
+    def suggest_profile(self, company_type: str, description: str) -> ProfileSuggestion: ...
+
     def answer_stream(self, question: str, context: str) -> Iterator[str]: ...
 
 
@@ -40,12 +42,15 @@ class OllamaReasoner:
 
     def plan_queries(self, profile: AgencyProfile, previous: Sequence[str]) -> list[str]:
         extra = prompts.BROADEN_HINT.format(previous=", ".join(previous)) if previous else ""
-        prompt = prompts.PLAN_QUERIES.format(profile=profile.as_query(), extra=extra, max_queries=MAX_QUERIES)
+        prompt = prompts.PLAN_QUERIES.format(
+            company=profile.who(), profile=profile.as_query(), extra=extra, max_queries=MAX_QUERIES,
+        )
         plan = self._llm.with_structured_output(QueryPlan).invoke(prompt)
         return [q.strip().lower() for q in plan.queries if q.strip()][:MAX_QUERIES]
 
     def qualify(self, profile: AgencyProfile, lead: Lead) -> LeadAssessment:
         prompt = prompts.QUALIFY_LEAD.format(
+            company=profile.who(),
             profile=profile.as_query(),
             kind=lead.kind,
             source=lead.source,
@@ -59,7 +64,12 @@ class OllamaReasoner:
         return self._llm.with_structured_output(LeadAssessment).invoke(prompt)
 
     def summarize(self, profile: AgencyProfile, leads: str) -> str:
-        return str(self._llm.invoke(prompts.SUMMARIZE.format(profile=profile.as_query(), leads=leads)).content)
+        prompt = prompts.SUMMARIZE.format(company=profile.who(), profile=profile.as_query(), leads=leads)
+        return str(self._llm.invoke(prompt).content)
+
+    def suggest_profile(self, company_type: str, description: str) -> ProfileSuggestion:
+        prompt = prompts.SUGGEST_PROFILE.format(company_type=company_type, description=description)
+        return self._llm.with_structured_output(ProfileSuggestion).invoke(prompt)
 
     def answer(self, question: str, context: str) -> str:
         return str(self._llm.invoke(prompts.ANSWER_WITH_CONTEXT.format(context=context, question=question)).content)

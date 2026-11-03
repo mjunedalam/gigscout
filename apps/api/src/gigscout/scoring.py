@@ -14,10 +14,15 @@ CROWDED_BIDS = 20  # at this many competing bids, the opportunity signal halves
 OFF_TARGET_COUNTRY_PENALTY = 0.5
 
 
+def fit_terms(profile: AgencyProfile) -> tuple[str, ...]:
+    """What a lead should mention to fit: the capabilities, or (for non-technical companies) services and keywords."""
+    return profile.skills or (*profile.services, *profile.keywords)
+
+
 def skill_overlap(profile: AgencyProfile, lead: Lead) -> float:
+    terms = fit_terms(profile)
     text = lead.document()
-    hits = sum(1 for skill in profile.skills if contains_term(text, skill))
-    return hits / len(profile.skills)
+    return sum(1 for term in terms if contains_term(text, term)) / len(terms)
 
 
 def budget_fit(profile: AgencyProfile, lead: Lead) -> float:
@@ -80,14 +85,14 @@ def drop_reason(profile: AgencyProfile, scored: ScoredLead) -> str:
         return "budget too low"
     if lead.bid_count is not None and lead.bid_count >= CROWDED_BIDS:
         return "too many bids"
-    if profile.skills and skill_overlap(profile, lead) == 0:
-        return "off-stack"
+    if skill_overlap(profile, lead) == 0:
+        return "off-target"
     return "low fit"
 
 
 def _reasons(profile: AgencyProfile, lead: Lead) -> str:
-    matched = [s for s in profile.skills if contains_term(lead.document(), s)]
-    parts = [f"Matches {', '.join(matched)}" if matched else "Semantically similar, no exact stack match"]
+    matched = [s for s in fit_terms(profile) if contains_term(lead.document(), s)]
+    parts = [f"Matches {', '.join(matched)}" if matched else "Semantically similar, no exact match"]
     if lead.kind == "inbound":
         parts.append("inbound enquiry")
     elif lead.bid_count is not None:

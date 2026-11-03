@@ -25,7 +25,7 @@ def kinds(events, kind):
     ({"budget": Budget(maximum=900, currency="USD")}, "unpaid test task", "red flags"),
     ({"budget": Budget(maximum=900, currency="USD")}, "", "budget too low"),
     ({"bid_count": 45}, "", "too many bids"),
-    ({"description": "logo design in illustrator"}, "", "off-stack"),
+    ({"description": "logo design in illustrator"}, "", "off-target"),
     ({"description": "python django work", "bid_count": 2}, "", "low fit"),
 ])
 def test_drop_reason_names_the_main_problem(lead_kw, red_flags, expected):

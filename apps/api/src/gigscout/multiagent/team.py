@@ -44,17 +44,23 @@ class TeamModels:
 
 
 def build_team(ctx: RunContext, models: TeamModels):
+    company = ctx.profile.who()
     workers = {
-        "scout": create_agent(models.scout, build_scout_tools(ctx), system_prompt=prompts.SCOUT, name="scout"),
-        "analyst": create_agent(
-            models.analyst, build_analyst_tools(ctx), system_prompt=prompts.ANALYST, name="analyst"
+        "scout": create_agent(
+            models.scout, build_scout_tools(ctx), system_prompt=prompts.SCOUT.format(company=company), name="scout"
         ),
-        "writer": create_agent(models.writer, build_writer_tools(ctx), system_prompt=prompts.WRITER, name="writer"),
+        "analyst": create_agent(
+            models.analyst, build_analyst_tools(ctx), system_prompt=prompts.ANALYST.format(company=company),
+            name="analyst",
+        ),
+        "writer": create_agent(
+            models.writer, build_writer_tools(ctx), system_prompt=prompts.WRITER.format(company=company), name="writer"
+        ),
     }
     return create_agent(
         models.supervisor,
         _delegation_tools(ctx, workers),
-        system_prompt=prompts.SUPERVISOR,
+        system_prompt=prompts.SUPERVISOR.format(company=company),
         name="supervisor",
     )
 

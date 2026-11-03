@@ -65,6 +65,7 @@ def run_team(
 def _kickoff(ctx: RunContext) -> str:
     p = ctx.profile
     return prompts.KICKOFF.format(
+        company=p.who(),
         profile=p.as_query(),
         exclude=", ".join(p.exclude) or "nothing",
         min_budget=p.min_budget_usd or "any",
