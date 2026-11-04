@@ -6,10 +6,11 @@ instead of raising, so the agent can reason about a failure and try something el
 
 from langchain_core.tools import BaseTool, tool
 
+from gigscout import quality
 from gigscout.agent.nodes import budget_label, client_label, with_inbound
 from gigscout.models import Candidate, ScoredLead
 from gigscout.multiagent.context import RunContext
-from gigscout.scoring import blend_with_llm, heuristic_score, is_excluded
+from gigscout.scoring import blend_with_llm, heuristic_score, skip_reason
 
 SAMPLE_TITLES = 5
 DETAIL_CHARS = 2500
@@ -68,15 +69,20 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
             query, k=max(1, min(k, settings.top_k)), max_age_days=settings.max_lead_age_days,
             sources=with_inbound(profile.sources), kinds=profile.kinds,
         )
-        kept = [c for c in results if not is_excluded(profile, c.lead)]
+        kept = [c for c in results if skip_reason(profile, c.lead) is None]
+        for c in results:
+            if c not in kept and not ctx.activity.was_reviewed(c.lead.id):
+                ctx.activity.reviewed(heuristic_score(profile, c), qualified=False)
+        skipped = len(results) - len(kept)
         ctx.activity.act("qualifier", f"searched memory for '{query}'")
         filled, slots = len(ctx.shortlist), settings.shortlist_size
         ctx.activity.progress("qualifier", filled, slots, f"searching memory for '{query}'")
+        note = f" ({skipped} left out: duplicates, likely scams or under the minimum budget)" if skipped else ""
         if not kept:
-            return "No matching leads in memory. Ask for more prospecting."
+            return f"No matching leads in memory{note}. Ask for more prospecting."
         ctx.seen.update({c.lead.id: c for c in kept})
         rows = [_candidate_row(heuristic_score(profile, c)) for c in kept]
-        return "id | title | kind | source | similarity | heuristic | budget | notes\n" + "\n".join(rows)
+        return f"id | title | kind | source | similarity | heuristic | budget | notes{note}\n" + "\n".join(rows)
 
     @tool
     def read_lead(lead_id: str) -> str:
@@ -85,8 +91,9 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
         if lead is None:
             return f"ERROR: no lead with id '{lead_id}'."
         bids = lead.bid_count if lead.bid_count is not None else "unknown"
+        checks = f"Automated quality checks: {quality.summary(lead.quality)}\n" if lead.quality else ""
         return (
-            f"{lead.title} ({lead.kind} from {lead.source})\nURL: {lead.url or 'n/a'}\n"
+            f"{checks}{lead.title} ({lead.kind} from {lead.source})\nURL: {lead.url or 'n/a'}\n"
             f"Client: {client_label(lead)}\nSkills: {', '.join(lead.skills) or 'n/a'}\n"
             f"Budget (USD max): {budget_label(lead)}\nCompeting bids: {bids}\n\n{lead.description[:DETAIL_CHARS]}"
         )
@@ -100,6 +107,9 @@ def build_analyst_tools(ctx: RunContext) -> list[BaseTool]:
             if lead is None:
                 return f"ERROR: no lead with id '{lead_id}'."
             candidate = Candidate(lead=lead, similarity=0.0)
+        skipped = skip_reason(profile, candidate.lead)
+        if skipped:
+            return f"Not added: {skipped}. Pick another lead."
         if lead_id not in ctx.shortlist and len(ctx.shortlist) >= settings.shortlist_size:
             return f"Shortlist is full ({settings.shortlist_size}). Finish your analysis."
         score = min(max(fit_score, 0.0), 1.0)

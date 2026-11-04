@@ -36,6 +36,16 @@ export interface Lead {
   posted_at: string | null;
   client: Client | null;
   bid_count: number | null;
+  /** Set when stored: scam patterns ("scam") and lesser concerns ("warning"), in plain words. */
+  quality?: QualityFlag[];
+  /** Set when stored: the earlier lead this one repeats (the same job on another site, or a repost). */
+  duplicate_of?: string | null;
+}
+
+export interface QualityFlag {
+  code: string;
+  label: string;
+  severity: "scam" | "warning";
 }
 
 export interface LeadView {
@@ -78,6 +88,8 @@ export interface LeadQuery {
   source?: string[];
   status?: LeadStatus[];
   min_score?: number;
+  /** clean: no duplicates, scams or warnings; flagged: only those. */
+  quality?: "all" | "clean" | "flagged";
   sort?: "score" | "recent" | "budget";
   page?: number;
   page_size?: number;

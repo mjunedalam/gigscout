@@ -43,6 +43,16 @@ class Client(BaseModel):
     phone: str | None = None
 
 
+class QualityFlag(BaseModel):
+    """Something that makes a lead look risky or thin (see gigscout.quality)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    label: str
+    severity: Literal["scam", "warning"]
+
+
 class Lead(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -57,6 +67,8 @@ class Lead(BaseModel):
     posted_at: datetime | None = None
     client: Client | None = None
     bid_count: int | None = Field(default=None, ge=0, description="Competing proposals already submitted")
+    quality: tuple[QualityFlag, ...] = Field(default=(), description="Set when stored: scam patterns and warnings")
+    duplicate_of: str | None = Field(default=None, description="Set when stored: an earlier lead with the same job")
 
     def document(self) -> str:
         """Text that gets embedded into the vector store."""

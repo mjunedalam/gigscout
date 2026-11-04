@@ -6,9 +6,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import chromadb
+import numpy as np
 
+from gigscout import quality
 from gigscout.models import Candidate, Lead
 from gigscout.store.embeddings import Embedder
+
+BACKFILL_BATCH = 500
 
 
 @dataclass(frozen=True)
@@ -39,22 +43,82 @@ class LeadIndex:
         return self._collection.count()
 
     def add_new(self, leads: Sequence[Lead]) -> list[Lead]:
-        """Store leads not seen before; return only the new ones."""
+        """Store leads not seen before, quality-checked and marked when they repeat a lead already stored (or one
+        earlier in the same batch); return only the new ones, as stored."""
         unique = list({lead.id: lead for lead in leads}.values())
         if not unique:
             return []
         existing = set(self._collection.get(ids=[lead.id for lead in unique], include=[])["ids"])
         fresh = [lead for lead in unique if lead.id not in existing]
-        if fresh:
-            now = datetime.now(UTC)
-            documents = [lead.document() for lead in fresh]
-            self._collection.add(
-                ids=[lead.id for lead in fresh],
-                embeddings=self._embedder.embed_documents(documents),
-                documents=documents,
-                metadatas=[_metadata(lead, now) for lead in fresh],
-            )
-        return fresh
+        if not fresh:
+            return []
+        now = datetime.now(UTC)
+        documents = [lead.document() for lead in fresh]
+        vectors = self._embedder.embed_documents(documents)
+        stored = self._with_quality(fresh, vectors)
+        self._collection.add(
+            ids=[lead.id for lead in stored], embeddings=vectors, documents=documents,
+            metadatas=[_metadata(lead, now) for lead in stored],
+        )
+        return stored
+
+    def _with_quality(self, fresh: list[Lead], vectors: list[list[float]]) -> list[Lead]:
+        earlier = self._nearest_stored(vectors)
+        out: list[Lead] = []
+        for i, (lead, vector) in enumerate(zip(fresh, vectors, strict=True)):
+            duplicate_of = None
+            match = earlier[i]
+            if match and quality.is_duplicate(lead, match[0], match[1]):
+                duplicate_of = match[0].duplicate_of or match[0].id
+            else:
+                for prev, prev_vector in zip(out, vectors[:i], strict=False):
+                    if quality.is_duplicate(lead, prev, _cosine(vector, prev_vector)):
+                        duplicate_of = prev.duplicate_of or prev.id
+                        break
+            out.append(quality.assessed(lead, duplicate_of))
+        return out
+
+    def _nearest_stored(self, vectors: list[list[float]]) -> list[tuple[Lead, float] | None]:
+        if self.count() == 0:
+            return [None] * len(vectors)
+        result = self._collection.query(query_embeddings=vectors, n_results=1, include=["metadatas", "distances"])
+        return [
+            (Lead.model_validate_json(metas[0]["payload"]), 1 - dists[0]) if metas else None
+            for metas, dists in zip(result["metadatas"], result["distances"], strict=True)
+        ]
+
+    def recheck_quality(self) -> int:
+        """Quality-check leads stored before the check existed (or under older rules), oldest first, so a repost
+        points at the original. Returns how many were updated."""
+        if self.count() == 0:
+            return 0
+        rows = self._collection.get(include=["metadatas", "embeddings"])
+        order = sorted(range(len(rows["ids"])), key=lambda i: rows["metadatas"][i].get("seen_ts", 0))
+        leads = [Lead.model_validate_json(rows["metadatas"][i]["payload"]) for i in order]
+        matrix = np.asarray([rows["embeddings"][i] for i in order], dtype=np.float32)
+        stale = [k for k, i in enumerate(order) if rows["metadatas"][i].get("qv") != quality.QUALITY_VERSION]
+        if not stale:
+            return 0
+        updated: dict[int, Lead] = {}
+        for k in stale:
+            lead, duplicate_of = leads[k], None
+            if k:
+                sims = matrix[:k] @ matrix[k]
+                for j in np.argsort(-sims)[:5]:
+                    if sims[j] < quality.DUPLICATE_SIMILARITY:
+                        break
+                    if quality.is_duplicate(lead, leads[j], float(sims[j])):
+                        original = updated.get(j, leads[j])
+                        duplicate_of = original.duplicate_of or original.id
+                        break
+            updated[k] = quality.assessed(lead, duplicate_of)
+        ids = [rows["ids"][order[k]] for k in updated]
+        metas = [{**rows["metadatas"][order[k]], "payload": lead.model_dump_json(), "qv": quality.QUALITY_VERSION}
+                 for k, lead in updated.items()]
+        for start in range(0, len(ids), BACKFILL_BATCH):
+            end = start + BACKFILL_BATCH
+            self._collection.update(ids=ids[start:end], metadatas=metas[start:end])
+        return len(ids)
 
     def get(self, lead_id: str) -> Lead | None:
         rows = self._collection.get(ids=[lead_id], include=["metadatas"])
@@ -103,6 +167,7 @@ def _metadata(lead: Lead, now: datetime) -> dict:
         "posted_ts": int(posted.timestamp()),
         "seen_ts": int(now.timestamp()),
         "payload": lead.model_dump_json(),
+        "qv": quality.QUALITY_VERSION,
     }
 
 
@@ -123,3 +188,9 @@ def _where(max_age_days: int | None, sources: Sequence[str] | None, kinds: Seque
     if not clauses:
         return None
     return clauses[0] if len(clauses) == 1 else {"$and": clauses}
+
+
+def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
+    va, vb = np.asarray(a), np.asarray(b)
+    denominator = float(np.linalg.norm(va) * np.linalg.norm(vb)) or 1.0
+    return float(va @ vb) / denominator

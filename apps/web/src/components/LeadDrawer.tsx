@@ -24,6 +24,7 @@ import { api, messageOf } from "../lib/api";
 import { clientLabel, dateTime, money } from "../lib/format";
 import { KindBadge, ScoreRing } from "./badges";
 import { LeadOutreach } from "./leads/LeadOutreach";
+import { QualityBadges } from "./leads/QualityBadges";
 
 interface LeadDrawerProps {
   leadId: string | null;
@@ -120,6 +121,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               <Text size="xs" c="var(--gs-text-muted)">{view.learned_note}</Text>
             </Group>
           )}
+          <QualityBadges lead={view.lead} />
           {view.red_flags && (
             <Alert variant="light" color="red" icon={<IconAlertTriangle size={18} />} title="Red flags">
               {view.red_flags}

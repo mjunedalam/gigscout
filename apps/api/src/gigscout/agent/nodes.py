@@ -14,7 +14,7 @@ from gigscout.agent.state import FetchTask, ScoutState
 from gigscout.config import Settings
 from gigscout.inbound.google_ads import SOURCE_NAME as GOOGLE_ADS
 from gigscout.models import AgencyProfile, Lead, ScoredLead
-from gigscout.scoring import blend_with_llm, heuristic_score, is_excluded
+from gigscout.scoring import blend_with_llm, heuristic_score, skip_reason
 from gigscout.sources.base import Source
 from gigscout.store.vector_store import LeadIndex
 
@@ -122,11 +122,16 @@ class ScoutNodes:
             sources=with_inbound(profile.sources),
             kinds=profile.kinds,
         )
-        kept = [c for c in candidates if not is_excluded(profile, c.lead)]
+        kept, skipped = [], []
+        for c in candidates:
+            (skipped if skip_reason(profile, c.lead) else kept).append(c)
+        for c in skipped:  # shown as dropped, with why (scam, duplicate, budget), without spending the LLM on them
+            self.activity.reviewed(heuristic_score(profile, c), qualified=False)
         self.activity.hood(
             "qualifier", "memory", f"Qualifier recalled the {len(kept)} closest leads from memory", _ms(started),
             query=profile.as_query(), k=settings.top_k, max_age_days=settings.max_lead_age_days,
-            excluded=len(candidates) - len(kept), sample=[c.lead.title for c in kept[:5]],
+            excluded=len(skipped), sample=[c.lead.title for c in kept[:5]],
+            skipped=[f"{c.lead.title[:80]}: {skip_reason(profile, c.lead)}" for c in skipped[:10]] or None,
         )
         return {"candidates": kept}
 

@@ -19,7 +19,7 @@ from gigscout.platform.integrations import UpworkConnection
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
 from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, hash_password
-from gigscout.platform.tables import DEFAULT_WORKSPACE, AgencyProfileRecord, Membership, User
+from gigscout.platform.tables import DEFAULT_WORKSPACE, AgencyProfileRecord, Membership, User, Workspace
 from gigscout.service import ScoutService
 from gigscout.store.vector_store import LeadIndex
 
@@ -75,6 +75,7 @@ class Platform:
             log.warning("Marked %d interrupted run(s) as failed", recovered)
         self._bootstrap_admin()
         self._seed_default_profile()
+        self._recheck_quality()
         self.digests.sync()
         self.schedules.start()
 
@@ -82,6 +83,19 @@ class Platform:
         self.schedules.shutdown()
         self.runs.shutdown()
         self.engine.dispose()
+
+    def _recheck_quality(self) -> None:
+        """Leads stored before the quality check (or under older rules) are checked once, at startup."""
+        with self.sessions() as session:
+            workspace_ids = list(session.scalars(select(Workspace.id)))
+        for workspace_id in workspace_ids:
+            try:
+                checked = self.index_for(workspace_id).recheck_quality()
+            except Exception:  # a failed backfill must not stop the server; it is tried again next start
+                log.warning("Quality check of stored leads failed for workspace %s", workspace_id, exc_info=True)
+                continue
+            if checked:
+                log.info("Quality-checked %d stored leads in workspace %s", checked, workspace_id)
 
     def _bootstrap_admin(self) -> None:
         email, password = self.settings.admin_email, self.settings.admin_password

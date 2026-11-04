@@ -162,6 +162,7 @@ export function ProfileEditor({ profile, opened, onClose }: ProfileEditorProps) 
           </SimpleGrid>
           <NumberInput
             label="Smallest deal worth your time (USD)"
+            description="Projects with a stated total budget below this are skipped before the agents look at them. Hourly rates and unstated budgets still count."
             min={0}
             step={500}
             thousandSeparator=","

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from gigscout import quality
 from tests.conftest import make_lead
 
 
@@ -19,7 +20,7 @@ def test_search_ranks_semantically_closest_first(index, sample_leads):
 
     assert results[0].lead.id == "fake:1"
     assert results[0].similarity > results[-1].similarity
-    assert results[0].lead == sample_leads[0]  # full payload round-trips
+    assert results[0].lead == quality.assessed(sample_leads[0])  # full payload round-trips, quality-checked
 
 
 def test_search_filters_by_age_source_and_kind(index):

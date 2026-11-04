@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 
 SEMANTIC_POOL = 200
 Sort = Literal["score", "recent", "budget"]
+Quality = Literal["all", "clean", "flagged"]
 
 
 @router.get("")
@@ -30,6 +31,7 @@ def list_leads(
     source: list[str] = Query(default=[]),
     status_: list[str] = Query(default=[], alias="status"),
     min_score: float | None = Query(default=None, ge=0, le=1),
+    quality: Quality = Query(default="all", description="clean: no duplicates, scams or warnings; flagged: only those"),
     sort: Sort = "score",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=200),
@@ -46,6 +48,7 @@ def list_leads(
         and (not source or v.lead.source in source)
         and (not status_ or v.status in status_)
         and (min_score is None or (v.score or 0) >= min_score)
+        and (quality == "all" or (quality == "flagged") == _flagged(v))
     ]
     if not q:
         views.sort(key=_sort_key(sort), reverse=True)
@@ -125,6 +128,10 @@ def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: 
             "learned_note": state.learned_note or "",
         } if state else {}),
     )
+
+
+def _flagged(view: LeadView) -> bool:
+    return bool(view.lead.quality or view.lead.duplicate_of)
 
 
 def _sort_key(sort: Sort):

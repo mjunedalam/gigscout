@@ -12,7 +12,7 @@ from gigscout.models import AgencyProfile, ScoutResult
 from gigscout.multiagent import prompts
 from gigscout.multiagent.context import RunContext
 from gigscout.multiagent.team import TeamModels, build_team, message_text
-from gigscout.scoring import heuristic_score, is_excluded
+from gigscout.scoring import heuristic_score, skip_reason
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ def _ensure_shortlist(ctx: RunContext) -> None:
         sources=with_inbound(ctx.profile.sources), kinds=ctx.profile.kinds,
     )
     scored = sorted(
-        (heuristic_score(ctx.profile, c) for c in candidates if not is_excluded(ctx.profile, c.lead)),
+        (heuristic_score(ctx.profile, c) for c in candidates if skip_reason(ctx.profile, c.lead) is None),
         key=lambda s: s.score, reverse=True,
     )[: settings.shortlist_size]
     ctx.shortlist = {s.lead.id: s for s in scored}

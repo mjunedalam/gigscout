@@ -61,7 +61,7 @@ class OllamaReasoner:
             skills=", ".join(lead.skills) or "n/a",
             budget=describe_budget(lead),
             bids=lead.bid_count if lead.bid_count is not None else "unknown",
-            description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING],
+            description=_with_checks(lead),
         )
         return self._llm.with_structured_output(LeadAssessment).invoke(prompt)
 
@@ -105,6 +105,14 @@ def build_chat_model(settings: Settings) -> BaseChatModel | None:
     from langchain_ollama import ChatOllama
 
     return ChatOllama(model=settings.llm_model, base_url=settings.ollama_base_url, temperature=0, reasoning=False)
+
+
+def _with_checks(lead: Lead) -> str:
+    """The description, after what the automated quality check found (so the model weighs it)."""
+    from gigscout.quality import summary
+
+    checks = f"[Automated quality checks flagged: {summary(lead.quality)}]\n" if lead.quality else ""
+    return checks + lead.description[:DESCRIPTION_CHARS_FOR_GRADING]
 
 
 def describe_budget(lead: Lead) -> str:

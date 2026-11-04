@@ -5,6 +5,7 @@ import { IconAlertTriangle, IconInbox } from "@tabler/icons-react";
 import { clientLabel, money, timeAgo } from "../../lib/format";
 import { KindBadge, ScoreRing, StatusBadge } from "../badges";
 import { EmptyState } from "../layout-bits";
+import { QualityBadges } from "./QualityBadges";
 
 interface LeadTableProps {
   items: LeadView[];
@@ -55,6 +56,7 @@ export function LeadTable({ items, searching, onOpen }: LeadTableProps) {
                       {v.lead.title}
                     </Text>
                     {v.red_flags && <IconAlertTriangle size={14} color="var(--gs-danger)" aria-label="Has red flags" />}
+                    <QualityBadges lead={v.lead} compact />
                   </Group>
                   <Text size="xs" c="var(--gs-text-muted)" lineClamp={1}>
                     {clientLabel(v.lead)} · {v.lead.source}

@@ -50,6 +50,7 @@ function useLeadFilters() {
     status: params.getAll("status") as LeadStatus[],
     sort: (params.get("sort") ?? "score") as NonNullable<LeadQuery["sort"]>,
     minScore: Number(params.get("min") ?? 0),
+    quality: (params.get("quality") ?? "all") as NonNullable<LeadQuery["quality"]>,
     page: Number(params.get("page") ?? 1),
     open: params.get("lead"),
     set,
@@ -71,6 +72,7 @@ export default function LeadsPage() {
     status: f.view === "board" ? [] : f.status,
     sort: f.sort,
     min_score: f.minScore > 0 ? f.minScore / 100 : undefined,
+    quality: f.quality === "all" ? undefined : f.quality,
     page: f.view === "board" ? 1 : f.page,
     page_size: f.view === "board" ? BOARD_SIZE : PAGE_SIZE,
   };
@@ -139,6 +141,18 @@ export default function LeadsPage() {
             value={f.sort}
             onChange={(v) => f.set("sort", v === "score" ? null : v)}
             disabled={!!f.q}
+            allowDeselect={false}
+          />
+          <Select
+            w={190}
+            label="Quality check"
+            data={[
+              { value: "all", label: "All leads" },
+              { value: "clean", label: "Hide flagged & duplicates" },
+              { value: "flagged", label: "Only flagged & duplicates" },
+            ]}
+            value={f.quality}
+            onChange={(v) => f.set("quality", v === "all" ? null : v)}
             allowDeselect={false}
           />
           <Stack gap={4} w={180}>
