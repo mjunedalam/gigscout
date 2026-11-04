@@ -67,7 +67,8 @@ def add_member(body: UserCreate, session: SessionDep, ws: AdminDep) -> MemberOut
     if user is None:
         if not body.password:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Set a password for the new account")
-        user = User(email=email, name=body.name, role="member", password_hash=_hash(body.password))
+        user = User(email=email, name=body.name, role="member", password_hash=_hash(body.password),
+                    home_workspace_id=ws.id)
         session.add(user)
         session.flush()
     elif session.get(Membership, (user.id, ws.id)) is not None:
@@ -81,6 +82,7 @@ def add_member(body: UserCreate, session: SessionDep, ws: AdminDep) -> MemberOut
 @router.patch("/users/{user_id}")
 def update_member(user_id: int, body: UserUpdate, session: SessionDep, ws: AdminDep) -> MemberOut:
     user, membership = _membership(session, ws, user_id)
+    _outranks_or_equal(ws, membership.role)
     if body.role is not None and body.role != membership.role:
         _may_grant(ws, body.role, membership.role)
         if membership.role in MANAGERS and body.role not in MANAGERS and _managers(session, ws.id) <= 1:
@@ -109,10 +111,9 @@ def update_member(user_id: int, body: UserUpdate, session: SessionDep, ws: Admin
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(user_id: int, session: SessionDep, ws: AdminDep) -> None:
     user, membership = _membership(session, ws, user_id)
+    _outranks_or_equal(ws, membership.role)
     if membership.role in MANAGERS and _managers(session, ws.id) <= 1:
         raise HTTPException(status.HTTP_409_CONFLICT, "Keep at least one owner or admin in the workspace")
-    if membership.role == "owner" and ws.role != "owner":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can remove an owner")
     session.delete(membership)
     audit(session, ws, "member.remove", user.email)
     session.commit()
@@ -345,6 +346,7 @@ def _hash(password: str) -> str:
 
 
 MANAGERS = ("owner", "admin")
+RANK = {"member": 0, "admin": 1, "owner": 2}
 
 
 def _member(user: User, role: str) -> MemberOut:
@@ -365,6 +367,12 @@ def _may_grant(ws: Ws, role: str, current: str | None = None) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can make someone an owner")
 
 
+def _outranks_or_equal(ws: Ws, target_role: str) -> None:
+    """Nobody changes or removes someone ranked above them (an admin cannot touch an owner)."""
+    if RANK[target_role] > RANK[ws.role]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can change or remove an owner")
+
+
 def _managers(session, workspace_id: int) -> int:
     return session.scalar(select(func.count()).select_from(Membership).join(User, User.id == Membership.user_id)
                           .where(Membership.workspace_id == workspace_id, Membership.role.in_(MANAGERS),
@@ -372,12 +380,15 @@ def _managers(session, workspace_id: int) -> int:
 
 
 def _controls_account(session, ws: Ws, user: User) -> bool:
-    """Account-wide changes (password, active, name) are safe only if the account lives in this workspace alone."""
+    """Account-wide changes (password, active, name) are allowed only for accounts this workspace created and that
+    belong nowhere else; adding an existing account to a workspace never hands its admins control of it."""
     if ws.user.role == "admin":
         return True
+    if user.role == "admin" or user.home_workspace_id != ws.id:
+        return False
     others = session.scalar(select(func.count()).select_from(Membership).where(
         Membership.user_id == user.id, Membership.workspace_id != ws.id))
-    return not others and user.role != "admin"
+    return not others
 
 
 def _ollama_up(settings) -> bool:

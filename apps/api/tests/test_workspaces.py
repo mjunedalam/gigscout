@@ -163,3 +163,32 @@ def test_an_existing_database_moves_into_the_first_workspace(tmp_path):
         state = session.get(LeadState, (1, "fake:1"))
         assert state.status == "won" and state.notes == "great client" and state.learned == 0
         assert session.scalar(select(Connector)).workspace_id == 1
+
+
+def test_an_admin_cannot_change_or_remove_an_owner(web):
+    client, _ = web()
+    ws = second_workspace(client)
+    login(client, OTHER_EMAIL)  # the owner adds an admin, who then turns on them
+    admin = client.post("/api/admin/users", json={"email": "ops@bright-studio.com", "name": "Ops", "role": "admin",
+                                                  "password": PASSWORD}).json()
+    owner = next(u for u in client.get("/api/admin/users").json() if u["email"] == OTHER_EMAIL)
+    login(client, admin["email"])
+    assert client.get("/api/workspaces/current").json()["id"] == ws
+    for change in ({"password": "taken-over-password"}, {"is_active": False}, {"role": "member"}):
+        assert client.patch(f"/api/admin/users/{owner['id']}", json=change).status_code == 403
+    assert client.delete(f"/api/admin/users/{owner['id']}").status_code == 403
+    login(client, OTHER_EMAIL)  # the owner's password still works
+
+
+def test_adding_an_existing_account_never_gives_control_of_it(web):
+    client, platform = web()
+    second_workspace(client)
+    login(client)  # a lone account created by the first workspace, then removed from it
+    lone = client.post("/api/admin/users", json={"email": "lone@x.com", "name": "Lone", "role": "member",
+                                                 "password": PASSWORD}).json()
+    assert client.delete(f"/api/admin/users/{lone['id']}").status_code == 204
+    login(client, OTHER_EMAIL)  # another workspace adds it: it belongs nowhere else, but was not created here
+    assert client.post("/api/admin/users", json={"email": "lone@x.com", "name": "Lone", "role": "member"}
+                       ).status_code == 201
+    assert client.patch(f"/api/admin/users/{lone['id']}", json={"password": "taken-over-password"}).status_code == 403
+    login(client, "lone@x.com")

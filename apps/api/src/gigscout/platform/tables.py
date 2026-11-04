@@ -37,6 +37,9 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(default=None)
+    # the workspace that created this account: only its admins may change the account itself (password, name,
+    # active), and only while it belongs nowhere else. None (bootstrap and older accounts): platform admins only.
+    home_workspace_id: Mapped[int | None] = mapped_column(ForeignKey(WS, ondelete="SET NULL"), default=None)
 
 
 class Workspace(Base):
