@@ -1,7 +1,7 @@
 """Deterministic lead scoring — works with no LLM at all, and is blended with the LLM's judgement when present."""
 
 from gigscout import quality
-from gigscout.models import AgencyProfile, Candidate, Lead, ScoredLead
+from gigscout.models import AgencyProfile, Candidate, Lead, ScoredLead, ScorePart
 from gigscout.text import contains_term
 
 SIMILARITY_WEIGHT = 0.45
@@ -81,15 +81,26 @@ def skip_reason(profile: AgencyProfile, lead: Lead) -> str | None:
 
 def heuristic_score(profile: AgencyProfile, candidate: Candidate) -> ScoredLead:
     lead = candidate.lead
-    score = quality_adjusted(lead, (
-        SIMILARITY_WEIGHT * candidate.similarity
-        + SKILL_WEIGHT * skill_overlap(profile, lead)
-        + BUDGET_WEIGHT * budget_fit(profile, lead)
-        + OPPORTUNITY_WEIGHT * opportunity_fit(profile, lead)
-    ))
+    parts = [_part(key, label, value, weight) for key, label, value, weight in (
+        ("similarity", "Close in meaning to what you sell", candidate.similarity, SIMILARITY_WEIGHT),
+        ("skills", "Asks for your skills", skill_overlap(profile, lead), SKILL_WEIGHT),
+        ("budget", "Budget against your minimum", budget_fit(profile, lead), BUDGET_WEIGHT),
+        ("opportunity", "How winnable (inbound, few bids, your markets)", opportunity_fit(profile, lead),
+         OPPORTUNITY_WEIGHT),
+    )]
+    raw = sum(p.points for p in parts)
+    score = quality_adjusted(lead, raw)
+    if round(score - raw, 4):
+        parts.append(_part("quality", "Quality check (scam, duplicate or warnings)", 0.0, 0.0, score - raw))
     return ScoredLead(
-        lead=lead, similarity=candidate.similarity, score=round(score, 4), reasons=_reasons(profile, lead)
+        lead=lead, similarity=candidate.similarity, score=round(score, 4), reasons=_reasons(profile, lead),
+        parts=tuple(parts),
     )
+
+
+def _part(key: str, label: str, value: float, weight: float, points: float | None = None) -> ScorePart:
+    return ScorePart(key=key, label=label, value=round(value, 4), weight=weight,
+                     points=round(value * weight if points is None else points, 4))
 
 
 def quality_adjusted(lead: Lead, score: float) -> float:
@@ -103,9 +114,13 @@ def quality_adjusted(lead: Lead, score: float) -> float:
 
 def blend_with_llm(scored: ScoredLead, llm_score: float, reasons: str, red_flags: str, pitch: str = "") -> ScoredLead:
     blended = (1 - LLM_WEIGHT) * scored.score + LLM_WEIGHT * llm_score
-    return scored.model_copy(
-        update={"score": round(blended, 4), "reasons": reasons, "red_flags": red_flags, "pitch": pitch}
-    )
+    rules = [p.model_copy(update={"weight": round(p.weight * (1 - LLM_WEIGHT), 4),
+                                  "points": round(p.points * (1 - LLM_WEIGHT), 4)}) for p in scored.parts]
+    judged = _part("ai", "The AI's judgement of fit", llm_score, LLM_WEIGHT)
+    return scored.model_copy(update={
+        "score": round(blended, 4), "reasons": reasons, "red_flags": red_flags, "pitch": pitch,
+        "parts": (*rules, judged),
+    })
 
 
 def drop_reason(profile: AgencyProfile, scored: ScoredLead) -> str:

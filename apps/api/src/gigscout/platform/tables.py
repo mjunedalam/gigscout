@@ -161,6 +161,7 @@ class LeadState(Base):
     base_score: Mapped[float | None] = mapped_column(Float, default=None)  # the agents' score, before learning
     learned: Mapped[float] = mapped_column(Float, default=0.0)  # nudge from won/lost leads (score = base + learned)
     learned_note: Mapped[str] = mapped_column(Text, default="")
+    score_parts: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # how the agents' score was built
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), default=None,
                                                     index=True)  # who on the team owns the lead
     follow_up_on: Mapped[date | None] = mapped_column(Date, default=None, index=True)

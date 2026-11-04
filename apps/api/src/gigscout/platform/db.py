@@ -31,6 +31,7 @@ ADDED_COLUMNS = {
     ("users", "home_workspace_id"): "INTEGER",
     ("lead_states", "assigned_to"): "INTEGER",
     ("lead_states", "follow_up_on"): "DATE",
+    ("lead_states", "score_parts"): "JSON",
 }
 # Tables whose key changed to include the workspace: SQLite cannot alter a key, so they are rebuilt (rows kept).
 REKEYED = ("lead_states", "crm_links", "integration_tokens", "connectors", "source_toggles")

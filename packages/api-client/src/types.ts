@@ -61,11 +61,22 @@ export interface LeadView {
   /** How much the company's won/lost leads moved the score (score = agents' score + learned). */
   learned: number;
   learned_note: string;
+  /** How the agents' score was built; the learned nudge comes on top. */
+  score_parts?: ScorePart[] | null;
   /** Who on the team owns the lead. */
   assigned_to?: number | null;
   assignee?: string | null;
   /** YYYY-MM-DD: when to chase it next. */
   follow_up_on?: string | null;
+}
+
+/** One ingredient of a score: a 0-1 value, its weight, and the points it adds. */
+export interface ScorePart {
+  key: string;
+  label: string;
+  value: number;
+  weight: number;
+  points: number;
 }
 
 export interface LeadChange {

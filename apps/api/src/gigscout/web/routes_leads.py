@@ -149,6 +149,7 @@ def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: 
             "status": state.status, "notes": state.notes, "score": state.score, "reasons": state.reasons,
             "red_flags": state.red_flags, "pitch": state.pitch, "learned": state.learned or 0.0,
             "learned_note": state.learned_note or "", "assigned_to": state.assigned_to,
+            "score_parts": state.score_parts,
             "assignee": (names or {}).get(state.assigned_to) if state.assigned_to else None,
             "follow_up_on": state.follow_up_on,
         } if state else {}),

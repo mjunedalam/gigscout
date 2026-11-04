@@ -155,6 +155,19 @@ class Candidate(BaseModel):
     similarity: float
 
 
+class ScorePart(BaseModel):
+    """One ingredient of a score: a 0-1 value, its weight, and the points it adds (value x weight, or an
+    adjustment when weight is 0)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    value: float
+    weight: float
+    points: float
+
+
 class ScoredLead(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -164,6 +177,7 @@ class ScoredLead(BaseModel):
     reasons: str = ""
     red_flags: str = ""
     pitch: str = ""
+    parts: tuple[ScorePart, ...] = ()  # how the score was built, for "why this score"
 
 
 class ScoutResult(BaseModel):

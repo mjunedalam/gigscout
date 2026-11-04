@@ -148,6 +148,7 @@ class LeadView(BaseModel):
     similarity: float | None = None
     learned: float = 0.0  # how much won/lost leads moved the score
     learned_note: str = ""
+    score_parts: list[dict] | None = None  # how the agents' score was built (see ScorePart)
     assigned_to: int | None = None
     assignee: str | None = None  # their name
     follow_up_on: date | None = None

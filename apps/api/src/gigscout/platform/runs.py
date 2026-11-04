@@ -252,6 +252,7 @@ def _record_qualifications(session, workspace_id: int, run_id: str, result: Scou
         state = (session.get(LeadState, (workspace_id, match.lead.id))
                  or LeadState(workspace_id=workspace_id, lead_id=match.lead.id))
         score_with(learning, state, match.lead, match.score)
+        state.score_parts = [p.model_dump() for p in match.parts] or None
         state.reasons, state.red_flags = match.reasons, match.red_flags
         state.pitch, state.last_run_id = match.pitch, run_id
         session.add(state)
