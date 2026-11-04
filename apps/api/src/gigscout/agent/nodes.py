@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 
 from langchain_core.language_models import BaseChatModel
@@ -87,14 +88,20 @@ class ScoutNodes:
             self.activity.progress("prospector", done, total, f"searched {task['source']}")
 
     def _fetch_one(self, task: FetchTask) -> dict:
+        source, started = task["source"], time.monotonic()
         try:
-            leads = self.deps.sources[task["source"]].fetch(task["queries"], self.deps.settings.per_query_limit)
-            log.info("%s returned %d leads", task["source"], len(leads))
+            leads = self.deps.sources[source].fetch(task["queries"], self.deps.settings.per_query_limit)
+            log.info("%s returned %d leads", source, len(leads))
+            self.activity.hood("prospector", "fetch", f"Prospector searched {source}: {len(leads)} results",
+                               _ms(started), source=source, queries=list(task["queries"]), results=len(leads),
+                               sample=[lead.title for lead in leads[:5]])
             self.activity.act("prospector", f"searched {task['source']}")
             self.activity.found(task["source"], leads)
             return {"raw_leads": leads}
         except Exception as exc:
             log.warning("Source %s failed: %s", task["source"], exc)
+            self.activity.hood("prospector", "fetch", f"Prospector could not search {source}", _ms(started),
+                               source=source, queries=list(task["queries"]), error=f"{type(exc).__name__}: {exc}")
             return {"errors": [f"{task['source']}: {exc}"]}
 
     def index(self, state: ScoutState) -> dict:
@@ -107,6 +114,7 @@ class ScoutNodes:
         """RAG retrieval: find the stored leads closest in meaning to what the agency sells."""
         self.activity.stage("qualify")
         profile, settings = state["profile"], self.deps.settings
+        started = time.monotonic()
         candidates = self.deps.index.search(
             profile.as_query(),
             k=settings.top_k,
@@ -114,7 +122,13 @@ class ScoutNodes:
             sources=with_inbound(profile.sources),
             kinds=profile.kinds,
         )
-        return {"candidates": [c for c in candidates if not is_excluded(profile, c.lead)]}
+        kept = [c for c in candidates if not is_excluded(profile, c.lead)]
+        self.activity.hood(
+            "qualifier", "memory", f"Qualifier recalled the {len(kept)} closest leads from memory", _ms(started),
+            query=profile.as_query(), k=settings.top_k, max_age_days=settings.max_lead_age_days,
+            excluded=len(candidates) - len(kept), sample=[c.lead.title for c in kept[:5]],
+        )
+        return {"candidates": kept}
 
     def grade(self, state: ScoutState) -> dict:
         """Score every candidate with heuristics, then let the LLM qualify the top few."""
@@ -176,6 +190,10 @@ class ScoutNodes:
 
 
 NO_LEADS = "_No matching client leads found._"
+
+
+def _ms(started: float) -> int:
+    return round((time.monotonic() - started) * 1000)
 
 
 def report_header(profile: AgencyProfile) -> str:

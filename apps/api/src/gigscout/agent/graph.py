@@ -13,6 +13,7 @@ from langgraph.graph import END, START, StateGraph
 from gigscout.activity import Activity
 from gigscout.agent.nodes import ScoutDeps, ScoutNodes
 from gigscout.agent.state import ScoutState
+from gigscout.hood import HoodRecorder
 from gigscout.models import AgencyProfile, ScoutResult
 
 StepListener = Callable[[str], None]  # receives one human-readable progress line per step
@@ -44,7 +45,9 @@ def run_scout(
 ) -> ScoutResult:
     final: dict = {}
     initial = {"profile": profile, "iteration": 0, "new_count": 0}
-    for mode, chunk in build_graph(deps, activity).stream(initial, stream_mode=["updates", "values"]):
+    activity = activity or Activity()
+    config = {"callbacks": [HoodRecorder(activity)]}  # model calls inside the nodes inherit it
+    for mode, chunk in build_graph(deps, activity).stream(initial, config, stream_mode=["updates", "values"]):
         if mode == "values":
             final = chunk
         elif on_step is not None:

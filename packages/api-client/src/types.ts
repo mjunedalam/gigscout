@@ -189,7 +189,46 @@ export type RunActivity = ActivityBase &
     | { kind: "found"; source: string; leads: ActivityLead[] }
     | { kind: "reviewed"; lead: ActivityLead; score: number; qualified: boolean; reason: string | null }
     | { kind: "pitched"; lead: ActivityLead }
+    | HoodStep
   );
+
+/** What an under-the-hood step was: a model call, a tool call, a lead-source search or a memory (vector) search. */
+export type HoodOp = "llm" | "tool" | "fetch" | "memory";
+
+/** One step inside an agent, with what went in and what came out. Long text arrives already clipped. */
+export interface HoodStep {
+  kind: "hood";
+  /** Order within the run. */
+  n: number;
+  agent: AgentKey;
+  op: HoodOp;
+  /** A plain-English sentence, e.g. "Qualifier asked the AI to judge a lead". */
+  title: string;
+  ms: number | null;
+  detail: HoodDetail;
+}
+
+export interface HoodDetail {
+  model?: string;
+  messages?: { role: string; text: string }[];
+  earlier_messages?: number;
+  reply?: string;
+  tool_calls?: { tool: string; args: unknown }[];
+  tokens_in?: number;
+  tokens_out?: number;
+  tool?: string;
+  args?: unknown;
+  result?: string;
+  source?: string;
+  queries?: string[];
+  query?: string;
+  results?: number;
+  sample?: string[];
+  k?: number;
+  max_age_days?: number;
+  excluded?: number;
+  error?: string;
+}
 
 export interface ScheduleInput {
   name: string;

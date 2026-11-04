@@ -1,20 +1,20 @@
 import { LEAD_KINDS } from "@gigscout/api-client";
 import { Donut, KIND_COLORS, KIND_LABELS, LeadFlowChart } from "@gigscout/viz";
 import { Badge, Button, Center, Grid, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
-import { IconBolt, IconCircleCheck, IconMailbox, IconRadar2, IconStack2 } from "@tabler/icons-react";
+import { IconBolt, IconCircleCheck, IconEye, IconMailbox, IconRadar2, IconStack2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { ActivityFeed } from "../components/ActivityFeed";
 import { RunStatusBadge } from "../components/badges";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel, StatTile } from "../components/layout-bits";
-import { RunConsole } from "../components/RunConsole";
+import { AgentLanesLive } from "../components/hood/AgentsLive";
 import { StartRunButton } from "../components/StartRunButton";
 import { api } from "../lib/api";
 import { duration, timeAgo } from "../lib/format";
-import { useLive, useRunLines } from "../lib/live";
+import { useLive } from "../lib/live";
 
 const LeadGalaxy = lazy(() => import("@gigscout/viz/galaxy"));
 
@@ -26,7 +26,7 @@ export default function CommandCenterPage() {
   const map = useQuery({ queryKey: ["metrics", "map"], queryFn: api.metrics.map, staleTime: 120_000 });
   const o = overview.data;
   const activeRun = o?.active_runs.find((r) => r.status === "running") ?? o?.active_runs[0];
-  const lines = useRunLines(activeRun?.id);
+  const navigate = useNavigate();
 
   return (
     <>
@@ -102,8 +102,10 @@ export default function CommandCenterPage() {
         {activeRun && (
           <Grid.Col span={12}>
             <Panel eyebrow="Agents at work" title={activeRun.profile_name} actions={<RunStatusBadge status={activeRun.status} />}>
-              <RunConsole lines={lines} height={220} />
-              <Button component={Link} to={`/runs/${activeRun.id}`} variant="subtle" size="xs" mt="sm">Open run →</Button>
+              <AgentLanesLive runId={activeRun.id} onPeek={() => navigate(`/runs/${activeRun.id}`)} />
+              <Button component={Link} to={`/runs/${activeRun.id}`} variant="light" size="xs" mt="md" leftSection={<IconEye size={14} />}>
+                See what's happening under the hood
+              </Button>
             </Panel>
           </Grid.Col>
         )}

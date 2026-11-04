@@ -7,6 +7,7 @@ from langgraph.errors import GraphRecursionError
 
 from gigscout.activity import Activity
 from gigscout.agent.nodes import NO_LEADS, REPORT_ROWS, ScoutDeps, render_table, report_header, with_inbound
+from gigscout.hood import HoodRecorder
 from gigscout.models import AgencyProfile, ScoutResult
 from gigscout.multiagent import prompts
 from gigscout.multiagent.context import RunContext
@@ -31,7 +32,8 @@ def run_team(
     try:
         result = supervisor.invoke(
             {"messages": [{"role": "user", "content": _kickoff(ctx)}]},
-            config={"recursion_limit": deps.settings.team_recursion_limit},
+            config={"recursion_limit": deps.settings.team_recursion_limit,
+                    "callbacks": [HoodRecorder(ctx.activity, "head")]},
         )
         ctx.log(f"supervisor: {message_text(result['messages'][-1])[:300]}")
     except GraphRecursionError:

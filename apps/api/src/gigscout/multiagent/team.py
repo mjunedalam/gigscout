@@ -20,6 +20,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
+from gigscout.hood import HoodRecorder
 from gigscout.multiagent import prompts
 from gigscout.multiagent.context import RunContext
 from gigscout.multiagent.tools import build_analyst_tools, build_scout_tools, build_writer_tools
@@ -27,6 +28,7 @@ from gigscout.scoring import heuristic_score
 
 SUMMARY_CHARS = 1500
 ROLE_STAGE = {"scout": "search", "analyst": "qualify", "writer": "write"}
+ROLE_AGENT = {"scout": "prospector", "analyst": "qualifier", "writer": "writer"}
 
 
 @dataclass(frozen=True)
@@ -76,7 +78,8 @@ def _delegation_tools(ctx: RunContext, workers: dict) -> list[BaseTool]:
         try:
             result = workers[role].invoke(
                 {"messages": [{"role": "user", "content": brief}]},
-                config={"recursion_limit": ctx.deps.settings.worker_recursion_limit},
+                config={"recursion_limit": ctx.deps.settings.worker_recursion_limit,
+                        "callbacks": [HoodRecorder(ctx.activity, ROLE_AGENT[role])]},
             )
             summary = message_text(result["messages"][-1])[:SUMMARY_CHARS]
         except GraphRecursionError:

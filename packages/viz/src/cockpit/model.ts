@@ -112,6 +112,8 @@ export function applyActivity(m: CockpitModel, e: RunActivity): CockpitModel {
         feed: pushFeed(m.feed, { t: e.t, agent: "writer", text: `Pitch drafted for "${e.lead.title}"` }),
       };
     }
+    case "hood":
+      return next; // the run page's under-the-hood view reads these; the cockpit needs only the clock
   }
 }
 

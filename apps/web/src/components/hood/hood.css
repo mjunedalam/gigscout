@@ -1,0 +1,102 @@
+/* Under the hood: agent cards and the step timeline. Agent colour arrives as --agent. */
+.gs-hood-agent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--gs-line);
+  border-radius: var(--gs-radius-md);
+  background: var(--gs-surface);
+  overflow: hidden;
+  transition: border-color var(--gs-fast) var(--gs-ease), transform var(--gs-fast) var(--gs-ease);
+}
+.gs-hood-agent::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--agent);
+  opacity: 0.35;
+}
+.gs-hood-agent:hover { border-color: color-mix(in srgb, var(--agent) 55%, var(--gs-line)); transform: translateY(-1px); }
+.gs-hood-agent:focus-visible { outline: 2px solid var(--agent); outline-offset: 2px; }
+.gs-hood-agent[data-status="working"] {
+  border-color: color-mix(in srgb, var(--agent) 60%, var(--gs-line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--agent) 25%, transparent),
+    0 10px 36px -14px color-mix(in srgb, var(--agent) 70%, transparent);
+}
+.gs-hood-agent[data-status="working"]::before { opacity: 1; }
+.gs-hood-agent[data-status="waiting"] { opacity: 0.6; }
+.gs-hood-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  color: var(--agent);
+  background: color-mix(in srgb, var(--agent) 16%, transparent);
+}
+.gs-hood-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gs-text-muted);
+  white-space: nowrap;
+}
+.gs-hood-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gs-line); }
+[data-status="done"] .gs-hood-dot { background: var(--agent); }
+[data-status="working"] .gs-hood-status { color: var(--agent); }
+[data-status="working"] .gs-hood-dot { background: var(--agent); animation: gs-hood-pulse 1.2s ease-in-out infinite; }
+.gs-hood-what { min-height: 2.6em; }
+[data-status="working"] .gs-hood-what::after { content: "▍"; margin-left: 2px; color: var(--agent); animation: gs-hood-blink 1s steps(2) infinite; }
+.gs-hood-stats { font-family: var(--gs-font-mono); font-size: 11px; color: var(--gs-text-muted); }
+
+.gs-hood-timeline {
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--gs-line);
+  border-radius: var(--gs-radius-md);
+  background: var(--gs-bg-raised);
+}
+.gs-hood-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--gs-radius-sm);
+  animation: gs-hood-in var(--gs-normal) var(--gs-ease);
+}
+.gs-hood-row[data-hood] { background: color-mix(in srgb, var(--agent) 5%, transparent); }
+.gs-hood-row[data-hood]:hover { background: color-mix(in srgb, var(--agent) 12%, transparent); }
+.gs-hood-row[data-hood]:focus-visible { outline: 2px solid var(--agent); outline-offset: -2px; }
+.gs-hood-row[data-tone="bad"] .mantine-Text-root:last-child { color: var(--gs-text-muted); }
+.gs-hood-time { flex: none; width: 54px; padding-top: 2px; font-family: var(--gs-font-mono); font-size: 11px; color: var(--gs-text-muted); text-align: right; }
+.gs-hood-rail { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--agent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--agent) 20%, transparent); }
+.gs-hood-row[data-tone="good"] .gs-hood-rail { background: var(--gs-signal); }
+.gs-hood-row[data-tone="bad"] .gs-hood-rail { background: var(--gs-danger); }
+.gs-hood-who { color: var(--agent); }
+.gs-hood-op { text-transform: none; }
+.gs-hood-chevron { flex: none; margin-top: 8px; color: var(--gs-text-muted); }
+
+.gs-hood-msg { padding: 10px 12px; border: 1px solid var(--gs-line); border-radius: var(--gs-radius-sm); background: var(--gs-bg-raised); }
+.gs-hood-msg[data-role="assistant"] { border-color: color-mix(in srgb, var(--gs-signal) 35%, var(--gs-line)); }
+.gs-hood-msg[data-role="system"] { opacity: 0.85; }
+
+@keyframes gs-hood-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+@keyframes gs-hood-blink { to { opacity: 0; } }
+@keyframes gs-hood-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .gs-hood-row, [data-status="working"] .gs-hood-dot, [data-status="working"] .gs-hood-what::after { animation: none; }
+  .gs-hood-agent { transition: none; }
+}
+@media (max-width: 480px) {
+  .gs-hood-time { width: 44px; }
+}

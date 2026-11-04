@@ -8,6 +8,8 @@ Both run modes report the same small vocabulary, so the UI can draw one producti
     found     a source search returned leads
     reviewed  a lead was judged: qualified, or dropped with a reason
     pitched   outreach was drafted for a shortlisted lead
+    hood      under the hood: one model call, tool call, source fetch or memory search, with its inputs, outputs
+              and timing (see gigscout.hood); bounded separately because these carry prompt text
 
 Every event carries `t`, seconds since the run started, so a finished run can be replayed at its real pace.
 Fetches run in parallel threads, hence the lock.
@@ -26,6 +28,8 @@ ActivityListener = Callable[[dict[str, Any]], None]
 STAGE_AGENT = {"plan": "head", "search": "prospector", "qualify": "qualifier", "write": "writer", "report": "head"}
 PITCHES = 3
 MAX_LOG = 3000  # a run's stored activity stays bounded even if an agent loops
+MAX_HOOD = 400  # under-the-hood events carry text, so they get a tighter bound of their own
+HOOD_TEXT_CHARS = 2500
 TITLE_CHARS = 120
 
 
@@ -47,6 +51,8 @@ class Activity:
         self._stage: str | None = None
         self._verdicts: dict[str, bool] = {}
         self._pitched: set[str] = set()
+        self._hood_count = 0
+        self._labels: dict[str, str] = {}  # what each agent last said it was busy with
 
     @property
     def log(self) -> list[dict[str, Any]]:
@@ -65,6 +71,8 @@ class Activity:
 
     def progress(self, agent: str, done: int, total: int, label: str = "") -> None:
         """Reported before slow work starts too, so the UI can show what an agent is waiting on."""
+        with self._lock:
+            self._labels[agent] = label
         self._emit("progress", agent=agent, stage=self._stage, done=done, total=total, label=label)
 
     def found(self, source: str, leads: list[Lead]) -> None:
@@ -97,6 +105,32 @@ class Activity:
                 self._pitched.add(scored.lead.id)
             self._emit("pitched", lead=_lead(scored.lead))
 
+    @property
+    def current_stage(self) -> str | None:
+        with self._lock:
+            return self._stage
+
+    @property
+    def current_agent(self) -> str:
+        """Who is working right now, judged by the current step (the head plans and reports)."""
+        with self._lock:
+            stage = self._stage
+        return STAGE_AGENT.get(stage or "plan", "head")
+
+    def busy_with(self, agent: str) -> str:
+        with self._lock:
+            return self._labels.get(agent, "")
+
+    def hood(self, agent: str, op: str, title: str, ms: int | None = None, **detail: Any) -> None:
+        """One under-the-hood step. Long text is cut to HOOD_TEXT_CHARS; past MAX_HOOD events they are dropped."""
+        with self._lock:
+            if self._hood_count >= MAX_HOOD:
+                return
+            self._hood_count += 1
+            n = self._hood_count
+        self._emit("hood", n=n, agent=agent, op=op, title=title[:200], ms=ms,
+                   detail={k: _clip(v) for k, v in detail.items() if v is not None})
+
     def _emit(self, kind: str, **data: Any) -> None:
         event = {"kind": kind, "t": round(self._clock() - self._started, 2), **data}
         with self._lock:
@@ -109,3 +143,14 @@ class Activity:
 def _lead(lead: Lead) -> dict[str, Any]:
     budget = lead.budget.max_usd if lead.budget else None
     return {"id": lead.id, "title": lead.title[:TITLE_CHARS], "source": lead.source, "budget": budget}
+
+
+def _clip(value: Any) -> Any:
+    if isinstance(value, str):
+        extra = len(value) - HOOD_TEXT_CHARS
+        return value if extra <= 0 else f"{value[:HOOD_TEXT_CHARS]}… (+{extra} chars)"
+    if isinstance(value, list | tuple):
+        return [_clip(v) for v in list(value)[:20]]
+    if isinstance(value, dict):
+        return {str(k): _clip(v) for k, v in list(value.items())[:20]}
+    return value

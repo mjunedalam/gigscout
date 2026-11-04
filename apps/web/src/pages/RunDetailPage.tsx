@@ -1,11 +1,12 @@
 import { Alert, Anchor, Badge, Grid, Group, SimpleGrid, Skeleton, Stack, Tabs, Text } from "@mantine/core";
-import { IconAlertTriangle, IconArrowLeft, IconFileText, IconListDetails, IconTerminal2 } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowLeft, IconEye, IconFileText, IconListDetails, IconTerminal2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Markdown from "react-markdown";
 import { Link, useParams } from "react-router";
 import remarkGfm from "remark-gfm";
 
 import { RunStatusBadge } from "../components/badges";
+import { AgentsLive } from "../components/hood/AgentsLive";
 import { PageHeader, Panel, StatTile } from "../components/layout-bits";
 import { RunConsole } from "../components/RunConsole";
 import { api, messageOf } from "../lib/api";
@@ -52,12 +53,16 @@ export default function RunDetailPage() {
               </Stack>
             </Alert>
           )}
-          <Tabs defaultValue={active ? "console" : "briefing"} keepMounted={false}>
+          <Tabs defaultValue={active || !r.report ? "agents" : "briefing"} keepMounted={false}>
             <Tabs.List mb="md">
+              <Tabs.Tab value="agents" leftSection={<IconEye size={16} />}>What the agents did</Tabs.Tab>
               <Tabs.Tab value="briefing" leftSection={<IconFileText size={16} />} disabled={!r.report}>Briefing</Tabs.Tab>
               <Tabs.Tab value="console" leftSection={<IconTerminal2 size={16} />}>Agent trace</Tabs.Tab>
               <Tabs.Tab value="queries" leftSection={<IconListDetails size={16} />}>Searches ({r.queries.length})</Tabs.Tab>
             </Tabs.List>
+            <Tabs.Panel value="agents">
+              <AgentsLive runId={r.id} active={active} />
+            </Tabs.Panel>
             <Tabs.Panel value="briefing">
               <Panel>
                 <div className="gs-markdown">
