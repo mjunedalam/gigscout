@@ -105,9 +105,12 @@ def serve(
     """Start the API for the web app (docs at /docs; Google Ads webhook at /webhooks/google-ads)."""
     import uvicorn
 
+    from gigscout.config import get_settings
+
     uvicorn.run(
         "gigscout.api:app", host=host, port=port, reload=reload, reload_dirs=["src"] if reload else None,
         timeout_graceful_shutdown=SHUTDOWN_GRACE_SECONDS,
+        proxy_headers=True, forwarded_allow_ips=get_settings().forwarded_allow_ips,
     )
 
 

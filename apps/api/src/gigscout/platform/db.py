@@ -65,6 +65,9 @@ def _ensure_default_workspace(engine: Engine) -> None:
         name = conn.scalar(text("SELECT name FROM agency_profiles ORDER BY id LIMIT 1")) or "My company"
         conn.execute(insert(Base.metadata.tables["workspaces"]).values(
             id=DEFAULT_WORKSPACE, name=name, form_key=secrets.token_urlsafe(24), created_at=utcnow()))
+        if engine.dialect.name == "postgresql":  # an explicit id leaves the sequence behind; move it past 1
+            conn.exec_driver_sql("SELECT setval(pg_get_serial_sequence('workspaces', 'id'), "
+                                 "(SELECT MAX(id) FROM workspaces))")
         for user_id, role in conn.execute(text("SELECT id, role FROM users")):
             conn.execute(insert(Base.metadata.tables["memberships"]).values(
                 user_id=user_id, workspace_id=DEFAULT_WORKSPACE, role="owner" if role == "admin" else "member",

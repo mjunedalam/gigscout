@@ -192,3 +192,12 @@ def test_adding_an_existing_account_never_gives_control_of_it(web):
                        ).status_code == 201
     assert client.patch(f"/api/admin/users/{lone['id']}", json={"password": "taken-over-password"}).status_code == 403
     login(client, "lone@x.com")
+
+
+def test_the_suite_runs_on_postgres_when_asked(web):
+    """Guards the Postgres CI job: with GIGSCOUT_TEST_POSTGRES_URL set, tests must not quietly fall back to SQLite."""
+    import os
+
+    _, platform = web()
+    expected = "postgresql" if os.environ.get("GIGSCOUT_TEST_POSTGRES_URL") else "sqlite"
+    assert platform.engine.dialect.name == expected

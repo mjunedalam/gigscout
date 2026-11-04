@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, types, tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.11.26
+          enable-cache: true
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+  postgres:
+    name: API tests on Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.11.26
+          enable-cache: true
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - run: uv run pytest --no-cov -p no:warnings
+        working-directory: apps/api
+        env:
+          GIGSCOUT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:ci-only-password@localhost:5432/postgres
+
+  images:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t gigscout-api apps/api
+      - run: docker build -f deploy/web.Dockerfile -t gigscout-web .

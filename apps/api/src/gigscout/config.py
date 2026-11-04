@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     database_url: str | None = Field(default=None, description="Default: sqlite in data_dir")
     session_ttl_hours: int = Field(default=168, ge=1)
     cookie_secure: bool = Field(default=False, description="Set true when served over HTTPS")
+    # Behind a reverse proxy (Caddy in docker-compose), the addresses whose X-Forwarded-For is trusted, so rate
+    # limits see the visitor and not the proxy. "*" only when the API is reachable through the proxy alone.
+    forwarded_allow_ips: str = "127.0.0.1"
     cors_origins: list[str] = Field(default_factory=list, description="Only needed if the web app is on another origin")
     admin_email: str | None = Field(default=None, description="Bootstrap admin, created at startup if missing")
     admin_password: SecretStr | None = None

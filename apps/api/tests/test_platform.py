@@ -134,3 +134,20 @@ def test_run_series_orders_finished_runs():
     runs = [Run(id=str(i), profile_name="p", mode_requested="auto", trigger="manual", triggered_by="x",
                 status="succeeded", created_at=now - timedelta(hours=i), finished_at=now) for i in range(3)]
     assert [r["id"] for r in analytics.run_series(runs)] == ["2", "1", "0"]
+
+
+def test_a_tracking_failure_never_fails_the_run(settings, profile, monkeypatch):
+    """MLflow is a recorder: if it cannot write (as in a read-only container), the run still finishes."""
+    import mlflow
+
+    from gigscout.models import ScoutResult
+    from gigscout.tracking import tracked_run
+
+    def refuse(*_args, **_kwargs):
+        raise PermissionError("[Errno 13] Permission denied: '/app/mlruns'")
+
+    monkeypatch.setattr(mlflow, "set_experiment", refuse)
+    enabled = settings.model_copy(update={"mlflow_enabled": True})
+    with tracked_run(enabled, profile) as run:
+        run.log_result(ScoutResult(queries=(), iterations=1, fetched_count=0, new_count=0, errors=(), matches=(),
+                                   report=""))

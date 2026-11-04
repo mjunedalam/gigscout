@@ -1,0 +1,30 @@
+# One address serves the web app and proxies the API. With a real domain in GIGSCOUT_SITE_ADDRESS, Caddy gets and
+# renews a Let's Encrypt certificate itself; "localhost" uses Caddy's local certificate authority.
+{$GIGSCOUT_SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# the API, webhooks and health check; flush at once so live updates (Server-Sent Events) are not buffered
+	@api path /api/* /webhooks/* /health /docs /openapi.json
+	handle @api {
+		reverse_proxy api:8000 {
+			flush_interval -1
+		}
+	}
+
+	# the single-page app: every other path is index.html
+	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

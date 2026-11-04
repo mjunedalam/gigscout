@@ -19,6 +19,12 @@ class RunLogger:
     def log_result(self, result: ScoutResult) -> None:
         if not self._active:
             return
+        try:
+            self._log(result)
+        except Exception:
+            log.warning("Could not record the run in MLflow", exc_info=True)
+
+    def _log(self, result: ScoutResult) -> None:
         import mlflow
 
         scores = [m.score for m in result.matches]
@@ -45,27 +51,49 @@ class RunLogger:
 
 @contextmanager
 def tracked_run(settings: Settings, profile: AgencyProfile, mode: str = "pipeline") -> Iterator[RunLogger]:
+    """Track the run in MLflow when it is on. Tracking is a recorder, never a dependency: if MLflow cannot start or
+    write (no permission, server down), the run goes ahead untracked."""
     if not settings.mlflow_enabled:
         yield RunLogger(active=False)
         return
+    try:
+        mlflow = _start(settings, profile, mode)
+    except Exception:
+        log.warning("MLflow tracking unavailable; the run continues without it", exc_info=True)
+        yield RunLogger(active=False)
+        return
+    status = "FINISHED"
+    try:
+        yield RunLogger(active=True)
+    except BaseException:
+        status = "FAILED"
+        raise
+    finally:
+        try:
+            mlflow.end_run(status=status)
+        except Exception:
+            log.warning("Could not close the MLflow run", exc_info=True)
+
+
+def _start(settings: Settings, profile: AgencyProfile, mode: str):
     import mlflow
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(settings.mlflow_experiment)
     mlflow.langchain.autolog()  # traces every LangGraph node and LLM call
-    with mlflow.start_run(run_name=f"scout-{profile.name}"[:200]):
-        mlflow.log_params({
-            "mode": mode,
-            "agency": profile.name,
-            "lead_kinds": ",".join(profile.kinds),
-            "skills": ",".join(profile.skills)[:500],
-            "min_budget_usd": profile.min_budget_usd,
-            "llm_provider": settings.llm_provider,
-            "llm_model": settings.llm_model,
-            "embedding_model": settings.embedding_model,
-            "top_k": settings.top_k,
-            "good_match_threshold": settings.good_match_threshold,
-            "max_iterations": settings.max_iterations,
-        })
-        yield RunLogger(active=True)
+    mlflow.start_run(run_name=f"scout-{profile.name}"[:200])
+    mlflow.log_params({
+        "mode": mode,
+        "agency": profile.name,
+        "lead_kinds": ",".join(profile.kinds),
+        "skills": ",".join(profile.skills)[:500],
+        "min_budget_usd": profile.min_budget_usd,
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
+        "embedding_model": settings.embedding_model,
+        "top_k": settings.top_k,
+        "good_match_threshold": settings.good_match_threshold,
+        "max_iterations": settings.max_iterations,
+    })
+    return mlflow

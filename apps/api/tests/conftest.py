@@ -1,5 +1,7 @@
 import hashlib
 import math
+import os
+import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -94,9 +96,31 @@ def make_lead(
 
 
 @pytest.fixture
-def settings(tmp_path) -> Settings:
+def database_url():
+    """SQLite by default. With GIGSCOUT_TEST_POSTGRES_URL set (an admin connection, e.g. to the `postgres`
+    database), each test gets its own throwaway Postgres database, so the whole suite also runs on Postgres."""
+    admin_url = os.environ.get("GIGSCOUT_TEST_POSTGRES_URL")
+    if not admin_url:
+        yield None
+        return
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+
+    name = f"gs_test_{uuid.uuid4().hex[:12]}"
+    admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        conn.exec_driver_sql(f'CREATE DATABASE "{name}"')
+    yield make_url(admin_url).set(database=name).render_as_string(hide_password=False)
+    with admin.connect() as conn:
+        conn.exec_driver_sql(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    admin.dispose()
+
+
+@pytest.fixture
+def settings(tmp_path, database_url) -> Settings:
     return Settings(
         _env_file=None,
+        database_url=database_url,
         data_dir=tmp_path / "data",
         llm_provider="none",
         mlflow_enabled=False,
