@@ -151,3 +151,17 @@ def test_a_tracking_failure_never_fails_the_run(settings, profile, monkeypatch):
     with tracked_run(enabled, profile) as run:
         run.log_result(ScoutResult(queries=(), iterations=1, fetched_count=0, new_count=0, errors=(), matches=(),
                                    report=""))
+
+
+def test_claude_is_an_optional_provider_that_needs_a_key(settings):
+    from pydantic import SecretStr
+
+    from gigscout.agent.reasoner import build_chat_model
+
+    without_key = settings.model_copy(update={"llm_provider": "anthropic"})
+    assert build_chat_model(without_key) is None  # falls back to rules, does not crash
+    claude = settings.model_copy(update={"llm_provider": "anthropic", "anthropic_api_key": SecretStr("sk-ant-test")})
+    model = build_chat_model(claude)
+    assert type(model).__name__ == "ChatAnthropic" and model.model == "claude-sonnet-5-5"
+    assert model.temperature == 0 and claude.active_model == "claude-sonnet-5-5"
+    assert hasattr(model, "bind_tools")  # the agent team needs tool calling

@@ -90,7 +90,7 @@ def _start(settings: Settings, profile: AgencyProfile, mode: str):
         "skills": ",".join(profile.skills)[:500],
         "min_budget_usd": profile.min_budget_usd,
         "llm_provider": settings.llm_provider,
-        "llm_model": settings.llm_model,
+        "llm_model": settings.active_model,
         "embedding_model": settings.embedding_model,
         "top_k": settings.top_k,
         "good_match_threshold": settings.good_match_threshold,

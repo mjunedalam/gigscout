@@ -131,7 +131,7 @@ def system(platform: PlatformDep, session: SessionDep, _: PlatformAdminDep) -> d
         "python": pyplatform.python_version(),
         "uptime_seconds": round(time.time() - platform.started_at),
         "llm": {
-            "provider": settings.llm_provider, "model": settings.llm_model,
+            "provider": settings.llm_provider, "model": settings.active_model,
             "available": deps.chat_model is not None, "reachable_now": _ollama_up(settings),
         },
         "embedding_model": settings.embedding_model,
@@ -396,6 +396,8 @@ def _controls_account(session, ws: Ws, user: User) -> bool:
 def _ollama_up(settings) -> bool:
     if settings.llm_provider == "none":
         return False
+    if settings.llm_provider == "anthropic":  # a hosted API: ready when a key is set (no call just to check)
+        return settings.anthropic_api_key is not None
     try:
         return httpx.get(f"{settings.ollama_base_url}/api/tags", timeout=1.5).is_success
     except httpx.HTTPError:

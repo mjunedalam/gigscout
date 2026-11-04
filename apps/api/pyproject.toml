@@ -30,6 +30,7 @@ dependencies = [
     "defusedxml>=0.7",
     "psycopg[binary]>=3.2",
     "stripe>=12",
+    "langchain-anthropic>=0.3",
 ]
 
 [dependency-groups]

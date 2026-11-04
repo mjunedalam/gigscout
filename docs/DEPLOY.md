@@ -24,6 +24,10 @@ Both `.env` files are gitignored: never commit them.
 `docker compose exec ollama ollama pull qwen3:8b`), or point `GIGSCOUT_OLLAMA_BASE_URL` in `.env` at another
 machine. Without one, runs use the fast pipeline and heuristic scoring.
 
+**Or use Claude** instead of a local model: set `GIGSCOUT_LLM_PROVIDER=anthropic` and `GIGSCOUT_ANTHROPIC_API_KEY`
+in `apps/api/.env` (optionally `GIGSCOUT_ANTHROPIC_MODEL`, default `claude-sonnet-5-5`). No GPU needed; lead text
+and company profiles are sent to Anthropic's API, contact details never are.
+
 ## What is where
 
 | Service | Data | Notes |

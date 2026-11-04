@@ -97,6 +97,8 @@ def build_chat_model(settings: Settings) -> BaseChatModel | None:
     """Return a tool-calling chat model, or None (heuristic-only mode) if no LLM is configured or reachable."""
     if settings.llm_provider == "none":
         return None
+    if settings.llm_provider == "anthropic":
+        return _anthropic(settings)
     try:
         httpx.get(f"{settings.ollama_base_url}/api/tags", timeout=3).raise_for_status()
     except httpx.HTTPError as exc:
@@ -113,6 +115,18 @@ def _with_checks(lead: Lead) -> str:
 
     checks = f"[Automated quality checks flagged: {summary(lead.quality)}]\n" if lead.quality else ""
     return checks + lead.description[:DESCRIPTION_CHARS_FOR_GRADING]
+
+
+def _anthropic(settings: Settings) -> BaseChatModel | None:
+    if settings.anthropic_api_key is None:
+        log.warning("GIGSCOUT_LLM_PROVIDER=anthropic needs GIGSCOUT_ANTHROPIC_API_KEY; running without an LLM")
+        return None
+    from langchain_anthropic import ChatAnthropic
+
+    return ChatAnthropic(
+        model=settings.anthropic_model, api_key=settings.anthropic_api_key.get_secret_value(), temperature=0,
+        max_tokens=settings.anthropic_max_tokens, timeout=settings.http_timeout * 4, max_retries=2,
+    )
 
 
 def describe_budget(lead: Lead) -> str:

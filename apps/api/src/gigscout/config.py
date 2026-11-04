@@ -16,8 +16,13 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
 
     # LLM ("the brain") — any Ollama model; "none" runs the agent with heuristics only.
-    llm_provider: Literal["ollama", "none"] = "ollama"
-    llm_model: str = "qwen3:8b"
+    # ollama: a local model (private, free, slower). anthropic: Claude through Anthropic's API (faster and sharper;
+    # lead text and the company profile are sent to Anthropic, contact details never are). none: rules only.
+    llm_provider: Literal["ollama", "anthropic", "none"] = "ollama"
+    llm_model: str = "qwen3:8b"  # the Ollama model
+    anthropic_api_key: SecretStr | None = None
+    anthropic_model: str = "claude-sonnet-5-5"
+    anthropic_max_tokens: int = Field(default=4096, ge=256, le=32000)
     ollama_base_url: str = "http://localhost:11434"
     llm_grade_limit: int = Field(default=10, ge=0, description="How many top candidates the LLM qualifies")
 
@@ -119,6 +124,11 @@ class Settings(BaseSettings):
     admin_password: SecretStr | None = None
     timezone: str = Field(default="UTC", description="Timezone schedules' cron expressions run in")
     metrics_interval_seconds: float = Field(default=5.0, gt=0, description="Live metrics push interval")
+
+    @property
+    def active_model(self) -> str:
+        """The model the agents use, whichever provider serves it."""
+        return {"anthropic": self.anthropic_model, "none": "none"}.get(self.llm_provider, self.llm_model)
 
     @property
     def chroma_path(self) -> Path:
