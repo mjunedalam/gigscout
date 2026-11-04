@@ -7,6 +7,7 @@ export const KIND_COLORS: Record<LeadKind, string> = {
   contract: "#38BDF8",
   hiring: "#F5B544",
   inbound: "#FF6B8B",
+  signal: "#2DD4BF",
 };
 
 export const KIND_LABELS: Record<LeadKind, string> = {
@@ -14,6 +15,7 @@ export const KIND_LABELS: Record<LeadKind, string> = {
   contract: "Contract",
   hiring: "Hiring signal",
   inbound: "Inbound",
+  signal: "Buying signal",
 };
 
 export const STATUS_COLORS: Record<LeadStatus, string> = {

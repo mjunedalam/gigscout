@@ -8,14 +8,14 @@ import { compactNumber, funnelBars, pushWindow, stackByKind, stackMax } from "./
 import { scoreColor } from "./palette";
 
 const rows = [
-  { date: "2026-11-01", project: 2, contract: 1, hiring: 0, inbound: 1 },
-  { date: "2026-11-02", project: 5, contract: 0, hiring: 3, inbound: 0 },
+  { date: "2026-11-01", project: 2, contract: 1, hiring: 0, inbound: 1, signal: 0 },
+  { date: "2026-11-02", project: 5, contract: 0, hiring: 3, inbound: 0, signal: 0 },
 ];
 
 describe("layout helpers", () => {
   it("stacks kinds on top of each other", () => {
     const series = stackByKind(rows);
-    expect(series.map((s) => s.key)).toEqual(["project", "contract", "hiring", "inbound"]);
+    expect(series.map((s) => s.key)).toEqual(["project", "contract", "hiring", "inbound", "signal"]);
     expect(stackMax(series)).toBe(8);
     expect([...series[1]![0]!]).toEqual([2, 3]); // contract sits on project on day 1
   });

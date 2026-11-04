@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # US federal tenders (SAM.gov): a free key from https://api.data.gov/signup. Unset = SAM.gov off.
     # UK Contracts Finder, Find a Tender and EU TED need no key and are always available.
     sam_gov_api_key: SecretStr | None = None
+    # SEC Form D funding filings (companies that just raised money). The SEC asks automated clients to give a contact
+    # email in the User-Agent; set one to turn the source on.
+    sec_contact_email: str | None = Field(default=None, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
     # Upwork's official API: an approved key (client id + secret) from https://www.upwork.com/developer/keys/apply.
     # Register the callback below with the key; an admin then connects Upwork from Admin > Connectors.

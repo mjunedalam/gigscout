@@ -7,9 +7,11 @@ from gigscout.config import Settings
 from gigscout.http import PoliteClient
 from gigscout.sources.base import Source
 from gigscout.sources.freelancer import FreelancerSource
+from gigscout.sources.hackernews import HackerNewsHiringSource
 from gigscout.sources.remoteok import RemoteOkSource
 from gigscout.sources.remotive import RemotiveSource
 from gigscout.sources.rss import RssSource
+from gigscout.sources.sec import SecFormDSource
 from gigscout.sources.tenders import ContractsFinderSource, FindTenderSource, SamGovSource, TedSource
 
 WWR_FEEDS = (
@@ -27,7 +29,10 @@ def build_sources(settings: Settings, client: PoliteClient) -> dict[str, Source]
         ContractsFinderSource(client),
         FindTenderSource(client),
         TedSource(client),
+        HackerNewsHiringSource(client),
     ]
+    if settings.sec_contact_email:
+        sources.append(SecFormDSource(client, settings.sec_contact_email))
     if settings.sam_gov_api_key:
         sources.append(SamGovSource(client, settings.sam_gov_api_key.get_secret_value()))
     if settings.rss_feeds:

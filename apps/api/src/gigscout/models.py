@@ -9,8 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # contract = a company wants contractors (staff augmentation opportunity)
 # hiring   = a company is hiring full-time devs (a buying signal: they may outsource instead)
 # inbound  = a prospect contacted the agency directly (e.g. a Google Ads lead form)
-LeadKind = Literal["project", "contract", "hiring", "inbound"]
-ALL_LEAD_KINDS: tuple[LeadKind, ...] = ("project", "contract", "hiring", "inbound")
+# signal: a company likely to need help soon (e.g. it just raised money), not a request for work
+LeadKind = Literal["project", "contract", "hiring", "inbound", "signal"]
+ALL_LEAD_KINDS: tuple[LeadKind, ...] = ("project", "contract", "hiring", "inbound", "signal")
 
 
 class Budget(BaseModel):

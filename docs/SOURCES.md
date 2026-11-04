@@ -16,6 +16,8 @@ GigScout gets leads in two ways:
 | `remotive` | `contract` / `hiring` | Remotive remote roles; contract roles become `contract` leads | Public JSON API | **Link back and name "Remotive"**; do not republish to other job sites |
 | `remoteok` | `hiring` | Remote OK jobs: companies hiring developers | Public JSON API | **Link back to the listing and name "Remote OK"** |
 | `weworkremotely` | `hiring` | We Work Remotely programming and DevOps feeds | RSS | Link back |
+| `hn_hiring` | `hiring` / `contract` | Hacker News "Who is hiring?" monthly thread: companies short of engineers (job-seeker posts are skipped) | HN's public Algolia search API, no key | Link back to the post |
+| `sec_form_d` (optional) | `signal` | US companies that just raised money (SEC Form D filings), from EDGAR's official daily index; investment funds, banks and real-estate vehicles are skipped, and people named in filings are not kept | Public EDGAR archives; on when `GIGSCOUT_SEC_CONTACT_EMAIL` is set | SEC fair access: a contact email in the User-Agent and under 10 requests/second (GigScout makes 1/second) |
 | `rss` (optional) | configurable, default `project` | Any RSS/Atom feed you add: RFP and tender portals, niche boards | RSS/Atom | Each feed's own terms |
 | `google_ads` (optional) | `inbound` | Your own Google Ads lead form submissions | Webhook (push) | Your privacy policy; Google Ads lead form policies |
 

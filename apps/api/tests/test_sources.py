@@ -120,5 +120,7 @@ def test_registry_adds_custom_rss_only_when_configured(settings, client):
     custom = settings.model_copy(update={"rss_feeds": ["https://x.example/feed"]})
     sources = build_sources(custom, client)
     assert set(sources) == {"freelancer", "remoteok", "remotive", "weworkremotely", "rss", "contracts_finder",
-                            "find_a_tender", "ted"}
+                            "find_a_tender", "ted", "hn_hiring"}
+    with_sec = custom.model_copy(update={"sec_contact_email": "ops@acme.com"})
+    assert "sec_form_d" in build_sources(with_sec, client)
     assert sources["rss"]._kind == "project"  # tender/RFP feeds default to client projects

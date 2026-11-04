@@ -1,12 +1,12 @@
 // Mirrors apps/api/src/gigscout/models.py and web/schemas.py. Keep the two in step.
 
-export type LeadKind = "project" | "contract" | "hiring" | "inbound";
+export type LeadKind = "project" | "contract" | "hiring" | "inbound" | "signal";
 export type LeadStatus = "new" | "contacted" | "proposal" | "won" | "lost" | "archived";
 export type Role = "admin" | "member";
 export type RunMode = "auto" | "team" | "pipeline";
 export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
-export const LEAD_KINDS: readonly LeadKind[] = ["project", "contract", "hiring", "inbound"];
+export const LEAD_KINDS: readonly LeadKind[] = ["project", "contract", "hiring", "inbound", "signal"];
 export const LEAD_STATUSES: readonly LeadStatus[] = ["new", "contacted", "proposal", "won", "lost", "archived"];
 
 export interface Budget {
