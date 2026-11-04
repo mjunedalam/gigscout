@@ -270,6 +270,39 @@ class DigestSettings(Base):
     last_result: Mapped[str] = mapped_column(Text, default="")
 
 
+class Competitor(Base):
+    """A company the workspace competes with; its public contract wins are watched."""
+
+    __tablename__ = "competitors"
+    __table_args__ = (UniqueConstraint("workspace_id", "name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class CompetitorWin(Base):
+    """A public contract a competitor won (from an award notice)."""
+
+    __tablename__ = "competitor_wins"
+    __table_args__ = (UniqueConstraint("competitor_id", "notice_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    competitor_id: Mapped[int] = mapped_column(ForeignKey("competitors.id", ondelete="CASCADE"), index=True)
+    notice_id: Mapped[str] = mapped_column(String(80))
+    supplier: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(300))
+    buyer: Mapped[str] = mapped_column(String(200), default="")
+    amount: Mapped[float | None] = mapped_column(Float, default=None)
+    currency: Mapped[str | None] = mapped_column(String(8), default=None)
+    awarded_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+    url: Mapped[str] = mapped_column(String(300), default="")
+    found_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

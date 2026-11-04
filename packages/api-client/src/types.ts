@@ -205,6 +205,26 @@ export interface MarketTrends {
   sources: { source: string; recent: number; previous: number }[];
 }
 
+export interface CompetitorSummary {
+  id: number;
+  name: string;
+  wins: number;
+  last_win_at: string | null;
+}
+
+/** A public contract a competitor won (from a UK award notice). */
+export interface CompetitorWin {
+  id: number;
+  competitor: string;
+  supplier: string;
+  title: string;
+  buyer: string;
+  amount: number | null;
+  currency: string | null;
+  awarded_at: string | null;
+  url: string;
+}
+
 export interface SetupStep {
   id: "profile" | "sources" | "run" | "digest" | "team" | "outcome";
   label: string;

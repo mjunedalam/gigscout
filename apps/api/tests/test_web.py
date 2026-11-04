@@ -136,11 +136,11 @@ def test_schedules_crud_preview_and_trigger(web):
     created = client.post("/api/schedules", json={"name": "Weekday mornings", "profile_id": profile_id,
                                                    "cron": "0 9 * * 1-5", "mode": "pipeline"}).json()
     assert created["next_run_at"] is not None
-    assert platform.schedules.job_count == 1
+    assert platform.schedules.has_job(f"schedule:{created['id']}")
 
     paused = client.put(f"/api/schedules/{created['id']}", json={**created, "enabled": False}).json()
     assert paused["enabled"] is False and paused["next_run_at"] is None
-    assert platform.schedules.job_count == 0
+    assert not platform.schedules.has_job(f"schedule:{created['id']}")
 
     run_id = client.post(f"/api/schedules/{created['id']}/trigger").json()["run_id"]
     run = wait_for_run(client, run_id)

@@ -38,6 +38,8 @@ import type {
   WorkspaceDetail,
   SetupStep,
   MarketTrends,
+  CompetitorSummary,
+  CompetitorWin,
   LeadChange,
   Billing,
   BillingPlan,
@@ -144,6 +146,13 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       setup: () => get<SetupStep[]>("/api/workspaces/current/setup"),
       /** hint tells same-named people apart: the email for admins, masked for everyone else. */
       members: () => get<{ id: number; name: string; hint: string }[]>("/api/workspaces/current/members"),
+    },
+    competitors: {
+      list: () => get<CompetitorSummary[]>("/api/competitors"),
+      add: (name: string) => request<CompetitorSummary>("POST", "/api/competitors", { name }),
+      remove: (id: number) => request<void>("DELETE", `/api/competitors/${id}`),
+      wins: (limit = 100) => get<CompetitorWin[]>("/api/competitors/wins", { limit }),
+      check: () => request<{ notices: number; new: number }>("POST", "/api/competitors/check"),
     },
     billing: {
       get: () => get<Billing>("/api/billing"),

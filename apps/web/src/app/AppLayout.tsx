@@ -41,6 +41,7 @@ import {
   IconSun,
   IconUsers,
   IconSettings,
+  IconTrophy,
   IconCreditCard,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
@@ -64,6 +65,7 @@ const WORKSPACE: NavItem[] = [
   { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
   { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, funnel" },
   { to: "/ask", label: "Ask", icon: <IconMessageQuestion size={18} />, description: "Question your lead memory" },
+  { to: "/competitors", label: "Competitors", icon: <IconTrophy size={18} />, description: "Contracts your competitors won" },
 ];
 
 const OPERATIONS: NavItem[] = [
