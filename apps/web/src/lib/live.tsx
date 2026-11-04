@@ -33,7 +33,8 @@ const LiveContext = createContext<LiveContextValue | null>(null);
  * invalidate the queries they affect, so every page stays current without polling.
  */
 export function LiveProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, workspace } = useAuth();
+  const workspaceId = workspace?.id ?? null;
   const queryClient = useQueryClient();
   const [state, setState] = useState<LiveState>({
     connection: "closed",
@@ -49,8 +50,10 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || workspaceId === null) return;
     let cancelled = false;
+    seen.current.clear();
+    setState((s) => ({ ...s, feed: [], runLines: {} })); // the previous workspace's events
     api.events.recent(30).then(
       (recent) => {
         if (cancelled) return;
@@ -93,7 +96,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       connection.close();
     };
-  }, [user, queryClient]);
+  }, [user, workspaceId, queryClient]);
 
   const value = useMemo(() => ({ ...state, subscribeActivity }), [state, subscribeActivity]);
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;

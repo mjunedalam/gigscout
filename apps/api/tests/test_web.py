@@ -316,7 +316,7 @@ def test_admin_users_guardrails_and_audit(web):
     client, _ = web()
     login(client)
     users = client.get("/api/admin/users").json()
-    admin_id = next(u["id"] for u in users if u["role"] == "admin")
+    admin_id = next(u["id"] for u in users if u["role"] == "owner")
 
     assert client.post("/api/admin/users", json={"email": "new@acme-studio.com", "name": "New", "password": "tiny"}
                        ).status_code == 422
@@ -332,7 +332,7 @@ def test_admin_users_guardrails_and_audit(web):
                        ).status_code == 401
 
     actions = [a["action"] for a in client.get("/api/admin/audit").json()]
-    assert {"user.create", "user.update", "auth.login"} <= set(actions)
+    assert {"member.add", "member.update"} <= set(actions)
 
 
 def test_admin_system_settings_and_sources(web):

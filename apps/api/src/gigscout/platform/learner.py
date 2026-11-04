@@ -8,8 +8,9 @@ from gigscout.platform.tables import LeadState
 from gigscout.store.vector_store import LeadIndex
 
 
-def current_learning(session: Session, index: LeadIndex) -> Learning:
-    rows = session.scalars(select(LeadState).where(LeadState.status.in_(OUTCOMES)))
+def current_learning(session: Session, index: LeadIndex, workspace_id: int) -> Learning:
+    rows = session.scalars(select(LeadState).where(LeadState.workspace_id == workspace_id,
+                                                   LeadState.status.in_(OUTCOMES)))
     pairs = [(lead, OUTCOMES[s.status]) for s in rows if (lead := index.get(s.lead_id)) is not None]
     return learn(pairs)
 
@@ -22,11 +23,12 @@ def score_with(learning: Learning, state: LeadState, lead, agent_score: float) -
     state.learned, state.learned_note = delta, note
 
 
-def rescore_open_leads(session: Session, index: LeadIndex) -> int:
-    """Re-apply the latest learning to every open, scored lead. Returns how many scores changed."""
-    learning = current_learning(session, index)
+def rescore_open_leads(session: Session, index: LeadIndex, workspace_id: int) -> int:
+    """Re-apply the latest learning to every open, scored lead in the workspace. Returns how many scores changed."""
+    learning = current_learning(session, index, workspace_id)
     changed = 0
-    for state in session.scalars(select(LeadState).where(LeadState.status == "new", LeadState.score.is_not(None))):
+    for state in session.scalars(select(LeadState).where(
+            LeadState.workspace_id == workspace_id, LeadState.status == "new", LeadState.score.is_not(None))):
         lead = index.get(state.lead_id)
         if lead is None:
             continue

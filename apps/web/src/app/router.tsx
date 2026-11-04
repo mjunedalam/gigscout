@@ -3,7 +3,7 @@ import { lazy, type ReactNode, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
 import { AppLayout } from "./AppLayout";
-import { RequireAdmin, RequireAuth } from "./guards";
+import { RequireAdmin, RequirePlatformAdmin, RequireAuth } from "./guards";
 
 // Route-level code splitting: each screen (and its charts) loads on first visit.
 const CockpitPage = lazy(() => import("../pages/CockpitPage"));
@@ -38,6 +38,7 @@ function page(element: ReactNode) {
 }
 
 const admin = (element: ReactNode) => page(<RequireAdmin>{element}</RequireAdmin>);
+const platformAdmin = (element: ReactNode) => page(<RequirePlatformAdmin>{element}</RequirePlatformAdmin>);
 
 export const router = createBrowserRouter([
   { path: "/login", element: page(<LoginPage />) },
@@ -57,10 +58,10 @@ export const router = createBrowserRouter([
       { path: "runs/:runId", element: page(<RunDetailPage />) },
       { path: "schedules", element: page(<SchedulesPage />) },
       { path: "profiles", element: page(<ProfilesPage />) },
-      { path: "admin", element: admin(<AdminSystemPage />) },
+      { path: "admin", element: platformAdmin(<AdminSystemPage />) },
       { path: "admin/users", element: admin(<AdminUsersPage />) },
       { path: "admin/sources", element: admin(<AdminSourcesPage />) },
-      { path: "admin/settings", element: admin(<AdminSettingsPage />) },
+      { path: "admin/settings", element: platformAdmin(<AdminSettingsPage />) },
       { path: "admin/audit", element: admin(<AdminAuditPage />) },
       { path: "*", element: page(<NotFoundPage />) },
     ],

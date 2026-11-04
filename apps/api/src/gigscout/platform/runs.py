@@ -18,6 +18,7 @@ from gigscout.platform.tables import AgencyProfileRecord, Connector, LeadState, 
 from gigscout.service import Mode, ScoutService
 from gigscout.sources.base import Source
 from gigscout.sources.website import WebsiteSource
+from gigscout.store.vector_store import LeadIndex
 
 log = logging.getLogger(__name__)
 
@@ -38,10 +39,12 @@ class RunStopped(BaseException):  # noqa: N818 - a control-flow signal, like Key
 class RunManager:
     def __init__(
         self, service: ScoutService, sessions: SessionFactory, bus: EventBus,
-        extra_sources: Callable[[], dict[str, Source]] = dict,
+        extra_sources: Callable[[int], dict[str, Source]] = lambda _workspace_id: {},
+        index_for: Callable[[int], LeadIndex] | None = None,
     ) -> None:
         self._service = service
-        self._extra_sources = extra_sources  # connected accounts, e.g. Upwork
+        self._extra_sources = extra_sources  # connected accounts, e.g. Upwork, per workspace
+        self._index_for = index_for or (lambda _workspace_id: service.deps.index)
         self._sessions = sessions
         self._bus = bus
         # One worker: runs share the vector store and the local LLM, and are cheap to queue.
@@ -49,6 +52,7 @@ class RunManager:
         self._lock = threading.Lock()
         self._live_activity: dict[str, list[dict]] = {}  # activity of the run in progress, until it is stored
         self._stop_requested: set[str] = set()
+        self._workspace_of: dict[str, int] = {}  # run id -> workspace, for scoping live events
 
     def recover(self) -> int:
         """Runs left queued/running by a previous process can never finish; mark them failed."""
@@ -60,18 +64,20 @@ class RunManager:
             session.commit()
             return result.rowcount
 
-    def submit(self, profile_id: int, mode: Mode, trigger: Trigger, triggered_by: str) -> Run:
+    def submit(self, workspace_id: int, profile_id: int, mode: Mode, trigger: Trigger, triggered_by: str) -> Run:
         with self._sessions() as session:
             record = session.get(AgencyProfileRecord, profile_id)
-            if record is None:
+            if record is None or record.workspace_id != workspace_id:
                 raise ProfileNotFound(f"No agency profile {profile_id}")
             run = Run(
-                id=str(uuid.uuid4()), profile_id=profile_id, profile_name=record.name, mode_requested=mode,
-                trigger=trigger, triggered_by=triggered_by,
+                id=str(uuid.uuid4()), workspace_id=workspace_id, profile_id=profile_id, profile_name=record.name,
+                mode_requested=mode, trigger=trigger, triggered_by=triggered_by,
             )
             session.add(run)
             session.commit()
-        self._bus.publish("run.queued", _summary(run))
+        with self._lock:
+            self._workspace_of[run.id] = workspace_id
+        self._publish("run.queued", run.id, _summary(run))
         self._executor.submit(self._execute, run.id)
         return run
 
@@ -90,14 +96,14 @@ class RunManager:
             )
             session.commit()
             if result.rowcount:
-                self._bus.publish("run.cancelled", {"id": run_id})
+                self._publish("run.cancelled", run_id, {"id": run_id})
                 return "cancelled"
             run = session.get(Run, run_id)
             if run is None or run.status != "running":
                 return None
         with self._lock:
             self._stop_requested.add(run_id)
-        self._bus.publish("run.stopping", {"id": run_id})
+        self._publish("run.stopping", run_id, {"id": run_id})
         return "stopping"
 
     def shutdown(self) -> None:
@@ -107,11 +113,12 @@ class RunManager:
         started = self._start(run_id)
         if started is None:
             return
-        mode, agency = started
+        mode, agency, workspace_id = started
         try:
             result = self._service.scout(
                 agency, mode, on_step=lambda line: self._step(run_id, line),
-                on_activity=lambda event: self._activity(run_id, event), sources=self.sources_for_run(),
+                on_activity=lambda event: self._activity(run_id, event), sources=self.sources_for_run(workspace_id),
+                index=self._index_for(workspace_id),
             )
         except RunStopped:
             self._finish_stopped(run_id)
@@ -120,30 +127,38 @@ class RunManager:
             log.exception("Run %s failed", run_id)
             self._finish_failed(run_id, exc)
             return
-        self._finish(run_id, result)
+        try:
+            self._finish(run_id, result)
+        except Exception as exc:  # saving the results failed: the run must still end, never stay "running"
+            log.exception("Run %s could not be saved", run_id)
+            self._finish_failed(run_id, exc)
 
-    def _start(self, run_id: str) -> tuple[Mode, AgencyProfile] | None:
+    def _start(self, run_id: str) -> tuple[Mode, AgencyProfile, int] | None:
         with self._sessions() as session:
             run = session.get(Run, run_id)
             if run is None or run.status != "queued":
                 return None  # cancelled while waiting
+            with self._lock:
+                self._workspace_of[run_id] = run.workspace_id
             record = session.get(AgencyProfileRecord, run.profile_id) if run.profile_id else None
             if record is None:
                 run.status, run.finished_at, run.errors = "failed", utcnow(), ["agency profile was deleted"]
                 session.commit()
-                self._bus.publish("run.finished", _summary(run))
+                self._publish("run.finished", run_id, _summary(run))
                 return None
             run.status, run.started_at = "running", utcnow()
             session.commit()
-            self._bus.publish("run.started", _summary(run))
-            return run.mode_requested, AgencyProfile.model_validate(record.data)
+            self._publish("run.started", run_id, _summary(run))
+            return run.mode_requested, AgencyProfile.model_validate(record.data), run.workspace_id
 
-    def sources_for_run(self) -> dict[str, Source]:
-        """Built-in sources an admin left on, plus the websites they added and enabled."""
+    def sources_for_run(self, workspace_id: int) -> dict[str, Source]:
+        """Built-in sources the workspace left on, plus the websites it added and enabled."""
         with self._sessions() as session:
-            off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.enabled.is_(False))))
-            sites = list(session.scalars(select(Connector).where(Connector.enabled.is_(True))))
-        built_in = {**self._service.deps.sources, **self._extra_sources()}
+            off = set(session.scalars(select(SourceToggle.name).where(
+                SourceToggle.workspace_id == workspace_id, SourceToggle.enabled.is_(False))))
+            sites = list(session.scalars(select(Connector).where(
+                Connector.workspace_id == workspace_id, Connector.enabled.is_(True))))
+        built_in = {**self._service.deps.sources, **self._extra_sources(workspace_id)}
         sources: dict[str, Source] = {n: s for n, s in built_in.items() if n not in off}
         for site in sites:
             sources[site.name] = WebsiteSource(
@@ -151,21 +166,31 @@ class RunManager:
             )
         return sources
 
-    def activity(self, run_id: str) -> list[dict] | None:
-        """Activity so far for a running run, or the stored activity of a finished one; None if no such run."""
-        with self._lock:
-            live = self._live_activity.get(run_id)
-            if live is not None:
-                return list(live)
+    def activity(self, run_id: str, workspace_id: int) -> list[dict] | None:
+        """Activity so far for a running run, or the stored activity of a finished one; None if no such run here."""
         with self._sessions() as session:
             run = session.get(Run, run_id)
-            return None if run is None else list(run.activity or [])
+            if run is None or run.workspace_id != workspace_id:
+                return None
+            stored = list(run.activity or [])
+        with self._lock:
+            live = self._live_activity.get(run_id)
+            return list(live) if live is not None else stored
 
     def _activity(self, run_id: str, event: dict) -> None:
         with self._lock:
             self._live_activity.setdefault(run_id, []).append(event)
-        self._bus.publish("run.activity", {"id": run_id, **event})
+        self._publish("run.activity", run_id, {"id": run_id, **event})
         self._check_stop(run_id)
+
+    def _publish(self, type_: str, run_id: str, data: dict) -> None:
+        with self._lock:
+            workspace_id = self._workspace_of.get(run_id)
+        self._bus.publish(type_, data, workspace_id)
+
+    def _forget(self, run_id: str) -> None:
+        with self._lock:
+            self._workspace_of.pop(run_id, None)
 
     def _check_stop(self, run_id: str) -> None:
         with self._lock:
@@ -177,7 +202,7 @@ class RunManager:
             return self._live_activity.pop(run_id, [])
 
     def _step(self, run_id: str, line: str) -> None:
-        self._bus.publish("run.step", {"id": run_id, "line": line[:500]})
+        self._publish("run.step", run_id, {"id": run_id, "line": line[:500]})
         self._check_stop(run_id)
 
     def _finish(self, run_id: str, result: ScoutResult) -> None:
@@ -190,12 +215,15 @@ class RunManager:
             run.report, run.queries = result.report, list(result.queries)
             run.errors, run.trace = list(result.errors), list(result.trace)
             run.activity = self._take_activity(run_id)
-            _record_qualifications(session, run_id, result, current_learning(session, self._service.deps.index))
-            blocked = _record_site_health(session, result)
+            workspace_id, index = run.workspace_id, self._index_for(run.workspace_id)
+            _record_qualifications(session, workspace_id, run_id, result,
+                                   current_learning(session, index, workspace_id))
+            blocked = _record_site_health(session, workspace_id, result)
             session.commit()
-            self._bus.publish("run.finished", _summary(run))
+            self._publish("run.finished", run_id, _summary(run))
         for site in blocked:
-            self._bus.publish("source.blocked", site)
+            self._bus.publish("source.blocked", site, workspace_id)
+        self._forget(run_id)
 
     def _finish_stopped(self, run_id: str) -> None:
         with self._lock:
@@ -205,7 +233,8 @@ class RunManager:
             run.status, run.finished_at, run.errors = "cancelled", utcnow(), ["stopped before it finished"]
             run.activity = self._take_activity(run_id)
             session.commit()
-            self._bus.publish("run.finished", _summary(run))
+            self._publish("run.finished", run_id, _summary(run))
+        self._forget(run_id)
 
     def _finish_failed(self, run_id: str, exc: Exception) -> None:
         with self._sessions() as session:
@@ -213,23 +242,26 @@ class RunManager:
             run.status, run.finished_at, run.errors = "failed", utcnow(), [f"{type(exc).__name__}: {exc}"]
             run.activity = self._take_activity(run_id)
             session.commit()
-            self._bus.publish("run.finished", _summary(run))
+            self._publish("run.finished", run_id, _summary(run))
+        self._forget(run_id)
 
 
-def _record_qualifications(session, run_id: str, result: ScoutResult, learning: Learning) -> None:
+def _record_qualifications(session, workspace_id: int, run_id: str, result: ScoutResult, learning: Learning) -> None:
     """Keep each lead's latest score (with what won/lost leads taught) and pitch; never touch status or notes."""
     for match in result.matches:
-        state = session.get(LeadState, match.lead.id) or LeadState(lead_id=match.lead.id)
+        state = (session.get(LeadState, (workspace_id, match.lead.id))
+                 or LeadState(workspace_id=workspace_id, lead_id=match.lead.id))
         score_with(learning, state, match.lead, match.score)
         state.reasons, state.red_flags = match.reasons, match.red_flags
         state.pitch, state.last_run_id = match.pitch, run_id
         session.add(state)
 
 
-def _record_site_health(session, result: ScoutResult) -> list[dict]:
+def _record_site_health(session, workspace_id: int, result: ScoutResult) -> list[dict]:
     """Update each added website from this run's errors; return the ones that now refuse us (robots.txt)."""
     newly_blocked = []
-    for site in session.scalars(select(Connector).where(Connector.enabled.is_(True))):
+    for site in session.scalars(select(Connector).where(Connector.workspace_id == workspace_id,
+                                                        Connector.enabled.is_(True))):
         error = next((e for e in result.errors if e.startswith(f"{site.name}:")), None)
         status = "ok" if error is None else "blocked" if "robots.txt" in error else "error"
         if status == "blocked" and site.status != "blocked":

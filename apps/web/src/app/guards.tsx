@@ -23,3 +23,9 @@ export function RequireAdmin({ children }: { children: ReactNode }) {
   const { isAdmin } = useAuth();
   return isAdmin ? children : <Navigate to="/" replace />;
 }
+
+/** System health and configuration cover the whole installation, so only platform admins see them. */
+export function RequirePlatformAdmin({ children }: { children: ReactNode }) {
+  const { isPlatformAdmin } = useAuth();
+  return isPlatformAdmin ? children : <Navigate to="/" replace />;
+}

@@ -26,6 +26,15 @@ class LeadIndex:
         )
         self._embedder = embedder
 
+    def sibling(self, collection: str) -> "LeadIndex":
+        """Another collection in the same store with the same embedder (one per workspace)."""
+        other = object.__new__(LeadIndex)
+        other._client, other._embedder = self._client, self._embedder
+        other._collection = self._client.get_or_create_collection(
+            name=collection, configuration={"hnsw": {"space": "cosine"}}
+        )
+        return other
+
     def count(self) -> int:
         return self._collection.count()
 

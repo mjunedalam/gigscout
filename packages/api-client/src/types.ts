@@ -132,7 +132,37 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  /** Platform-wide: "admin" runs the whole installation and every workspace. */
   role: Role;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  /** Where this person can work (sent with /me and sign-in). */
+  workspaces?: WorkspaceSummary[];
+}
+
+/** owner and admin manage the workspace; members work leads and start runs. */
+export type WorkspaceRole = "owner" | "admin" | "member";
+
+export interface WorkspaceSummary {
+  id: number;
+  name: string;
+  role: WorkspaceRole;
+}
+
+export interface WorkspaceDetail extends WorkspaceSummary {
+  /** Admins only: the website form's webhook path (it carries the secret key). */
+  form_path: string | null;
+  members: number;
+}
+
+/** A person as a member of the current workspace; `role` is their role there. */
+export interface Member {
+  id: number;
+  email: string;
+  name: string;
+  role: WorkspaceRole;
+  platform_admin: boolean;
   is_active: boolean;
   created_at: string;
   last_login_at: string | null;

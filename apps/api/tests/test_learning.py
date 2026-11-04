@@ -77,7 +77,7 @@ def test_runs_store_both_the_agents_score_and_the_learned_one(web, monkeypatch):
         def nudge(self, lead):
             return 0.1, "You won 3 of 3 fake leads"
 
-    monkeypatch.setattr(runs, "current_learning", lambda session, index: Learned())
+    monkeypatch.setattr(runs, "current_learning", lambda session, index, workspace_id: Learned())
     client, platform = web()
     login(client)
     from tests.conftest import wait_for_run

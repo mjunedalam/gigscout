@@ -149,7 +149,7 @@ def web(settings, index, sample_leads):
     from gigscout.api import create_app
     from gigscout.platform.container import Platform
     from gigscout.platform.security import hash_password
-    from gigscout.platform.tables import User
+    from gigscout.platform.tables import DEFAULT_WORKSPACE, Membership, User
     from gigscout.service import ScoutService
 
     clients = []
@@ -160,7 +160,11 @@ def web(settings, index, sample_leads):
         platform = Platform.build(configured, ScoutService(deps))
         with platform.sessions() as session:
             for email, role in ((ADMIN_EMAIL, "admin"), (MEMBER_EMAIL, "member")):
-                session.add(User(email=email, name=role.title(), role=role, password_hash=hash_password(PASSWORD)))
+                user = User(email=email, name=role.title(), role=role, password_hash=hash_password(PASSWORD))
+                session.add(user)
+                session.flush()
+                session.add(Membership(user_id=user.id, workspace_id=DEFAULT_WORKSPACE,
+                                       role="owner" if role == "admin" else "member"))
             session.commit()
         client = TestClient(create_app(lambda: platform))
         client.__enter__()

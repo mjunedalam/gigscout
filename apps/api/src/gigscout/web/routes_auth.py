@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from gigscout.platform.security import DUMMY_PASSWORD_HASH, hash_token, new_token, verify_password
 from gigscout.platform.tables import AuthToken, User, utcnow
 from gigscout.web.deps import SESSION_COOKIE, PlatformDep, SessionDep, UserDep, audit, bearer_or_cookie
-from gigscout.web.schemas import LoginRequest, UserOut
+from gigscout.web.schemas import LoginRequest, MeOut, UserOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -38,7 +38,7 @@ def login(body: LoginRequest, request: Request, response: Response, platform: Pl
         SESSION_COOKIE, token, max_age=int(ttl.total_seconds()), httponly=True, samesite="strict",
         secure=platform.settings.cookie_secure, path="/",
     )
-    return {"user": UserOut.model_validate(user).model_dump(mode="json")}  # token only in the HttpOnly cookie
+    return {"user": _me(session, user).model_dump(mode="json")}  # token only in the HttpOnly cookie
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -51,5 +51,11 @@ def logout(request: Request, response: Response, session: SessionDep) -> None:
 
 
 @router.get("/me")
-def me(user: UserDep) -> UserOut:
-    return UserOut.model_validate(user)
+def me(user: UserDep, session: SessionDep) -> MeOut:
+    return _me(session, user)
+
+
+def _me(session, user: User) -> MeOut:
+    from gigscout.web.routes_workspaces import workspaces_of
+
+    return MeOut(**UserOut.model_validate(user).model_dump(), workspaces=workspaces_of(session, user))

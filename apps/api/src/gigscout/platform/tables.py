@@ -6,13 +6,20 @@ from typing import Any
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-ROLES = ("admin", "member")
+ROLES = ("admin", "member")  # platform-wide: an admin runs the whole installation and every workspace
+WORKSPACE_ROLES = ("owner", "admin", "member")  # within one workspace; owners and admins manage it
+DEFAULT_WORKSPACE = 1  # existing data and env-configured inbound channels (Google Ads, Typeform, Meta) land here
+WS = "workspaces.id"
 RUN_STATUSES = ("queued", "running", "succeeded", "failed", "cancelled")
 LEAD_STATUSES = ("new", "contacted", "proposal", "won", "lost", "archived")
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def workspace_fk(**kwargs: Any) -> Any:
+    return mapped_column(ForeignKey(WS, ondelete="CASCADE"), default=DEFAULT_WORKSPACE, **kwargs)
 
 
 class Base(DeclarativeBase):
@@ -32,6 +39,26 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
+class Workspace(Base):
+    """One company using GigScout: its own leads, profiles, runs, sources, settings and members."""
+
+    __tablename__ = "workspaces"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    form_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # its website form's webhook key
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey(WS, ondelete="CASCADE"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16), default="member")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
 
@@ -44,6 +71,7 @@ class AuthToken(Base):
 class AgencyProfileRecord(Base):
     __tablename__ = "agency_profiles"
 
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     data: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -54,6 +82,7 @@ class AgencyProfileRecord(Base):
 class Run(Base):
     __tablename__ = "runs"
 
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     profile_id: Mapped[int | None] = mapped_column(ForeignKey("agency_profiles.id", ondelete="SET NULL"))
     profile_name: Mapped[str] = mapped_column(String(120))
@@ -85,6 +114,7 @@ class Run(Base):
 class Schedule(Base):
     __tablename__ = "schedules"
 
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     profile_id: Mapped[int] = mapped_column(ForeignKey("agency_profiles.id", ondelete="CASCADE"))
@@ -102,6 +132,7 @@ class LeadState(Base):
 
     __tablename__ = "lead_states"
 
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
     lead_id: Mapped[str] = mapped_column(String(300), primary_key=True)
     status: Mapped[str] = mapped_column(String(16), default="new", index=True)
     notes: Mapped[str] = mapped_column(Text, default="")
@@ -122,6 +153,7 @@ class Outreach(Base):
 
     __tablename__ = "outreach"
 
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     lead_id: Mapped[str] = mapped_column(String(300), index=True)
     channel: Mapped[str] = mapped_column(String(8))  # email | bid
@@ -141,9 +173,10 @@ class CrmRecord(Base):
     """A lead pushed to a CRM, so it is never pushed twice."""
 
     __tablename__ = "crm_links"
-    __table_args__ = (UniqueConstraint("lead_id", "crm"),)
+    __table_args__ = (UniqueConstraint("workspace_id", "lead_id", "crm"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     lead_id: Mapped[str] = mapped_column(String(300), index=True)
     crm: Mapped[str] = mapped_column(String(16))
     external_id: Mapped[str] = mapped_column(String(64))
@@ -157,6 +190,7 @@ class IntegrationToken(Base):
 
     __tablename__ = "integration_tokens"
 
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
     name: Mapped[str] = mapped_column(String(32), primary_key=True)
     access_token: Mapped[str] = mapped_column(Text)
     refresh_token: Mapped[str] = mapped_column(Text)
@@ -170,9 +204,11 @@ class Connector(Base):
     """A website an admin added as a lead source (name is the source name the agents see)."""
 
     __tablename__ = "connectors"
+    __table_args__ = (UniqueConstraint("workspace_id", "name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(60), unique=True)
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    name: Mapped[str] = mapped_column(String(60))
     label: Mapped[str] = mapped_column(String(120), default="")
     url: Mapped[str] = mapped_column(String(500))
     kind: Mapped[str] = mapped_column(String(8))  # feed | page
@@ -191,16 +227,18 @@ class SourceToggle(Base):
 
     __tablename__ = "source_toggles"
 
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
     name: Mapped[str] = mapped_column(String(60), primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class DigestSettings(Base):
-    """The daily digest's configuration: a single row (id=1)."""
+    """A workspace's daily digest configuration: one row per workspace."""
 
     __tablename__ = "digest_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    workspace_id: Mapped[int] = workspace_fk(unique=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     hour: Mapped[int] = mapped_column(Integer, default=8)  # local hour (Settings.timezone) it is sent at
     emails: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -214,6 +252,7 @@ class DigestSettings(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
+    workspace_id: Mapped[int] = workspace_fk(index=True)
     id: Mapped[int] = mapped_column(primary_key=True)
     at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     actor: Mapped[str] = mapped_column(String(254))

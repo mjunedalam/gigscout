@@ -23,7 +23,7 @@ const SOURCES_KEY = ["admin", "sources"];
 /** Where each inbound channel posts, and what turns it on (apps/api/.env). */
 const PUSH_SETUP: Record<string, { label: string; path: string; env: string }> = {
   google_ads: { label: "Google Ads lead forms", path: "/webhooks/google-ads", env: "GIGSCOUT_GOOGLE_ADS_WEBHOOK_KEY" },
-  website_form: { label: "Your website's contact form", path: "/webhooks/form/<GIGSCOUT_WEBSITE_FORM_KEY>", env: "GIGSCOUT_WEBSITE_FORM_KEY" },
+  website_form: { label: "Your website's contact form", path: "/webhooks/form/<key>", env: "nothing: each workspace has its own address" },
   typeform: { label: "Typeform", path: "/webhooks/typeform", env: "GIGSCOUT_TYPEFORM_WEBHOOK_SECRET" },
   meta_lead_ads: {
     label: "Facebook & Instagram lead ads", path: "/webhooks/meta",
@@ -157,12 +157,12 @@ function SourceCard({ source: s, result, testing, onTest }: {
       {setup && (
         <Stack gap={4} mt="xs">
           <Text size="xs" c="var(--gs-text-muted)">Sends leads to</Text>
-          <Code style={{ wordBreak: "break-all" }}>{window.location.origin}{setup.path}</Code>
-          {!s.enabled && <Text size="xs" c="var(--gs-text-muted)">Set {setup.env} in apps/api/.env to turn it on.</Text>}
+          <Code style={{ wordBreak: "break-all" }}>{window.location.origin}{s.url ?? setup.path}</Code>
+          {!s.enabled && <Text size="xs" c="var(--gs-text-muted)">Set {setup.env} in apps/api/.env to turn it on (it feeds the first workspace).</Text>}
         </Stack>
       )}
       {s.name === "website_form" && s.enabled && <BotCheck on={!!s.bot_check} siteKey={s.site_key ?? null} />}
-      {s.url && <Anchor href={s.url} target="_blank" rel="noreferrer" size="xs" mt="xs" display="block" truncate>{s.url}</Anchor>}
+      {s.url && s.channel === "pull" && <Anchor href={s.url} target="_blank" rel="noreferrer" size="xs" mt="xs" display="block" truncate>{s.url}</Anchor>}
       {blocked && (
         <Alert mt="md" color="red" variant="light" icon={<IconAlertTriangle size={16} />}>
           This site's robots.txt no longer allows automated access, so the agents skip it.

@@ -107,7 +107,7 @@ def test_team_drafts_edits_sends_and_tracks_outreach(web, monkeypatch):
     assert client.put(f"/api/outreach/{d['id']}", json={"channel": "email", "to": "x@y.com", "subject": "s",
                                                       "body": "b"}).status_code == 409  # sent is final
     with platform.sessions() as session:
-        assert session.get(LeadState, "fake:1").status == "contacted"
+        assert session.get(LeadState, (1, "fake:1")).status == "contacted"
 
     replied = client.post(f"/api/outreach/{d['id']}/status", json={"status": "replied"})
     assert replied.json()["status"] == "replied"

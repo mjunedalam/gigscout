@@ -45,6 +45,7 @@ import type { ReactNode } from "react";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../lib/auth";
+import { WorkspaceSwitcher } from "../components/workspace/WorkspaceSwitcher";
 import { useLive } from "../lib/live";
 
 interface NavItem {
@@ -69,11 +70,14 @@ const OPERATIONS: NavItem[] = [
 ];
 
 const ADMIN: NavItem[] = [
-  { to: "/admin", label: "System", icon: <IconHeartRateMonitor size={18} />, description: "Health and capacity" },
-  { to: "/admin/users", label: "Users", icon: <IconUsers size={18} />, description: "Accounts and roles" },
+  { to: "/admin/users", label: "Team", icon: <IconUsers size={18} />, description: "Members and roles in this workspace" },
   { to: "/admin/sources", label: "Connectors", icon: <IconPlugConnected size={18} />, description: "Websites the agents search" },
-  { to: "/admin/settings", label: "Configuration", icon: <IconAdjustmentsHorizontal size={18} />, description: "Running config" },
   { to: "/admin/audit", label: "Audit log", icon: <IconClipboardList size={18} />, description: "Who changed what" },
+];
+
+const PLATFORM: NavItem[] = [
+  { to: "/admin", label: "System", icon: <IconHeartRateMonitor size={18} />, description: "Health and capacity" },
+  { to: "/admin/settings", label: "Configuration", icon: <IconAdjustmentsHorizontal size={18} />, description: "Running config" },
 ];
 
 const NAV_WIDTH = 248;
@@ -87,7 +91,7 @@ export function AppLayout() {
   const rail = navCollapsed && isDesktop;
   const toggleRail = () => setNavCollapsed((c) => !c);
   useHotkeys([["mod+B", toggleRail]]);
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, isPlatformAdmin, workspace, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -95,6 +99,7 @@ export function AppLayout() {
     ["Workspace", WORKSPACE],
     ["Operations", OPERATIONS],
     ...(isAdmin ? ([["Admin", ADMIN]] as [string, NavItem[]][]) : []),
+    ...(isPlatformAdmin ? ([["Platform", PLATFORM]] as [string, NavItem[]][]) : []),
   ];
   const actions: SpotlightActionData[] = sections.flatMap(([group, items]) =>
     items.map((item) => ({
@@ -123,6 +128,7 @@ export function AppLayout() {
           <Group gap="sm" wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Toggle navigation" />
             <Brand />
+            <WorkspaceSwitcher />
           </Group>
           <Group gap="xs" wrap="nowrap">
             <UnstyledButton onClick={spotlight.open} className="gs-panel gs-focus" px="sm" py={6} visibleFrom="sm" aria-label="Search pages">
@@ -151,7 +157,11 @@ export function AppLayout() {
                   </Text>
                   <Text size="xs">{user?.email}</Text>
                 </Menu.Label>
-                {isAdmin && <Menu.Item leftSection={<IconShieldLock size={16} />}>Administrator</Menu.Item>}
+                {workspace && (
+                  <Menu.Item leftSection={<IconShieldLock size={16} />}>
+                    {isPlatformAdmin ? "Platform admin" : `${workspace.role[0]!.toUpperCase()}${workspace.role.slice(1)}`} · {workspace.name}
+                  </Menu.Item>
+                )}
                 <Menu.Divider />
                 <Menu.Item
                   color="red"

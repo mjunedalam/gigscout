@@ -103,9 +103,10 @@ class ScheduleManager:
                 return None
             if self._runs.has_active_run(schedule.profile_id):
                 log.info("Schedule %s skipped: a run for this profile is already active", schedule.name)
-                self._bus.publish("schedule.skipped", {"id": schedule.id, "name": schedule.name})
+                self._bus.publish("schedule.skipped", {"id": schedule.id, "name": schedule.name}, schedule.workspace_id)
                 return None
-            run = self._runs.submit(schedule.profile_id, schedule.mode, "schedule", f"schedule:{schedule.name}")
+            run = self._runs.submit(schedule.workspace_id, schedule.profile_id, schedule.mode, "schedule",
+                                    f"schedule:{schedule.name}")
             schedule.last_run_at, schedule.last_run_id = utcnow(), run.id
             session.commit()
             return run.id

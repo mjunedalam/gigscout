@@ -91,7 +91,7 @@ def test_admin_configures_previews_and_sends_the_digest(web, monkeypatch):
     assert saved.status_code == 200
     config = client.get("/api/admin/digest").json()
     assert config["slack_configured"] and HOOK not in str(config) and config["email_ready"] is True
-    assert platform.schedules.has_job("digest")
+    assert platform.schedules.has_job("digest:1")
 
     preview = client.post("/api/admin/digest/preview").json()
     assert preview["count"] == 1 and "Build a Django REST API" in preview["markdown"]
@@ -105,7 +105,7 @@ def test_admin_configures_previews_and_sends_the_digest(web, monkeypatch):
 
     client.put("/api/admin/digest", json={"enabled": False, "hour": 9, "emails": [], "slack_webhook": None,
                                           "min_score": 0.6, "max_leads": 5})
-    assert not platform.schedules.has_job("digest")
+    assert not platform.schedules.has_job("digest:1")
     with platform.sessions() as session:
         assert session.get(DigestSettings, 1).slack_webhook == HOOK  # None means keep the saved webhook
 

@@ -1,6 +1,7 @@
 """Builds and owns every long-lived platform object for one server process."""
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,8 +19,9 @@ from gigscout.platform.integrations import UpworkConnection
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
 from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, hash_password
-from gigscout.platform.tables import AgencyProfileRecord, User
+from gigscout.platform.tables import DEFAULT_WORKSPACE, AgencyProfileRecord, Membership, User
 from gigscout.service import ScoutService
+from gigscout.store.vector_store import LeadIndex
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +42,18 @@ class Platform:
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)  # per account + client address
     account_limiter: LoginLimiter = field(default_factory=lambda: LoginLimiter(max_failures=ACCOUNT_MAX_FAILURES))
     started_at: float = field(default_factory=time.time)
+    _indexes: dict[int, LeadIndex] = field(default_factory=dict)
+    _indexes_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def index_for(self, workspace_id: int) -> LeadIndex:
+        """The workspace's own lead store. The first workspace keeps the original collection."""
+        if workspace_id == DEFAULT_WORKSPACE:
+            return self.service.deps.index
+        with self._indexes_lock:
+            if workspace_id not in self._indexes:
+                name = f"{self.settings.collection_name}_ws{workspace_id}"
+                self._indexes[workspace_id] = self.service.deps.index.sibling(name)
+            return self._indexes[workspace_id]
 
     @classmethod
     def build(cls, settings: Settings, service: ScoutService | None = None) -> "Platform":
@@ -47,10 +61,13 @@ class Platform:
         engine, sessions = create_db(settings.resolved_database_url)
         bus = EventBus()
         upwork = UpworkConnection(sessions, settings)
-        runs = RunManager(service, sessions, bus, extra_sources=upwork.sources)
+        indexes = _IndexRef()
+        runs = RunManager(service, sessions, bus, extra_sources=upwork.sources, index_for=indexes)
         schedules = ScheduleManager(sessions, runs, bus, settings.timezone)
-        digests = DigestManager(sessions, service.deps.index, settings, bus, schedules)
-        return cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork)
+        digests = DigestManager(sessions, indexes, settings, bus, schedules)
+        platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork)
+        indexes.platform = platform
+        return platform
 
     def start(self) -> None:
         recovered = self.runs.recover()
@@ -70,10 +87,11 @@ class Platform:
         email, password = self.settings.admin_email, self.settings.admin_password
         with self.sessions() as session:
             if email and password and not session.scalar(select(User).where(User.email == email.lower())):
-                session.add(User(
-                    email=email.lower(), name="Admin", role="admin",
-                    password_hash=hash_password(password.get_secret_value()),
-                ))
+                user = User(email=email.lower(), name="Admin", role="admin",
+                            password_hash=hash_password(password.get_secret_value()))
+                session.add(user)
+                session.flush()
+                session.add(Membership(user_id=user.id, workspace_id=DEFAULT_WORKSPACE, role="owner"))
                 session.commit()
                 log.info("Created bootstrap admin %s", email)
             if not session.scalar(select(func.count()).select_from(User)):
@@ -89,3 +107,13 @@ class Platform:
             session.add(AgencyProfileRecord(name=profile.name, data=profile.model_dump(mode="json")))
             session.commit()
             log.info("Seeded agency profile '%s' from %s", profile.name, DEFAULT_PROFILE_PATH)
+
+
+class _IndexRef:
+    """Lets managers built before the platform reach Platform.index_for."""
+
+    platform: Platform | None = None
+
+    def __call__(self, workspace_id: int) -> LeadIndex:
+        assert self.platform is not None
+        return self.platform.index_for(workspace_id)

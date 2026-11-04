@@ -21,6 +21,7 @@ from gigscout.web import (
     routes_ops,
     routes_outreach,
     routes_public,
+    routes_workspaces,
 )
 
 log = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ def create_app(platform_factory: PlatformFactory | None = None) -> FastAPI:
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["content-type", "authorization"],
         )
     routers = (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin, routes_outreach,
-               routes_integrations, routes_inbound)
+               routes_integrations, routes_inbound, routes_workspaces)
     for module in routers:
         app.include_router(module.router)
     return app
@@ -69,19 +70,18 @@ async def _publish_metrics(platform: Platform) -> None:
     """Push a live metrics snapshot to every open dashboard on a fixed interval (only while someone listens)."""
     while True:
         await asyncio.sleep(platform.settings.metrics_interval_seconds)
-        if not platform.bus.subscriber_count:
-            continue
-        try:
-            data = await asyncio.to_thread(_snapshot, platform)
-        except Exception as exc:  # a metrics hiccup must never kill the ticker
-            log.warning("Metrics snapshot failed: %s", exc)
-            continue
-        platform.bus.publish("metrics.snapshot", data)
+        for workspace_id in platform.bus.watched_workspaces():  # only workspaces someone is looking at
+            try:
+                data = await asyncio.to_thread(_snapshot, platform, workspace_id)
+            except Exception as exc:  # a metrics hiccup must never kill the ticker
+                log.warning("Metrics snapshot failed: %s", exc)
+                continue
+            platform.bus.publish("metrics.snapshot", data, workspace_id)
 
 
-def _snapshot(platform: Platform) -> dict:
+def _snapshot(platform: Platform, workspace_id: int) -> dict:
     with platform.sessions() as session:
-        return routes_insights.snapshot(platform, session)
+        return routes_insights.snapshot(platform, session, workspace_id)
 
 
 app = create_app()

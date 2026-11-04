@@ -12,7 +12,6 @@ import type {
   MapPoint,
   Overview,
   ProfileRecord,
-  Role,
   Run,
   DigestConfig,
   DigestConfigInput,
@@ -36,6 +35,10 @@ import type {
   SourceTestResult,
   SystemInfo,
   User,
+  Member,
+  WorkspaceDetail,
+  WorkspaceRole,
+  WorkspaceSummary,
 } from "./types";
 
 export class ApiError extends Error {
@@ -79,11 +82,14 @@ export function errorMessage(body: unknown, fallback: string): string {
 }
 
 export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch(...args)) {
+  let workspace: number | null = null; // sent with every request; the server falls back to the user's first
+  const scope = (): Record<string, string> => (workspace === null ? {} : { "x-workspace": String(workspace) });
+
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetchImpl(`${baseUrl}${path}`, {
       method,
       credentials: "include",
-      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      headers: body === undefined ? scope() : { ...scope(), "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (response.status === 204) return undefined as T;
@@ -99,7 +105,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
     const response = await fetchImpl(`${baseUrl}${path}`, {
       method: "POST",
       credentials: "include",
-      headers: { "content-type": "application/json" },
+      headers: { ...scope(), "content-type": "application/json" },
       body: JSON.stringify(body),
       signal,
     });
@@ -121,6 +127,17 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
   }
 
   return {
+    /** Which workspace every following request works in. */
+    setWorkspace: (id: number | null) => {
+      workspace = id;
+    },
+    workspaces: {
+      list: () => get<WorkspaceSummary[]>("/api/workspaces"),
+      create: (name: string) => request<WorkspaceSummary>("POST", "/api/workspaces", { name }),
+      current: () => get<WorkspaceDetail>("/api/workspaces/current"),
+      rename: (name: string) => request<WorkspaceDetail>("PATCH", "/api/workspaces/current", { name }),
+      rotateFormKey: () => request<WorkspaceDetail>("POST", "/api/workspaces/current/form-key"),
+    },
     auth: {
       login: (email: string, password: string) => request<{ user: User }>("POST", "/api/auth/login", { email, password }),
       logout: () => request<void>("POST", "/api/auth/logout"),
@@ -179,14 +196,19 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
     },
     events: {
       recent: (limit = 50) => get<LiveEvent[]>("/api/events/recent", { limit }),
-      streamUrl: `${baseUrl}/api/events/stream`,
+      /** EventSource cannot send headers, so the workspace travels in the query string. */
+      get streamUrl() {
+        return `${baseUrl}/api/events/stream${toQuery({ workspace })}`;
+      },
     },
     admin: {
-      users: () => get<User[]>("/api/admin/users"),
-      createUser: (input: { email: string; name: string; role: Role; password: string }) =>
-        request<User>("POST", "/api/admin/users", input),
-      updateUser: (id: number, change: { name?: string; role?: Role; is_active?: boolean; password?: string }) =>
-        request<User>("PATCH", `/api/admin/users/${id}`, change),
+      users: () => get<Member[]>("/api/admin/users"),
+      /** A new email creates the account (password required); an existing account just joins the workspace. */
+      createUser: (input: { email: string; name: string; role: WorkspaceRole; password?: string }) =>
+        request<Member>("POST", "/api/admin/users", input),
+      updateUser: (id: number, change: { name?: string; role?: WorkspaceRole; is_active?: boolean; password?: string }) =>
+        request<Member>("PATCH", `/api/admin/users/${id}`, change),
+      removeUser: (id: number) => request<void>("DELETE", `/api/admin/users/${id}`),
       system: () => get<SystemInfo>("/api/admin/system"),
       settings: () => get<Record<string, unknown>>("/api/admin/settings"),
       sources: () => get<SourceHealth[]>("/api/admin/sources"),

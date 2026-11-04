@@ -63,10 +63,13 @@ class ScoutService:
         on_step: StepListener | None = None,
         on_activity: ActivityListener | None = None,
         sources: dict[str, Source] | None = None,
+        index: LeadIndex | None = None,
     ) -> ScoutResult:
-        """`sources` replaces the configured set for this run (built-ins an admin left on, plus added websites)."""
+        """`sources` replaces the configured set for this run (built-ins an admin left on, plus added websites);
+        `index` is the workspace's lead store."""
         resolved = self.resolve_mode(mode)
-        deps = self.deps if sources is None else replace(self.deps, sources=sources)
+        deps = replace(self.deps, sources=self.deps.sources if sources is None else sources,
+                       index=index or self.deps.index)
         activity = Activity(on_activity, profile=profile, threshold=self.deps.settings.good_match_threshold)
         with tracked_run(self.deps.settings, profile, mode=resolved) as run:
             if resolved == "team":
@@ -80,15 +83,15 @@ class ScoutService:
     def search(self, query: str, k: int = 10) -> list[Candidate]:
         return self.deps.index.search(query, k=k)
 
-    def ask(self, question: str, k: int = 8) -> Answer:
-        return ask(question, self.deps.index, self.deps.reasoner, k=k)
+    def ask(self, question: str, k: int = 8, index: LeadIndex | None = None) -> Answer:
+        return ask(question, index or self.deps.index, self.deps.reasoner, k=k)
 
-    def ask_stream(self, question: str, k: int = 8) -> Iterator[dict[str, Any]]:
-        return ask_stream(question, self.deps.index, self.deps.reasoner, k=k)
+    def ask_stream(self, question: str, k: int = 8, index: LeadIndex | None = None) -> Iterator[dict[str, Any]]:
+        return ask_stream(question, index or self.deps.index, self.deps.reasoner, k=k)
 
-    def ingest_inbound(self, lead: Lead) -> bool:
+    def ingest_inbound(self, lead: Lead, index: LeadIndex | None = None) -> bool:
         """Store a pushed lead (e.g. a Google Ads form submission). Returns False if it was already stored."""
-        stored = bool(self.deps.index.add_new([lead]))
+        stored = bool((index or self.deps.index).add_new([lead]))
         log.info("Inbound lead %s %s", lead.id, "stored" if stored else "already known")
         return stored
 

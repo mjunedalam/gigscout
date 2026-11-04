@@ -8,7 +8,8 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 from gigscout.models import AgencyProfile, Lead
 from gigscout.platform.security import MIN_PASSWORD_LENGTH
 
-Role = Literal["admin", "member"]
+Role = Literal["admin", "member"]  # platform-wide
+WorkspaceRole = Literal["owner", "admin", "member"]
 LeadStatus = Literal["new", "contacted", "proposal", "won", "lost", "archived"]
 RunMode = Literal["auto", "team", "pipeline"]
 
@@ -36,18 +37,56 @@ class UserOut(Orm):
     last_login_at: UtcDatetime | None
 
 
+class WorkspaceOut(BaseModel):
+    id: int
+    name: str
+    role: WorkspaceRole
+
+
+class MeOut(UserOut):
+    workspaces: list[WorkspaceOut]
+
+
+class MemberOut(BaseModel):
+    """A user as a member of the current workspace; `role` is their role here."""
+
+    id: int
+    email: str
+    name: str
+    role: WorkspaceRole
+    platform_admin: bool
+    is_active: bool
+    created_at: UtcDatetime
+    last_login_at: UtcDatetime | None
+
+
 class UserCreate(BaseModel):
+    """Add someone to the workspace. A new email creates the account (password required); an existing one is
+    simply added (its password is left alone)."""
+
     email: EmailStr
     name: str = Field(min_length=1, max_length=120)
-    role: Role = "member"
-    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=200)
+    role: WorkspaceRole = "member"
+    password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=200)
 
 
 class UserUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
-    role: Role | None = None
+    role: WorkspaceRole | None = None
     is_active: bool | None = None
     password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=200)
+
+
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+
+
+class WorkspaceDetail(BaseModel):
+    id: int
+    name: str
+    role: WorkspaceRole
+    form_path: str | None = None  # admins only: the website form webhook path, which carries the secret key
+    members: int
 
 
 # --- agency profiles --------------------------------------------------------------------------------------------

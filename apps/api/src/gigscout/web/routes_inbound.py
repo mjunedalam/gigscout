@@ -20,8 +20,10 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import SecretStr
+from sqlalchemy import select
 
 from gigscout.inbound import forms, turnstile
+from gigscout.platform.tables import DEFAULT_WORKSPACE, Workspace
 from gigscout.web.deps import PlatformDep
 
 log = logging.getLogger(__name__)
@@ -123,8 +125,8 @@ _form_limit = _SenderLimit(FORM_LIMIT_PER_HOUR)
 @router.post("/form/{key}", response_model=None)
 async def website_form(key: str, request: Request, platform: PlatformDep) -> HTMLResponse | dict:
     """Point your contact form here (method POST): a plain HTML form gets a thank-you page, fetch() gets JSON."""
-    expected = platform.settings.website_form_key
-    if expected is None or not _same(key, expected):
+    workspace_id = _form_workspace(platform, key)
+    if workspace_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("multipart/form-data"):
@@ -154,8 +156,19 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
         lead = forms.to_lead("website_form", native_id, fields, "Website")
         if burst:
             lead = lead.model_copy(update={"description": f"{BURST_NOTE}\n\n{lead.description}"})
-        result = _ingest(platform, lead)
+        result = _ingest(platform, lead, workspace_id)
     return HTMLResponse(THANKS_PAGE) if is_html_form else {"status": result}
+
+
+def _form_workspace(platform, key: str) -> int | None:
+    """Which workspace a form key belongs to: the env key is the first workspace's; each workspace has its own."""
+    expected = platform.settings.website_form_key
+    if expected is not None and _same(key, expected):
+        return DEFAULT_WORKSPACE
+    if len(key) < 16:
+        return None
+    with platform.sessions() as session:
+        return session.scalar(select(Workspace.id).where(Workspace.form_key == key))
 
 
 async def _bot_check(platform, token: str | None, request: Request) -> turnstile.Check | None:
@@ -224,10 +237,11 @@ def _meta_lead(platform, lead_id: str, token: SecretStr) -> str:
     return _ingest(platform, forms.to_lead("meta_lead_ads", lead_id, fields, "Meta lead ad"))
 
 
-def _ingest(platform, lead) -> str:
-    stored = platform.service.ingest_inbound(lead)
+def _ingest(platform, lead, workspace_id: int = DEFAULT_WORKSPACE) -> str:
+    """Typeform and Meta are configured in .env, so their leads go to the first workspace."""
+    stored = platform.service.ingest_inbound(lead, platform.index_for(workspace_id))
     if stored:
-        platform.bus.publish("lead.inbound", {"id": lead.id, "title": lead.title})
+        platform.bus.publish("lead.inbound", {"id": lead.id, "title": lead.title}, workspace_id)
     return "stored" if stored else "duplicate"
 
 

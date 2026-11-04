@@ -15,21 +15,32 @@ from gigscout.http import DisallowedByRobots
 from gigscout.inbound import google_ads
 from gigscout.mail import email_ready
 from gigscout.platform.security import WeakPasswordError, hash_password
-from gigscout.platform.tables import AuditLog, AuthToken, Connector, Run, SourceToggle, User, utcnow
+from gigscout.platform.tables import (
+    DEFAULT_WORKSPACE,
+    AuditLog,
+    AuthToken,
+    Connector,
+    Membership,
+    Run,
+    SourceToggle,
+    User,
+    Workspace,
+    utcnow,
+)
 from gigscout.source_library import LIBRARY, for_company_type
 from gigscout.sources.website import UnsafeUrl, WebsiteSource, probe, slugify
-from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, audit
+from gigscout.web.deps import AdminDep, PlatformAdminDep, PlatformDep, SessionDep, Ws, audit
 from gigscout.web.schemas import (
     AuditOut,
     ConnectorCreate,
     DigestConfigIn,
     DigestConfigOut,
     LibraryEntryOut,
+    MemberOut,
     SourceEnabled,
     SourceHealth,
     SourceTestResult,
     UserCreate,
-    UserOut,
     UserUpdate,
 )
 
@@ -40,36 +51,49 @@ SOURCE_TEST_QUERY = "web app"
 SOURCE_TEST_LIMIT = 5
 
 
-# --- users ------------------------------------------------------------------------------------------------------
+# --- members ----------------------------------------------------------------------------------------------------
 @router.get("/users")
-def list_users(session: SessionDep, _: AdminDep) -> list[UserOut]:
-    return [UserOut.model_validate(u) for u in session.scalars(select(User).order_by(User.id))]
+def list_members(session: SessionDep, ws: AdminDep) -> list[MemberOut]:
+    rows = session.execute(select(User, Membership.role).join(Membership, Membership.user_id == User.id)
+                           .where(Membership.workspace_id == ws.id).order_by(User.id))
+    return [_member(user, role) for user, role in rows]
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
-def create_user(body: UserCreate, session: SessionDep, admin: AdminDep) -> UserOut:
+def add_member(body: UserCreate, session: SessionDep, ws: AdminDep) -> MemberOut:
+    _may_grant(ws, body.role)
     email = body.email.lower()
-    if session.scalar(select(User).where(User.email == email)):
-        raise HTTPException(status.HTTP_409_CONFLICT, "A user with this email already exists")
-    user = User(email=email, name=body.name, role=body.role, password_hash=_hash(body.password))
-    session.add(user)
-    session.flush()
-    audit(session, admin, "user.create", email, role=body.role)
+    user = session.scalar(select(User).where(User.email == email))
+    if user is None:
+        if not body.password:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Set a password for the new account")
+        user = User(email=email, name=body.name, role="member", password_hash=_hash(body.password))
+        session.add(user)
+        session.flush()
+    elif session.get(Membership, (user.id, ws.id)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This person is already in the workspace")
+    session.add(Membership(user_id=user.id, workspace_id=ws.id, role=body.role))
+    audit(session, ws, "member.add", email, role=body.role)
     session.commit()
-    return UserOut.model_validate(user)
+    return _member(user, body.role)
 
 
 @router.patch("/users/{user_id}")
-def update_user(user_id: int, body: UserUpdate, session: SessionDep, admin: AdminDep) -> UserOut:
-    user = session.get(User, user_id)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
-    demoting = (body.role == "member" or body.is_active is False) and user.role == "admin"
-    if demoting and _active_admins(session) <= 1:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Keep at least one active admin")
-    if user.id == admin.id and body.is_active is False:
+def update_member(user_id: int, body: UserUpdate, session: SessionDep, ws: AdminDep) -> MemberOut:
+    user, membership = _membership(session, ws, user_id)
+    if body.role is not None and body.role != membership.role:
+        _may_grant(ws, body.role, membership.role)
+        if membership.role in MANAGERS and body.role not in MANAGERS and _managers(session, ws.id) <= 1:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Keep at least one owner or admin in the workspace")
+        membership.role = body.role
+    account_change = body.is_active is not None or body.password or body.name
+    if account_change and not _controls_account(session, ws, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            "This person also belongs to other workspaces: only a platform admin can change their "
+                            "account")
+    if user.id == ws.user.id and body.is_active is False:
         raise HTTPException(status.HTTP_409_CONFLICT, "You cannot deactivate yourself")
-    changes = body.model_dump(exclude_none=True, exclude={"password"})
+    changes = body.model_dump(exclude_none=True, exclude={"password", "role"})
     for field, value in changes.items():
         setattr(user, field, value)
     if body.password:
@@ -77,14 +101,26 @@ def update_user(user_id: int, body: UserUpdate, session: SessionDep, admin: Admi
         changes["password"] = "reset"
     if body.password or body.is_active is False:
         session.query(AuthToken).filter(AuthToken.user_id == user.id).delete()  # sign them out everywhere
-    audit(session, admin, "user.update", user.email, **changes)
+    audit(session, ws, "member.update", user.email, **changes, **({"role": body.role} if body.role else {}))
     session.commit()
-    return UserOut.model_validate(user)
+    return _member(user, membership.role)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(user_id: int, session: SessionDep, ws: AdminDep) -> None:
+    user, membership = _membership(session, ws, user_id)
+    if membership.role in MANAGERS and _managers(session, ws.id) <= 1:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Keep at least one owner or admin in the workspace")
+    if membership.role == "owner" and ws.role != "owner":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can remove an owner")
+    session.delete(membership)
+    audit(session, ws, "member.remove", user.email)
+    session.commit()
 
 
 # --- system -----------------------------------------------------------------------------------------------------
 @router.get("/system")
-def system(platform: PlatformDep, session: SessionDep, _: AdminDep) -> dict:
+def system(platform: PlatformDep, session: SessionDep, _: PlatformAdminDep) -> dict:
     settings = platform.settings
     deps = platform.service.deps
     return {
@@ -104,12 +140,13 @@ def system(platform: PlatformDep, session: SessionDep, _: AdminDep) -> dict:
                       "timezone": settings.timezone},
         "inbound": {"google_ads_webhook": platform.service.inbound_enabled},
         "live_clients": platform.bus.subscriber_count,
+        "workspaces": session.scalar(select(func.count()).select_from(Workspace)),
         "mlflow": {"enabled": settings.mlflow_enabled, "tracking_uri": _redact_url(settings.mlflow_tracking_uri)},
     }
 
 
 @router.get("/settings")
-def effective_settings(platform: PlatformDep, _: AdminDep) -> dict:
+def effective_settings(platform: PlatformDep, _: PlatformAdminDep) -> dict:
     """Read-only view of the running configuration. Secrets are masked; change values in .env and restart."""
     values = platform.settings.model_dump(mode="python")
     return {key: ("••••••" if isinstance(value, SecretStr) else _redact_urls(_jsonable(value)))
@@ -126,14 +163,14 @@ def _digest_out(platform, row) -> DigestConfigOut:
 
 
 @router.get("/digest")
-def digest_config(platform: PlatformDep, _: AdminDep) -> DigestConfigOut:
-    return _digest_out(platform, platform.digests.config())
+def digest_config(platform: PlatformDep, ws: AdminDep) -> DigestConfigOut:
+    return _digest_out(platform, platform.digests.config(ws.id))
 
 
 @router.put("/digest")
 def save_digest(body: DigestConfigIn, platform: PlatformDep, session: SessionDep, admin: AdminDep) -> DigestConfigOut:
     try:
-        row = platform.digests.save(body.model_dump())
+        row = platform.digests.save(admin.id, body.model_dump())
     except UnsafeWebhook as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     audit(session, admin, "digest.update", "digest", enabled=body.enabled, hour=body.hour)
@@ -142,14 +179,14 @@ def save_digest(body: DigestConfigIn, platform: PlatformDep, session: SessionDep
 
 
 @router.post("/digest/preview")
-def preview_digest(platform: PlatformDep, _: AdminDep) -> dict:
-    digest = platform.digests.preview()
+def preview_digest(platform: PlatformDep, ws: AdminDep) -> dict:
+    digest = platform.digests.preview(ws.id)
     return {"count": len(digest.leads), "markdown": render_markdown(digest)}
 
 
 @router.post("/digest/send")
 def send_digest(platform: PlatformDep, session: SessionDep, admin: AdminDep) -> dict:
-    result = platform.digests.send()
+    result = platform.digests.send(admin.id)
     audit(session, admin, "digest.send", "digest", sent=result["sent"], count=result["count"])
     session.commit()
     return result
@@ -157,8 +194,9 @@ def send_digest(platform: PlatformDep, session: SessionDep, admin: AdminDep) -> 
 
 # --- sources ----------------------------------------------------------------------------------------------------
 @router.get("/sources")
-def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> list[SourceHealth]:
-    runs = list(session.scalars(select(Run).order_by(Run.created_at.desc()).limit(RECENT_RUNS_FOR_HEALTH)))
+def source_health(platform: PlatformDep, session: SessionDep, ws: AdminDep) -> list[SourceHealth]:
+    runs = list(session.scalars(select(Run).where(Run.workspace_id == ws.id).order_by(Run.created_at.desc())
+                                .limit(RECENT_RUNS_FOR_HEALTH)))
     failures: Counter[str] = Counter()
     last_error: dict[str, str] = {}
     for run in runs:
@@ -166,7 +204,8 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
             name = error.split(":", 1)[0]
             failures[name] += 1
             last_error.setdefault(name, error)
-    off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.enabled.is_(False))))
+    off = set(session.scalars(select(SourceToggle.name).where(SourceToggle.workspace_id == ws.id,
+                                                             SourceToggle.enabled.is_(False))))
     pulled = [
         SourceHealth(
             name=n, channel="pull", enabled=n not in off, recent_failures=failures[n], last_error=last_error.get(n),
@@ -179,20 +218,27 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
             last_error=c.last_error or last_error.get(c.name), custom=True, id=c.id, label=c.label or c.name,
             url=c.url, kind=c.kind, status=c.status, lead_kind=c.lead_kind,
         )
-        for c in session.scalars(select(Connector).order_by(Connector.created_at))
+        for c in session.scalars(select(Connector).where(Connector.workspace_id == ws.id)
+                                 .order_by(Connector.created_at))
     ]
     settings = platform.settings
     bot_check = {"bot_check": settings.turnstile_secret_key is not None, "site_key": settings.turnstile_site_key}
+    form_key = session.get(Workspace, ws.id).form_key
+    channels = {name: ready and ws.id == DEFAULT_WORKSPACE  # env-configured channels feed the first workspace
+                for name, ready in platform.service.inbound_channels().items()}
+    channels["website_form"] = True  # every workspace has its own form address
+    form = {**bot_check, "url": f"/webhooks/form/{form_key}"}
     pushed = [SourceHealth(name=name, channel="push", enabled=ready, recent_failures=0,
-                           **(bot_check if name == "website_form" else {}))
-              for name, ready in platform.service.inbound_channels().items()]
+                           **(form if name == "website_form" else {}))
+              for name, ready in channels.items()]
     return [*pulled, *sites, *pushed]
 
 
 @router.get("/connectors/library")
-def connector_library(session: SessionDep, _: AdminDep, company_type: str | None = None) -> list[LibraryEntryOut]:
+def connector_library(session: SessionDep, ws: AdminDep, company_type: str | None = None) -> list[LibraryEntryOut]:
     """Checked public websites worth searching, for a company type (or all of them)."""
-    connected = {url.rstrip("/") for url in session.scalars(select(Connector.url))}
+    urls = session.scalars(select(Connector.url).where(Connector.workspace_id == ws.id))
+    connected = {url.rstrip("/") for url in urls}
     entries = for_company_type(company_type) if company_type else list(LIBRARY)
     return [
         LibraryEntryOut(name=e.name, url=e.url, description=e.description, region=e.region, lead_kind=e.lead_kind,
@@ -206,7 +252,8 @@ def add_connector(body: ConnectorCreate, platform: PlatformDep, session: Session
     """Add any website as a lead source. It is checked first: public address, reachable, and robots.txt allows us."""
     name = slugify(body.name)
     taken = set(platform.service.deps.sources) | {google_ads.SOURCE_NAME}
-    if name in taken or session.scalar(select(Connector.id).where(Connector.name == name)) is not None:
+    if name in taken or session.scalar(select(Connector.id).where(
+            Connector.workspace_id == admin.id, Connector.name == name)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"A source called '{name}' already exists")
     try:
         site = probe(platform.service.web_client, body.url)
@@ -220,12 +267,12 @@ def add_connector(body: ConnectorCreate, platform: PlatformDep, session: Session
         reason = f"Could not reach {body.url}: {type(exc).__name__}"
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, reason) from exc
     url = site.url or body.url.strip()
-    connector = Connector(name=name, label=body.name.strip(), url=url, kind=site.kind, feed_url=site.feed_url,
-                          lead_kind=body.lead_kind, created_by=admin.email, checked_at=utcnow())
+    connector = Connector(workspace_id=admin.id, name=name, label=body.name.strip(), url=url, kind=site.kind,
+                          feed_url=site.feed_url, lead_kind=body.lead_kind, created_by=admin.email, checked_at=utcnow())
     session.add(connector)
     audit(session, admin, "connector.add", name, url=url, kind=site.kind)
     session.commit()
-    platform.bus.publish("source.added", {"name": name, "url": url, "kind": site.kind})
+    platform.bus.publish("source.added", {"name": name, "url": url, "kind": site.kind}, admin.id)
     return SourceHealth(name=name, channel="pull", enabled=True, recent_failures=0, custom=True, id=connector.id,
                         label=connector.label, url=url, kind=site.kind, status="ok", lead_kind=body.lead_kind)
 
@@ -233,7 +280,7 @@ def add_connector(body: ConnectorCreate, platform: PlatformDep, session: Session
 @router.delete("/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_connector(connector_id: int, session: SessionDep, admin: AdminDep) -> None:
     connector = session.get(Connector, connector_id)
-    if connector is None:
+    if connector is None or connector.workspace_id != admin.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Website not found")
     audit(session, admin, "connector.remove", connector.name)
     session.delete(connector)
@@ -245,11 +292,11 @@ def set_source_enabled(
     name: str, body: SourceEnabled, platform: PlatformDep, session: SessionDep, admin: AdminDep,
 ) -> dict:
     """Plug a source in or out. Takes effect from the next run."""
-    connector = session.scalar(select(Connector).where(Connector.name == name))
+    connector = session.scalar(select(Connector).where(Connector.workspace_id == admin.id, Connector.name == name))
     if connector is not None:
         connector.enabled = body.enabled
     elif name in platform.service.deps.sources:
-        session.merge(SourceToggle(name=name, enabled=body.enabled))
+        session.merge(SourceToggle(workspace_id=admin.id, name=name, enabled=body.enabled))
     else:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown source")
     audit(session, admin, "source.enable" if body.enabled else "source.disable", name)
@@ -260,7 +307,8 @@ def set_source_enabled(
 @router.post("/sources/{name}/test")
 def test_source(name: str, platform: PlatformDep, session: SessionDep, admin: AdminDep) -> SourceTestResult:
     source = platform.service.deps.sources.get(name)
-    connector = session.scalar(select(Connector).where(Connector.name == name)) if source is None else None
+    connector = session.scalar(select(Connector).where(
+        Connector.workspace_id == admin.id, Connector.name == name)) if source is None else None
     if connector is not None:
         source = WebsiteSource(
             platform.service.web_client, connector.name, connector.url, connector.kind, connector.feed_url,
@@ -283,8 +331,9 @@ def test_source(name: str, platform: PlatformDep, session: SessionDep, admin: Ad
 
 # --- audit ------------------------------------------------------------------------------------------------------
 @router.get("/audit")
-def audit_log(session: SessionDep, _: AdminDep, limit: int = Query(default=100, ge=1, le=1000)) -> list[AuditOut]:
-    rows = session.scalars(select(AuditLog).order_by(AuditLog.at.desc(), AuditLog.id.desc()).limit(limit))
+def audit_log(session: SessionDep, ws: AdminDep, limit: int = Query(default=100, ge=1, le=1000)) -> list[AuditOut]:
+    rows = session.scalars(select(AuditLog).where(AuditLog.workspace_id == ws.id)
+                           .order_by(AuditLog.at.desc(), AuditLog.id.desc()).limit(limit))
     return [AuditOut.model_validate(r) for r in rows]
 
 
@@ -295,8 +344,40 @@ def _hash(password: str) -> str:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
 
-def _active_admins(session) -> int:
-    return session.scalar(select(func.count()).select_from(User).where(User.role == "admin", User.is_active))
+MANAGERS = ("owner", "admin")
+
+
+def _member(user: User, role: str) -> MemberOut:
+    return MemberOut(id=user.id, email=user.email, name=user.name, role=role, platform_admin=user.role == "admin",
+                     is_active=user.is_active, created_at=user.created_at, last_login_at=user.last_login_at)
+
+
+def _membership(session, ws: Ws, user_id: int) -> tuple[User, Membership]:
+    user, membership = session.get(User, user_id), session.get(Membership, (user_id, ws.id))
+    if user is None or membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not a member of this workspace")
+    return user, membership
+
+
+def _may_grant(ws: Ws, role: str, current: str | None = None) -> None:
+    """Only owners make (or unmake) owners."""
+    if "owner" in (role, current) and ws.role != "owner":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can make someone an owner")
+
+
+def _managers(session, workspace_id: int) -> int:
+    return session.scalar(select(func.count()).select_from(Membership).join(User, User.id == Membership.user_id)
+                          .where(Membership.workspace_id == workspace_id, Membership.role.in_(MANAGERS),
+                                 User.is_active))
+
+
+def _controls_account(session, ws: Ws, user: User) -> bool:
+    """Account-wide changes (password, active, name) are safe only if the account lives in this workspace alone."""
+    if ws.user.role == "admin":
+        return True
+    others = session.scalar(select(func.count()).select_from(Membership).where(
+        Membership.user_id == user.id, Membership.workspace_id != ws.id))
+    return not others and user.role != "admin"
 
 
 def _ollama_up(settings) -> bool:

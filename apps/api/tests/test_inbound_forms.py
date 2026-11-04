@@ -139,7 +139,7 @@ def test_connectors_list_every_inbound_channel(web):
     client, _ = web(typeform_webhook_secret=SecretStr("s"))
     login(client)
     pushed = {s["name"]: s["enabled"] for s in client.get("/api/admin/sources").json() if s["channel"] == "push"}
-    assert pushed == {"google_ads": False, "website_form": False, "typeform": True, "meta_lead_ads": False}
+    assert pushed == {"google_ads": False, "website_form": True, "typeform": True, "meta_lead_ads": False}
 
 
 def test_a_body_over_the_cap_is_refused_even_without_a_length_header(web):

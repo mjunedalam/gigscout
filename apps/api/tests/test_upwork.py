@@ -97,29 +97,29 @@ def test_admin_connects_upwork_and_runs_can_search_it(web):
     assert "upwork=error" in replay.headers["location"]  # a state works once
 
     with platform.sessions() as session:
-        row = session.get(IntegrationToken, "upwork")
+        row = session.get(IntegrationToken, (1, "upwork"))
         assert row.connected_by == "admin@acme-studio.com" and "access-1" not in row.access_token
-    assert platform.upwork.access_token() == "access-1"
-    assert "upwork" in platform.runs.sources_for_run()
+    assert platform.upwork.access_token(1) == "access-1"
+    assert "upwork" in platform.runs.sources_for_run(1)
 
     login(client)
     assert client.get("/api/admin/upwork").json()["connected"] is True
     assert client.delete("/api/admin/upwork").status_code == 204
-    assert "upwork" not in platform.runs.sources_for_run()
+    assert "upwork" not in platform.runs.sources_for_run(1)
 
 
 @respx.mock
 def test_an_expiring_token_is_refreshed(web):
     client, platform = web(**KEYS)
-    platform.upwork._save(upwork.Tokens("old", "refresh-1", datetime.now(UTC) + timedelta(minutes=1)), "admin@x.com")
+    platform.upwork._save(1, upwork.Tokens("old", "refresh-1", datetime.now(UTC) + timedelta(minutes=1)), "admin@x.com")
     refresh = respx.post(upwork.TOKEN_URL).mock(return_value=token_response(access="new", refresh="refresh-2"))
-    assert platform.upwork.access_token() == "new"
+    assert platform.upwork.access_token(1) == "new"
     assert parse_qs(refresh.calls[0].request.content.decode())["grant_type"] == ["refresh_token"]
-    assert platform.upwork.access_token() == "new" and refresh.call_count == 1  # fresh now: no second refresh
+    assert platform.upwork.access_token(1) == "new" and refresh.call_count == 1  # fresh now: no second refresh
 
 
 def test_a_callback_without_a_started_sign_in_is_refused(web):
     client, platform = web(**KEYS)
     back = client.get("/api/admin/upwork/callback", params={"code": "c", "state": "forged"}, follow_redirects=False)
     assert back.status_code == 303 and "upwork=error" in back.headers["location"]
-    assert platform.upwork.status()["connected"] is False
+    assert platform.upwork.status(1)["connected"] is False

@@ -19,8 +19,8 @@ RETURN_TO = "/admin/sources"
 
 
 @router.get("")
-def upwork_status(platform: PlatformDep, _: AdminDep) -> IntegrationStatusOut:
-    return IntegrationStatusOut(**platform.upwork.status())
+def upwork_status(platform: PlatformDep, ws: AdminDep) -> IntegrationStatusOut:
+    return IntegrationStatusOut(**platform.upwork.status(ws.id))
 
 
 @router.post("/connect")
@@ -28,7 +28,7 @@ def connect_upwork(platform: PlatformDep, admin: AdminDep) -> dict:
     """Where to send the admin to sign in to Upwork and allow GigScout to search jobs."""
     if not platform.upwork.configured:
         raise HTTPException(status.HTTP_409_CONFLICT, SETUP_HELP)
-    return {"url": platform.upwork.start(admin.email)}
+    return {"url": platform.upwork.start(admin.email, admin.id)}
 
 
 @router.get("/callback", include_in_schema=False)
@@ -40,18 +40,18 @@ def upwork_callback(
     if error or not code:
         return _back("error", "Upwork sign-in was cancelled")
     try:
-        admin_email = platform.upwork.finish(code, state)
+        admin_email, workspace_id = platform.upwork.finish(code, state)
     except UpworkError as exc:
         return _back("error", str(exc))
-    audit(session, admin_email, "upwork.connect")
+    audit(session, admin_email, "upwork.connect", workspace_id=workspace_id)
     session.commit()
-    platform.bus.publish("source.added", {"name": "Upwork", "by": admin_email})
+    platform.bus.publish("source.added", {"name": "Upwork", "by": admin_email}, workspace_id)
     return _back("connected")
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 def disconnect_upwork(platform: PlatformDep, session: SessionDep, admin: AdminDep) -> None:
-    platform.upwork.disconnect()
+    platform.upwork.disconnect(admin.id)
     audit(session, admin, "upwork.disconnect")
     session.commit()
 

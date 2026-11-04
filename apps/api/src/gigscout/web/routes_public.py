@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from gigscout.inbound.google_ads import GoogleAdsLeadForm, key_matches, to_lead
+from gigscout.platform.tables import DEFAULT_WORKSPACE
 from gigscout.web.deps import PlatformDep
 
 log = logging.getLogger(__name__)
@@ -37,5 +38,5 @@ def google_ads_lead(form: GoogleAdsLeadForm, platform: PlatformDep) -> WebhookAc
     lead = to_lead(form)
     stored = service.ingest_inbound(lead)
     if stored:
-        platform.bus.publish("lead.inbound", {"id": lead.id, "title": lead.title})
+        platform.bus.publish("lead.inbound", {"id": lead.id, "title": lead.title}, DEFAULT_WORKSPACE)
     return WebhookAck(status="stored" if stored else "duplicate")
