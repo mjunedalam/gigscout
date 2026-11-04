@@ -60,6 +60,8 @@ export function LeadTable({ items, searching, onOpen }: LeadTableProps) {
                   </Group>
                   <Text size="xs" c="var(--gs-text-muted)" lineClamp={1}>
                     {clientLabel(v.lead)} · {v.lead.source}
+                    {v.assignee ? ` · 👤 ${v.assignee}` : ""}
+                    {v.follow_up_on ? ` · follow up ${v.follow_up_on}` : ""}
                     {v.pitch ? ` · 💬 ${v.pitch}` : ""}
                   </Text>
                 </Stack>

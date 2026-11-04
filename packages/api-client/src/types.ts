@@ -61,6 +61,19 @@ export interface LeadView {
   /** How much the company's won/lost leads moved the score (score = agents' score + learned). */
   learned: number;
   learned_note: string;
+  /** Who on the team owns the lead. */
+  assigned_to?: number | null;
+  assignee?: string | null;
+  /** YYYY-MM-DD: when to chase it next. */
+  follow_up_on?: string | null;
+}
+
+export interface LeadChange {
+  status?: LeadStatus;
+  notes?: string;
+  /** null clears it. */
+  assigned_to?: number | null;
+  follow_up_on?: string | null;
 }
 
 /** What won and lost leads have taught so far. */
@@ -90,6 +103,9 @@ export interface LeadQuery {
   min_score?: number;
   /** clean: no duplicates, scams or warnings; flagged: only those. */
   quality?: "all" | "clean" | "flagged";
+  owner?: "anyone" | "me" | "unassigned";
+  /** Only leads whose follow-up date is today or earlier. */
+  due?: boolean;
   sort?: "score" | "recent" | "budget";
   page?: number;
   page_size?: number;

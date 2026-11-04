@@ -1,4 +1,4 @@
-import { LEAD_STATUSES, type LeadStatus } from "@gigscout/api-client";
+import { LEAD_STATUSES, type LeadChange, type LeadStatus } from "@gigscout/api-client";
 import {
   Alert,
   Anchor,
@@ -14,6 +14,8 @@ import {
   Text,
   Textarea,
   Title,
+  Select,
+  TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle, IconCheck, IconCopy, IconExternalLink, IconMessage2Bolt, IconSchool } from "@tabler/icons-react";
@@ -40,8 +42,9 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
     setNotes(lead.data?.notes ?? "");
   }, [lead.data?.notes]);
 
+  const members = useQuery({ queryKey: ["workspace", "members"], queryFn: api.workspaces.members, staleTime: 60_000 });
   const update = useMutation({
-    mutationFn: (change: { status?: LeadStatus; notes?: string }) => api.leads.update(leadId!, change),
+    mutationFn: (change: LeadChange) => api.leads.update(leadId!, change),
     onSuccess: (view) => {
       queryClient.setQueryData(["leads", "one", leadId], view);
       void queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -94,6 +97,17 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               disabled={update.isPending}
             />
           </Stack>
+
+          <Group grow align="flex-end">
+            <Select label="Owner" placeholder="Nobody yet" clearable data={(members.data ?? []).map((m, _, all) => ({
+                value: String(m.id),
+                label: all.filter((o) => o.name === m.name).length > 1 ? `${m.name} (${m.email})` : m.name,
+              }))}
+              value={view.assigned_to ? String(view.assigned_to) : null} disabled={update.isPending}
+              onChange={(v) => update.mutate({ assigned_to: v ? Number(v) : null })} />
+            <TextInput label="Follow up on" type="date" value={view.follow_up_on ?? ""} disabled={update.isPending}
+              onChange={(e) => update.mutate({ follow_up_on: e.currentTarget.value || null })} />
+          </Group>
 
           {view.pitch && (
             <Alert variant="light" color="signal" icon={<IconMessage2Bolt size={18} />} title="Suggested opener">

@@ -29,6 +29,8 @@ ADDED_COLUMNS = {
     ("audit_logs", "workspace_id"): "INTEGER DEFAULT 1",
     ("digest_settings", "workspace_id"): "INTEGER NOT NULL DEFAULT 1",
     ("users", "home_workspace_id"): "INTEGER",
+    ("lead_states", "assigned_to"): "INTEGER",
+    ("lead_states", "follow_up_on"): "DATE",
 }
 # Tables whose key changed to include the workspace: SQLite cannot alter a key, so they are rebuilt (rows kept).
 REKEYED = ("lead_states", "crm_links", "integration_tokens", "connectors", "source_toggles")

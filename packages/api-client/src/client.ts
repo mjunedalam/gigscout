@@ -6,7 +6,6 @@ import type {
   CronPreview,
   LeadPage,
   LeadQuery,
-  LeadStatus,
   LeadView,
   LiveEvent,
   MapPoint,
@@ -38,6 +37,7 @@ import type {
   Member,
   WorkspaceDetail,
   SetupStep,
+  LeadChange,
   Billing,
   BillingPlan,
   WorkspaceRole,
@@ -141,6 +141,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       rename: (name: string) => request<WorkspaceDetail>("PATCH", "/api/workspaces/current", { name }),
       rotateFormKey: () => request<WorkspaceDetail>("POST", "/api/workspaces/current/form-key"),
       setup: () => get<SetupStep[]>("/api/workspaces/current/setup"),
+      members: () => get<{ id: number; name: string; email: string }[]>("/api/workspaces/current/members"),
     },
     billing: {
       get: () => get<Billing>("/api/billing"),
@@ -156,7 +157,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
     leads: {
       list: (query: LeadQuery = {}) => get<LeadPage>("/api/leads", { ...query }),
       get: (id: string) => get<LeadView>(`/api/leads/${encodeURIComponent(id)}`),
-      update: (id: string, change: { status?: LeadStatus; notes?: string }) =>
+      update: (id: string, change: LeadChange) =>
         request<LeadView>("PATCH", `/api/leads/${encodeURIComponent(id)}`, change),
       ask: (question: string, k = 8) => request<AskResponse>("POST", "/api/leads/ask", { question, k }),
       askStream: (question: string, onEvent: (event: AskStreamEvent) => void, options: { k?: number; signal?: AbortSignal } = {}) =>

@@ -39,6 +39,8 @@ export function describeEvent(event: LiveEvent): Described {
       return { icon: <IconMailbox size={14} />, color: "pink", text: `Inbound: ${d.title}` };
     case "lead.updated":
       return { icon: <IconTag size={14} />, color: "violet", text: `${d.by} moved "${d.title}"${d.status ? ` → ${d.status}` : ""}` };
+    case "lead.assigned":
+      return { icon: <IconTag size={14} />, color: "blue", text: `${d.by} gave "${d.title}" to ${d.to}` };
     case "source.added":
       return { icon: <IconPlugConnected size={14} />, color: "teal", text: `Website connected: ${d.name}` };
     case "source.blocked":

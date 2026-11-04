@@ -17,7 +17,7 @@ from gigscout.platform.tables import (
     Workspace,
 )
 from gigscout.web.deps import AdminDep, PlatformAdminDep, SessionDep, WsDep, audit
-from gigscout.web.schemas import SetupStep, WorkspaceCreate, WorkspaceDetail, WorkspaceOut
+from gigscout.web.schemas import MemberName, SetupStep, WorkspaceCreate, WorkspaceDetail, WorkspaceOut
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
@@ -54,6 +54,14 @@ def current(session: SessionDep, ws: WsDep) -> WorkspaceDetail:
     members = session.scalar(select(func.count()).select_from(Membership).where(Membership.workspace_id == ws.id))
     return WorkspaceDetail(id=ws.id, name=ws.name, role=ws.role, members=members,
                            form_path=f"/webhooks/form/{workspace.form_key}" if ws.is_admin else None)
+
+
+@router.get("/current/members")
+def members(session: SessionDep, ws: WsDep) -> list[MemberName]:
+    """Who leads can be assigned to (names only, for everyone in the workspace)."""
+    rows = session.execute(select(User.id, User.name, User.email).join(Membership, Membership.user_id == User.id)
+                           .where(Membership.workspace_id == ws.id, User.is_active).order_by(User.name))
+    return [MemberName(id=i, name=n, email=e) for i, n, e in rows]
 
 
 @router.get("/current/setup")

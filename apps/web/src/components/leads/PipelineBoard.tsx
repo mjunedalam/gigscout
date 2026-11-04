@@ -101,6 +101,12 @@ export function PipelineBoard({ items, onOpen }: PipelineBoardProps) {
                         {money(v.lead)}
                       </Text>
                     </Group>
+                    {(v.assignee || v.follow_up_on) && (
+                      <Text size="xs" c="var(--gs-text-muted)" mt={6} truncate>
+                        {v.assignee ? `👤 ${v.assignee}` : ""}{v.assignee && v.follow_up_on ? " · " : ""}
+                        {v.follow_up_on ? `follow up ${v.follow_up_on}` : ""}
+                      </Text>
+                    )}
                   </Paper>
                 ))}
               </Stack>

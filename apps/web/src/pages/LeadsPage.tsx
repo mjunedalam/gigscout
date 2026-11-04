@@ -12,6 +12,7 @@ import {
   Stack,
   Text,
   TextInput,
+  Switch,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { IconLayoutKanban, IconSearch, IconTable } from "@tabler/icons-react";
@@ -51,6 +52,8 @@ function useLeadFilters() {
     sort: (params.get("sort") ?? "score") as NonNullable<LeadQuery["sort"]>,
     minScore: Number(params.get("min") ?? 0),
     quality: (params.get("quality") ?? "all") as NonNullable<LeadQuery["quality"]>,
+    owner: (params.get("owner") ?? "anyone") as NonNullable<LeadQuery["owner"]>,
+    due: params.get("due") === "1",
     page: Number(params.get("page") ?? 1),
     open: params.get("lead"),
     set,
@@ -73,6 +76,8 @@ export default function LeadsPage() {
     sort: f.sort,
     min_score: f.minScore > 0 ? f.minScore / 100 : undefined,
     quality: f.quality === "all" ? undefined : f.quality,
+    owner: f.owner === "anyone" ? undefined : f.owner,
+    due: f.due || undefined,
     page: f.view === "board" ? 1 : f.page,
     page_size: f.view === "board" ? BOARD_SIZE : PAGE_SIZE,
   };
@@ -143,6 +148,19 @@ export default function LeadsPage() {
             disabled={!!f.q}
             allowDeselect={false}
           />
+          <Select
+            w={150}
+            label="Owner"
+            data={[
+              { value: "anyone", label: "Anyone" },
+              { value: "me", label: "Mine" },
+              { value: "unassigned", label: "Unassigned" },
+            ]}
+            value={f.owner}
+            onChange={(v) => f.set("owner", v === "anyone" ? null : v)}
+            allowDeselect={false}
+          />
+          <Switch label="Follow-up due" checked={f.due} onChange={(e) => f.set("due", e.currentTarget.checked ? "1" : null)} mb={8} />
           <Select
             w={190}
             label="Quality check"

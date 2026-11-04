@@ -1,6 +1,6 @@
 """Request and response bodies of the web API. Response models never expose secrets or password hashes."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
@@ -148,6 +148,9 @@ class LeadView(BaseModel):
     similarity: float | None = None
     learned: float = 0.0  # how much won/lost leads moved the score
     learned_note: str = ""
+    assigned_to: int | None = None
+    assignee: str | None = None  # their name
+    follow_up_on: date | None = None
 
 
 class LeadPage(BaseModel):
@@ -158,8 +161,18 @@ class LeadPage(BaseModel):
 
 
 class LeadUpdate(BaseModel):
+    """Only the fields sent change. assigned_to and follow_up_on can be sent as null to clear them."""
+
     status: LeadStatus | None = None
     notes: str | None = Field(default=None, max_length=5000)
+    assigned_to: int | None = None
+    follow_up_on: date | None = None
+
+
+class MemberName(BaseModel):
+    id: int
+    name: str
+    email: str
 
 
 class AskRequest(BaseModel):

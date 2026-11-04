@@ -1,6 +1,7 @@
 """The lead workspace: browse, search, open, move through the sales pipeline, and ask questions."""
 
 import json
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -10,7 +11,7 @@ from sqlalchemy import select
 from gigscout.learning import OUTCOMES
 from gigscout.models import Candidate
 from gigscout.platform.learner import rescore_open_leads
-from gigscout.platform.tables import LeadState
+from gigscout.platform.tables import LeadState, Membership, User
 from gigscout.store.vector_store import StoredLead
 from gigscout.web.deps import PlatformDep, SessionDep, WsDep, audit
 from gigscout.web.schemas import AskRequest, AskResponse, LeadPage, LeadUpdate, LeadView
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 SEMANTIC_POOL = 200
 Sort = Literal["score", "recent", "budget"]
 Quality = Literal["all", "clean", "flagged"]
+Owner = Literal["anyone", "me", "unassigned"]
 
 
 @router.get("")
@@ -32,16 +34,19 @@ def list_leads(
     status_: list[str] = Query(default=[], alias="status"),
     min_score: float | None = Query(default=None, ge=0, le=1),
     quality: Quality = Query(default="all", description="clean: no duplicates, scams or warnings; flagged: only those"),
+    owner: Owner = Query(default="anyone", description="me: leads assigned to you; unassigned: nobody's yet"),
+    due: bool = Query(default=False, description="Only leads whose follow-up date is today or earlier"),
     sort: Sort = "score",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=200),
 ) -> LeadPage:
-    states = load_states(session, ws.id)
+    states, names = load_states(session, ws.id), member_names(session, ws.id)
     if q and len(q.strip()) >= 2:
         hits = ws.index.search(q, k=SEMANTIC_POOL)
-        views = [to_view(None, states, c) for c in hits]
+        views = [to_view(None, states, c, names) for c in hits]
     else:
-        views = [to_view(stored, states) for stored in ws.index.records()]
+        views = [to_view(stored, states, names=names) for stored in ws.index.records()]
+    today = date.today()
     views = [
         v for v in views
         if (not kind or v.lead.kind in kind)
@@ -49,6 +54,8 @@ def list_leads(
         and (not status_ or v.status in status_)
         and (min_score is None or (v.score or 0) >= min_score)
         and (quality == "all" or (quality == "flagged") == _flagged(v))
+        and (owner == "anyone" or (v.assigned_to == ws.user.id if owner == "me" else v.assigned_to is None))
+        and (not due or (v.follow_up_on is not None and v.follow_up_on <= today))
     ]
     if not q:
         views.sort(key=_sort_key(sort), reverse=True)
@@ -62,7 +69,8 @@ def get_lead(lead_id: str, session: SessionDep, ws: WsDep) -> LeadView:
     if lead is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
     state = session.get(LeadState, (ws.id, lead_id))
-    return to_view(None, {lead_id: state} if state else {}, Candidate(lead=lead, similarity=1))
+    return to_view(None, {lead_id: state} if state else {}, Candidate(lead=lead, similarity=1),
+                   member_names(session, ws.id))
 
 
 @router.patch("/{lead_id:path}")
@@ -73,20 +81,28 @@ def update_lead(
     if lead is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
     state = session.get(LeadState, (ws.id, lead_id)) or LeadState(workspace_id=ws.id, lead_id=lead_id)
-    previous = state.status or "new"
-    changes = body.model_dump(exclude_none=True)
+    previous, before_owner = state.status or "new", state.assigned_to
+    changes = {k: v for k, v in body.model_dump(exclude_unset=True).items()
+               if v is not None or k in ("assigned_to", "follow_up_on")}
+    names = member_names(session, ws.id)
+    if changes.get("assigned_to") is not None and changes["assigned_to"] not in names:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assign leads to people in this workspace")
     for field, value in changes.items():
         setattr(state, field, value)
     outcome_changed = previous != state.status and (previous in OUTCOMES or state.status in OUTCOMES)
     state.updated_by = ws.email
     session.add(state)
-    audit(session, ws, "lead.update", lead_id, **changes)
+    audit(session, ws, "lead.update", lead_id, **{k: str(v) if isinstance(v, date) else v for k, v in changes.items()})
     session.flush()
     if outcome_changed:
         rescore_open_leads(session, ws.index, ws.id)  # a new win or loss teaches something
     session.commit()
-    platform.bus.publish("lead.updated", {"id": lead_id, "title": lead.title, "by": ws.user.name, **changes}, ws.id)
-    return to_view(None, {lead_id: state}, Candidate(lead=lead, similarity=1))
+    shown = {k: str(v) if isinstance(v, date) else v for k, v in changes.items()}
+    platform.bus.publish("lead.updated", {"id": lead_id, "title": lead.title, "by": ws.user.name, **shown}, ws.id)
+    if state.assigned_to and state.assigned_to != before_owner:
+        platform.bus.publish("lead.assigned", {"id": lead_id, "title": lead.title, "by": ws.user.name,
+                                               "to": names.get(state.assigned_to), "user_id": state.assigned_to}, ws.id)
+    return to_view(None, {lead_id: state}, Candidate(lead=lead, similarity=1), names)
 
 
 @router.post("/ask/stream", tags=["leads"])
@@ -115,7 +131,14 @@ def load_states(session, workspace_id: int) -> dict[str, LeadState]:
     return {s.lead_id: s for s in session.scalars(select(LeadState).where(LeadState.workspace_id == workspace_id))}
 
 
-def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: Candidate | None = None) -> LeadView:
+def member_names(session, workspace_id: int) -> dict[int, str]:
+    rows = session.execute(select(User.id, User.name).join(Membership, Membership.user_id == User.id)
+                           .where(Membership.workspace_id == workspace_id))
+    return dict(rows.all())
+
+
+def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: Candidate | None = None,
+            names: dict[int, str] | None = None) -> LeadView:
     lead = stored.lead if stored else candidate.lead
     state = states.get(lead.id)
     return LeadView(
@@ -125,7 +148,9 @@ def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: 
         **({
             "status": state.status, "notes": state.notes, "score": state.score, "reasons": state.reasons,
             "red_flags": state.red_flags, "pitch": state.pitch, "learned": state.learned or 0.0,
-            "learned_note": state.learned_note or "",
+            "learned_note": state.learned_note or "", "assigned_to": state.assigned_to,
+            "assignee": (names or {}).get(state.assigned_to) if state.assigned_to else None,
+            "follow_up_on": state.follow_up_on,
         } if state else {}),
     )
 

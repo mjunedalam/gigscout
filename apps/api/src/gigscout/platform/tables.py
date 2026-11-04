@@ -1,9 +1,9 @@
 """Relational state for the platform. Leads themselves live in the vector store; this holds everything around them."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 ROLES = ("admin", "member")  # platform-wide: an admin runs the whole installation and every workspace
@@ -160,6 +160,9 @@ class LeadState(Base):
     base_score: Mapped[float | None] = mapped_column(Float, default=None)  # the agents' score, before learning
     learned: Mapped[float] = mapped_column(Float, default=0.0)  # nudge from won/lost leads (score = base + learned)
     learned_note: Mapped[str] = mapped_column(Text, default="")
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), default=None,
+                                                    index=True)  # who on the team owns the lead
+    follow_up_on: Mapped[date | None] = mapped_column(Date, default=None, index=True)
     last_run_id: Mapped[str | None] = mapped_column(String(36), default=None)
     updated_by: Mapped[str | None] = mapped_column(String(254), default=None)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
