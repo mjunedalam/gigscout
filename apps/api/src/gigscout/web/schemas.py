@@ -180,6 +180,8 @@ class SourceHealth(BaseModel):
     kind: Literal["feed", "page"] | None = None
     status: Literal["ok", "blocked", "error"] | None = None
     lead_kind: str | None = None
+    bot_check: bool | None = None  # website form only: Cloudflare Turnstile is on
+    site_key: str | None = None  # the public Turnstile site key, for the form snippet
 
 
 class ProfileSuggestRequest(BaseModel):

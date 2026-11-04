@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { BotCheck } from "../../components/admin/BotCheck";
 import { SourceLibrary } from "../../components/admin/SourceLibrary";
 import { UpworkPanel } from "../../components/admin/UpworkPanel";
 import { PageHeader } from "../../components/layout-bits";
@@ -160,6 +161,7 @@ function SourceCard({ source: s, result, testing, onTest }: {
           {!s.enabled && <Text size="xs" c="var(--gs-text-muted)">Set {setup.env} in apps/api/.env to turn it on.</Text>}
         </Stack>
       )}
+      {s.name === "website_form" && s.enabled && <BotCheck on={!!s.bot_check} siteKey={s.site_key ?? null} />}
       {s.url && <Anchor href={s.url} target="_blank" rel="noreferrer" size="xs" mt="xs" display="block" truncate>{s.url}</Anchor>}
       {blocked && (
         <Alert mt="md" color="red" variant="light" icon={<IconAlertTriangle size={16} />}>

@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+from urllib.parse import parse_qsl
 
 import httpx
 import respx
@@ -225,3 +226,83 @@ def test_refused_requests_leave_nothing_behind():
     limit = routes_inbound._SenderLimit(per_hour=1, burst=99, burst_prefix=99, ceiling=99, max_keys=99)
     assert limit.allow("a", "blk")[0] and not limit.allow("a", "blk")[0]
     assert len(limit._all) == 1 and len(limit._seen["a"]) == 1
+
+
+TURNSTILE = {"website_form_key": SecretStr(FORM_KEY), "turnstile_secret_key": SecretStr("ts-secret"),
+             "turnstile_site_key": "0x4AAAAAAAsitekey"}
+
+
+def siteverify(**result):
+    from gigscout.inbound import turnstile
+
+    return respx.post(turnstile.VERIFY_URL).mock(return_value=httpx.Response(200, json=result))
+
+
+def website_leads(platform):
+    return [r.lead for r in platform.service.deps.index.records() if r.lead.source == "website_form"]
+
+
+@respx.mock
+def test_with_turnstile_on_a_passed_check_stores_the_lead_without_the_token(web):
+    route = siteverify(success=True)
+    client, platform = web(**TURNSTILE)
+    response = client.post(f"/webhooks/form/{FORM_KEY}",
+                           data={"email": "ana@b.com", "message": "Need an app", "cf-turnstile-response": "tok-1"})
+    assert response.status_code == 200 and "Thank you" in response.text
+    sent = dict(parse_qsl(route.calls[0].request.content.decode()))
+    assert sent["secret"] == "ts-secret" and sent["response"] == "tok-1"
+    [lead] = website_leads(platform)
+    assert "tok-1" not in lead.description and "turnstile" not in lead.description
+
+
+@respx.mock
+def test_with_turnstile_on_a_missing_or_failed_token_stores_nothing(web):
+    route = siteverify(success=False, **{"error-codes": ["invalid-input-response"]})
+    client, platform = web(**TURNSTILE)
+    missing = client.post(f"/webhooks/form/{FORM_KEY}", json={"email": "bot@x.com", "message": "spam"})
+    assert missing.status_code == 403 and route.call_count == 0  # no token: Cloudflare is not even asked
+    page = client.post(f"/webhooks/form/{FORM_KEY}", data={"message": "spam", "cf-turnstile-response": "forged"})
+    assert page.status_code == 403 and "Please try again" in page.text
+    assert not website_leads(platform)
+
+
+@respx.mock
+def test_passed_checks_skip_the_burst_allowance_and_are_not_flagged(web, monkeypatch):
+    from gigscout.web import routes_inbound
+
+    monkeypatch.setattr(routes_inbound, "_form_limit", routes_inbound._SenderLimit(10, burst=0, burst_prefix=0))
+    siteverify(success=True)
+    client, platform = web(**TURNSTILE)
+    for i in range(3):
+        body = {"message": f"real enquiry {i}", "cf-turnstile-response": f"tok-{i}"}
+        assert client.post(f"/webhooks/form/{FORM_KEY}", json=body).json() == {"status": "stored"}
+    assert all(not lead.description.startswith(routes_inbound.BURST_NOTE) for lead in website_leads(platform))
+
+
+@respx.mock
+def test_if_cloudflare_is_down_enquiries_fall_back_to_the_ip_limits(web):
+    from gigscout.inbound import turnstile
+
+    respx.post(turnstile.VERIFY_URL).mock(side_effect=httpx.ConnectError("down"))
+    client, platform = web(**TURNSTILE)
+    body = {"message": "hello", "cf-turnstile-response": "tok"}
+    assert client.post(f"/webhooks/form/{FORM_KEY}", json=body).json() == {"status": "stored"}
+    assert len(website_leads(platform)) == 1
+
+
+@respx.mock
+def test_a_wrong_secret_key_does_not_throw_away_enquiries(web):
+    siteverify(success=False, **{"error-codes": ["invalid-input-secret"]})
+    client, _ = web(**TURNSTILE)
+    body = {"message": "hello", "cf-turnstile-response": "tok"}
+    assert client.post(f"/webhooks/form/{FORM_KEY}", json=body).json() == {"status": "stored"}
+
+
+def test_connectors_show_the_bot_check_and_public_site_key_but_never_the_secret(web):
+    client, _ = web(**TURNSTILE)
+    login(client)
+    response = client.get("/api/admin/sources")
+    form = next(s for s in response.json() if s["name"] == "website_form")
+    assert form["bot_check"] is True and form["site_key"] == "0x4AAAAAAAsitekey"
+    assert "ts-secret" not in response.text
+    assert "ts-secret" not in client.get("/api/admin/settings").text

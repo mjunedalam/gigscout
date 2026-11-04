@@ -333,6 +333,10 @@ export interface SourceHealth {
   status: "ok" | "blocked" | "error" | null;
   /** What its listings are: someone wanting work done, a contract, or a company hiring. */
   lead_kind: ConnectorLeadKind | null;
+  /** Website form only: the Cloudflare Turnstile bot check is on. */
+  bot_check?: boolean | null;
+  /** Website form only: the public Turnstile site key, for the form snippet. */
+  site_key?: string | null;
 }
 
 /** A message to a lead: drafted (by the AI or a template), edited, sent, then tracked. */

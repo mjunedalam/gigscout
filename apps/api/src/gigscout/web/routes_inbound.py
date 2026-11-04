@@ -1,7 +1,8 @@
 """Webhooks for inbound enquiries: the company's own website form, Typeform, and Meta lead ads.
 
 Unauthenticated by design (the senders cannot log in); each is authenticated its own way: a secret key in the form
-URL, Typeform's and Meta's HMAC signatures over the raw body, and Meta's verify token for the subscription check.
+URL (plus Cloudflare Turnstile when its secret is set), Typeform's and Meta's HMAC signatures over the raw body, and
+Meta's verify token for the subscription check.
 """
 
 import hashlib
@@ -20,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import SecretStr
 
-from gigscout.inbound import forms
+from gigscout.inbound import forms, turnstile
 from gigscout.web.deps import PlatformDep
 
 log = logging.getLogger(__name__)
@@ -44,12 +45,18 @@ THANKS_PAGE = (
     '<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 1rem">'
     "<h1>Thank you</h1><p>We received your message and will get back to you shortly.</p></body>"
 )
+CHECK_FAILED_PAGE = THANKS_PAGE.replace("<title>Thank you</title>", "<title>Please try again</title>").replace(
+    "<h1>Thank you</h1><p>We received your message and will get back to you shortly.</p>",
+    "<h1>Please try again</h1><p>We could not confirm the form was sent by a person. Go back, complete the check "
+    "above the send button and submit again.</p>",
+)
 
 
 class _SenderLimit:
     """Hourly limits on accepted submissions. Never a cap that refuses everyone (that would let one attacker block
     genuine enquiries): in a burst, network blocks get a much smaller allowance and what passes is flagged instead.
-    Keys with no calls in the last hour are forgotten, so memory stays small."""
+    Senders who passed the Turnstile check skip the network-block allowance (a person solved it, so sharing an office
+    network with a bot does not matter). Keys with no calls in the last hour are forgotten, so memory stays small."""
 
     def __init__(self, per_hour: int, burst: int = BURST_PER_HOUR, burst_prefix: int = BURST_PREFIX_PER_HOUR,
                  ceiling: int = HARD_CEILING_PER_HOUR, max_keys: int = MAX_TRACKED_KEYS) -> None:
@@ -60,15 +67,15 @@ class _SenderLimit:
         self._swept_at = float("-inf")
         self._lock = threading.Lock()
 
-    def allow(self, sender: str, block: str) -> tuple[bool, bool]:
-        """(accepted, arrived during a burst)."""
+    def allow(self, sender: str, block: str, verified: bool = False) -> tuple[bool, bool]:
+        """(accepted, arrived during a burst). Verified submissions are never flagged as part of a burst."""
         now = time.monotonic()
         with self._lock:
             _trim(self._all, now)
             if now - self._swept_at >= SWEEP_SECONDS:  # forget quiet keys now and then, not on every call
                 self._seen = {k: calls for k, calls in self._seen.items() if _trim(calls, now)}
                 self._swept_at = now
-            burst = len(self._all) >= self._burst
+            burst = len(self._all) >= self._burst and not verified
             if len(self._all) >= self._ceiling:
                 return False, burst
             block_key = f"block:{block}"
@@ -124,16 +131,23 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Send the form URL-encoded (the HTML default)")
     is_html_form = content_type.startswith("application/x-www-form-urlencoded")
     body = await _body(request)
-    raw = dict(parse_qsl(body.decode("utf-8", "replace"), max_num_fields=forms.MAX_FIELDS)) if is_html_form \
+    raw = dict(parse_qsl(body.decode("utf-8", "replace"), max_num_fields=forms.MAX_FIELDS + 1)) if is_html_form \
         else _json(body)
-    fields = forms.clean({k: v for k, v in raw.items() if isinstance(v, str | int | float | list)})
+    token = raw.get(turnstile.TOKEN_FIELD)
+    fields = forms.clean({k: v for k, v in raw.items()
+                          if k != turnstile.TOKEN_FIELD and isinstance(v, str | int | float | list)})
     result = "stored"
     if forms.is_spam(fields):
         log.info("Dropped a website form submission that filled the honeypot")  # answer as if stored
     elif not fields:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "The form was empty")
     else:
-        accepted, burst = _form_limit.allow(*sender_of(request))
+        check = await _bot_check(platform, token if isinstance(token, str) else None, request)
+        if check is turnstile.Check.FAILED:
+            if is_html_form:
+                return HTMLResponse(CHECK_FAILED_PAGE, status_code=status.HTTP_403_FORBIDDEN)
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "The bot check failed; please try again")
+        accepted, burst = _form_limit.allow(*sender_of(request), verified=check is turnstile.Check.PASSED)
         if not accepted:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many submissions; please try again later")
         native_id = hashlib.sha256(repr(sorted(fields.items())).encode()).hexdigest()[:24]  # a double submit is one
@@ -142,6 +156,14 @@ async def website_form(key: str, request: Request, platform: PlatformDep) -> HTM
             lead = lead.model_copy(update={"description": f"{BURST_NOTE}\n\n{lead.description}"})
         result = _ingest(platform, lead)
     return HTMLResponse(THANKS_PAGE) if is_html_form else {"status": result}
+
+
+async def _bot_check(platform, token: str | None, request: Request) -> turnstile.Check | None:
+    """None when Turnstile is off (the IP limits alone apply)."""
+    secret = platform.settings.turnstile_secret_key
+    if secret is None:
+        return None
+    return await turnstile.verify(secret, token, request.client.host if request.client else None)
 
 
 @router.post("/typeform")

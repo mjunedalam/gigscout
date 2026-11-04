@@ -181,7 +181,10 @@ def source_health(platform: PlatformDep, session: SessionDep, _: AdminDep) -> li
         )
         for c in session.scalars(select(Connector).order_by(Connector.created_at))
     ]
-    pushed = [SourceHealth(name=name, channel="push", enabled=ready, recent_failures=0)
+    settings = platform.settings
+    bot_check = {"bot_check": settings.turnstile_secret_key is not None, "site_key": settings.turnstile_site_key}
+    pushed = [SourceHealth(name=name, channel="push", enabled=ready, recent_failures=0,
+                           **(bot_check if name == "website_form" else {}))
               for name, ready in platform.service.inbound_channels().items()]
     return [*pulled, *sites, *pushed]
 

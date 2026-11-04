@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     google_ads_webhook_key: SecretStr | None = None
     # Your own website's contact form posts to /webhooks/form/<key>. Any long random string; unset = off.
     website_form_key: SecretStr | None = None
+    # Cloudflare Turnstile bot check on the website form (Cloudflare > Turnstile > your widget). With the secret set,
+    # every website form submission must carry a valid token; the site key is public and only shown in the snippet.
+    turnstile_secret_key: SecretStr | None = None
+    turnstile_site_key: str | None = Field(default=None, max_length=100)
     # Typeform: the secret set on the form's webhook (Connect > Webhooks). Unset = off.
     typeform_webhook_secret: SecretStr | None = None
     # Meta (Facebook/Instagram) lead ads: the app secret, the verify token you choose when subscribing the
