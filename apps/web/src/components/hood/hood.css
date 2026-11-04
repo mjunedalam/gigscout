@@ -100,3 +100,17 @@
 @media (max-width: 480px) {
   .gs-hood-time { width: 44px; }
 }
+
+.gs-hood-agent { cursor: pointer; }
+.gs-hood-peek {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--agent);
+  opacity: 0.75;
+  transition: opacity var(--gs-fast) var(--gs-ease), transform var(--gs-fast) var(--gs-ease);
+}
+.gs-hood-agent:hover .gs-hood-peek, .gs-hood-agent:focus-visible .gs-hood-peek { opacity: 1; transform: translateX(2px); }

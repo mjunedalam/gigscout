@@ -72,7 +72,7 @@ function agentCount(model: CockpitModel, agent: AgentKey): string | null {
   return p && p.total > 1 ? `${p.done}/${p.total}` : null;
 }
 
-export function AgentCards({ model, now }: { model: CockpitModel; now: number }) {
+export function AgentCards({ model, now, onPeek }: { model: CockpitModel; now: number; onPeek?: (agent: AgentKey) => void }) {
   return (
     <div className="gs-panel gs-cockpit-agents" aria-label="Agents on this run">
       <span className="gs-eyebrow">Agents on this run</span>
@@ -84,7 +84,11 @@ export function AgentCards({ model, now }: { model: CockpitModel; now: number })
         const count = agentCount(model, agent);
         const progress = Math.round(agentProgress(model, agent) * 100);
         return (
-          <div key={agent} className="gs-cockpit-agent" data-state={state} style={{ "--c": AGENT_COLORS[agent] } as CSSProperties}>
+          <div key={agent} className="gs-cockpit-agent" data-state={state} style={{ "--c": AGENT_COLORS[agent] } as CSSProperties}
+            role={onPeek ? "button" : undefined} tabIndex={onPeek ? 0 : undefined}
+            aria-label={onPeek ? `${AGENT_NAMES[agent]}: see what happens under the hood` : undefined}
+            onClick={onPeek ? () => onPeek(agent) : undefined}
+            onKeyDown={onPeek ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPeek(agent); } } : undefined}>
             <div className="top">
               <span className="sw" />
               {AGENT_NAMES[agent]}
@@ -102,6 +106,7 @@ export function AgentCards({ model, now }: { model: CockpitModel; now: number })
               <span>{count ?? `${actions} ${actions === 1 ? "action" : "actions"}`}</span>
               <span>{state === "pending" ? "–" : `${state === "done" ? "✓ " : ""}${clock(agentElapsed(model, agent, now))}`}</span>
             </div>
+            {onPeek && <div className="peek">Under the hood ›</div>}
           </div>
         );
       })}

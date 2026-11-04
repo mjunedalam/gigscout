@@ -18,7 +18,7 @@ export function HoodDrawer({ step, onClose }: { step: HoodStep | null; onClose: 
   );
 }
 
-function HoodDetail({ step }: { step: HoodStep }) {
+export function HoodDetail({ step }: { step: HoodStep }) {
   const d = step.detail;
   const tokens = (d.tokens_in ?? 0) + (d.tokens_out ?? 0);
   return (

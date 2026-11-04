@@ -1,7 +1,7 @@
 import type { AgentKey } from "@gigscout/api-client";
 import { AGENT_COLORS, AGENT_NAMES } from "@gigscout/viz";
 import { Group, Progress, SimpleGrid, Text, UnstyledButton } from "@mantine/core";
-import { IconBrain, IconFileText, IconSearch, IconTarget } from "@tabler/icons-react";
+import { IconBrain, IconChevronRight, IconFileText, IconSearch, IconTarget } from "@tabler/icons-react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { AGENT_ROLE, AGENTS, type AgentState, millis } from "./steps";
@@ -53,6 +53,7 @@ export function AgentLanes({ states, onPeek, compact = false }: AgentLanesProps)
               {s.busyMs > 0 && <span>{millis(s.busyMs)}</span>}
               {!compact && s.tokens > 0 && <span>{s.tokens.toLocaleString()} tokens</span>}
             </Group>
+            {onPeek && <span className="gs-hood-peek">Under the hood <IconChevronRight size={12} /></span>}
           </UnstyledButton>
         );
       })}

@@ -16,10 +16,12 @@ interface StepTimelineProps {
   onOpen: (step: HoodStep) => void;
   live: boolean;
   height?: number;
+  /** Inside one agent's panel: no agent chips and no switch, under-the-hood steps always shown. */
+  bare?: boolean;
 }
 
 /** The run, step by step. With "Under the hood" on, every AI call and tool call is listed and opens in detail. */
-export function StepTimeline({ steps, showHood, onShowHood, agent, onAgent, onOpen, live, height = 480 }: StepTimelineProps) {
+export function StepTimeline({ steps, showHood, onShowHood, agent, onAgent, onOpen, live, height = 480, bare = false }: StepTimelineProps) {
   const shown = steps.filter((s) => (showHood || !s.hood) && (agent === null || s.agent === agent));
   const hoodCount = steps.filter((s) => s.hood && (agent === null || s.agent === agent)).length;
   const end = useRef<HTMLDivElement>(null);
@@ -30,7 +32,7 @@ export function StepTimeline({ steps, showHood, onShowHood, agent, onAgent, onOp
 
   return (
     <div>
-      <Group justify="space-between" mb="sm" gap="sm">
+      {!bare && <Group justify="space-between" mb="sm" gap="sm">
         <Chip.Group multiple={false} value={agent ?? "all"} onChange={(v) => onAgent(v === "all" ? null : (v as AgentKey))}>
           <Group gap={6}>
             <Chip value="all" size="xs" variant="outline">All agents</Chip>
@@ -39,7 +41,7 @@ export function StepTimeline({ steps, showHood, onShowHood, agent, onAgent, onOp
         </Chip.Group>
         <Switch checked={showHood} onChange={(e) => onShowHood(e.currentTarget.checked)} color="signal"
           label={<Text size="sm" fw={600}>Under the hood {hoodCount > 0 && <Badge size="xs" variant="light" ml={4}>{hoodCount}</Badge>}</Text>} />
-      </Group>
+      </Group>}
       <Box className="gs-hood-timeline" h={height} role="log" aria-live={live ? "polite" : "off"}
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -78,7 +80,7 @@ export function StepTimeline({ steps, showHood, onShowHood, agent, onAgent, onOp
         })}
         <div ref={end} />
       </Box>
-      {!showHood && hoodCount > 0 && (
+      {!bare && !showHood && hoodCount > 0 && (
         <Text size="xs" c="var(--gs-text-muted)" mt="xs">
           {hoodCount} AI and tool steps are hidden. Turn on "Under the hood" to see each prompt, answer and tool call.
         </Text>

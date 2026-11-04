@@ -1,3 +1,4 @@
+import type { AgentKey } from "@gigscout/api-client";
 import { Alert, Button, Center, Loader, SegmentedControl, Stack, Text, useComputedColorScheme } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
@@ -5,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useState } from "react";
 
 import { AgentCards, CockpitCharts, KpiStrip, LiveFeed } from "../components/cockpit/CockpitPanels";
+import { AgentHoodDrawer } from "../components/hood/AgentHoodDrawer";
 import { useCockpit } from "../components/cockpit/useCockpit";
 import { StartRunButton } from "../components/StartRunButton";
 import { api, messageOf } from "../lib/api";
@@ -21,6 +23,7 @@ const MODE_LABEL = { idle: "", loading: "Loading…", live: "Live", replay: "Rep
 export default function CockpitPage() {
   const { run, mode, model, now, error, replay } = useCockpit();
   const [camera, setCamera] = useState<"follow" | "overview">("follow");
+  const [peek, setPeek] = useState<AgentKey | null>(null);
   const dark = useComputedColorScheme("dark") === "dark";
   const active = run?.status === "running" || run?.status === "queued";
   const stop = useMutation({
@@ -67,7 +70,7 @@ export default function CockpitPage() {
     <div className="gs-cockpit">
       <KpiStrip model={model} run={run} now={now} controls={controls} />
       <aside className="gs-cockpit-side">
-        <AgentCards model={model} now={now} />
+        <AgentCards model={model} now={now} onPeek={run ? setPeek : undefined} />
         <LiveFeed model={model} />
       </aside>
       <main className="gs-panel gs-cockpit-stage">
@@ -80,6 +83,7 @@ export default function CockpitPage() {
         </Suspense>
       </main>
       <CockpitCharts model={model} />
+      <AgentHoodDrawer runId={run?.id ?? null} agent={peek} active={active} onClose={() => setPeek(null)} />
     </div>
   );
 }

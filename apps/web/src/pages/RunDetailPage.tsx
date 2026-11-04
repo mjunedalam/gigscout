@@ -53,7 +53,7 @@ export default function RunDetailPage() {
               </Stack>
             </Alert>
           )}
-          <Tabs defaultValue={active || !r.report ? "agents" : "briefing"} keepMounted={false}>
+          <Tabs defaultValue="agents" keepMounted={false}>
             <Tabs.List mb="md">
               <Tabs.Tab value="agents" leftSection={<IconEye size={16} />}>What the agents did</Tabs.Tab>
               <Tabs.Tab value="briefing" leftSection={<IconFileText size={16} />} disabled={!r.report}>Briefing</Tabs.Tab>
