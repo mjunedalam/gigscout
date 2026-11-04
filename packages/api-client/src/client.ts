@@ -37,6 +37,7 @@ import type {
   Member,
   WorkspaceDetail,
   SetupStep,
+  MarketTrends,
   LeadChange,
   Billing,
   BillingPlan,
@@ -205,6 +206,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       analytics: (days = 14) => get<Analytics>("/api/metrics/analytics", { days }),
       map: () => get<MapPoint[]>("/api/metrics/map"),
       learning: () => get<Learning>("/api/metrics/learning"),
+      trends: (weeks = 4) => get<MarketTrends>("/api/metrics/trends", { weeks }),
     },
     events: {
       recent: (limit = 50) => get<LiveEvent[]>("/api/events/recent", { limit }),

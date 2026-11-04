@@ -3,13 +3,14 @@
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import numpy as np
 
 from gigscout.models import ALL_LEAD_KINDS
 from gigscout.platform.tables import LEAD_STATUSES, LeadState, Run
 from gigscout.store.vector_store import StoredLead
+from gigscout.text import contains_term
 
 SCORE_BINS = 10
 SCATTER_LIMIT = 600
@@ -130,6 +131,63 @@ def semantic_map(
         "x": round(float(x), 4), "y": round(float(y), 4), "z": round(float(z), 4),
         "score": states[s.lead.id].score if s.lead.id in states else None,
     } for s, (x, y, z) in zip(usable, coords, strict=True)]
+
+
+TREND_WEEKS = 4  # recent window, compared with the same length before it
+TREND_TOP = 12
+MIN_MENTIONS = 3  # a term needs this many mentions (both windows) before its change means anything
+
+
+def trends(leads: Sequence[StoredLead], watch_terms: Iterable[str] = (), now: datetime | None = None,
+           weeks: int = TREND_WEEKS) -> dict:
+    """What the market asks for: skills in demand and how fast that is changing (the last `weeks` against the
+    `weeks` before), the median project budget per week, and which sources are growing.
+
+    Terms are the skills leads list, plus `watch_terms` (the company's own skills and services) wherever a lead
+    mentions them, so the trends say something about what this company sells."""
+    now = now or datetime.now(UTC)
+    window = timedelta(weeks=weeks)
+    recent_from, previous_from = now - window, now - 2 * window
+    watch = {t.strip().lower() for t in watch_terms if t and len(t.strip()) > 1}
+    counts: dict[str, list[int]] = {}
+    sources: dict[str, list[int]] = {}
+    weekly: dict[date, list[float]] = {}
+    for stored in leads:
+        seen = stored.seen_at
+        if seen < previous_from:
+            continue
+        slot = 0 if seen >= recent_from else 1
+        lead = stored.lead
+        text = f"{lead.title} {lead.description}".lower()
+        terms = {s.strip().lower() for s in lead.skills if s.strip()} | {t for t in watch if contains_term(text, t)}
+        for term in terms:
+            counts.setdefault(term, [0, 0])[slot] += 1
+        sources.setdefault(lead.source, [0, 0])[slot] += 1
+        budget = lead.budget.max_usd if lead.budget and lead.budget.kind in ("fixed", "unknown") else None
+        if budget and lead.kind in ("project", "contract"):
+            week = (seen - timedelta(days=seen.weekday())).date()
+            weekly.setdefault(week, []).append(budget)
+
+    def row(term: str, recent: int, previous: int) -> dict:
+        change = None if previous == 0 else round((recent - previous) / previous, 3)
+        return {"term": term, "recent": recent, "previous": previous, "change": change, "yours": term in watch}
+
+    rows = [row(t, r, p) for t, (r, p) in counts.items() if r + p >= MIN_MENTIONS]
+    demand = sorted(rows, key=lambda x: (x["recent"], x["previous"]), reverse=True)[:TREND_TOP]
+    moving = [x for x in rows if x["previous"] and x["recent"] + x["previous"] >= 2 * MIN_MENTIONS]
+    rising = sorted((x for x in moving if x["change"] > 0), key=lambda x: x["change"], reverse=True)[:TREND_TOP // 2]
+    falling = sorted((x for x in moving if x["change"] < 0), key=lambda x: x["change"])[:TREND_TOP // 2]
+    return {
+        "weeks": weeks,
+        "demand": demand,
+        "rising": rising,
+        "falling": falling,
+        "new": sorted((x for x in rows if x["previous"] == 0), key=lambda x: x["recent"], reverse=True)[:6],
+        "budgets": [{"week": w.isoformat(), "median_usd": round(float(np.median(v)), 2), "count": len(v)}
+                    for w, v in sorted(weekly.items())],
+        "sources": sorted(({"source": s, "recent": r, "previous": p} for s, (r, p) in sources.items()),
+                          key=lambda x: x["recent"], reverse=True),
+    }
 
 
 def most_recent(leads: Sequence[StoredLead], limit: int = MAP_LIMIT) -> list[StoredLead]:

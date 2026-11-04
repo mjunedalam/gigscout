@@ -184,6 +184,27 @@ export interface WorkspaceDetail extends WorkspaceSummary {
   members: number;
 }
 
+export interface TrendRow {
+  term: string;
+  /** Leads mentioning it in the last `weeks`, and in the same span before. */
+  recent: number;
+  previous: number;
+  /** (recent - previous) / previous; null when it is new. */
+  change: number | null;
+  /** One of the company's own skills or services. */
+  yours: boolean;
+}
+
+export interface MarketTrends {
+  weeks: number;
+  demand: TrendRow[];
+  rising: TrendRow[];
+  falling: TrendRow[];
+  new: TrendRow[];
+  budgets: { week: string; median_usd: number; count: number }[];
+  sources: { source: string; recent: number; previous: number }[];
+}
+
 export interface SetupStep {
   id: "profile" | "sources" | "run" | "digest" | "team" | "outcome";
   label: string;

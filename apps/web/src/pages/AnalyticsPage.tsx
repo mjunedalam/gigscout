@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { WhatWins } from "../components/analytics/WhatWins";
+import { MarketTrends } from "../components/analytics/MarketTrends";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel } from "../components/layout-bits";
 import { api, messageOf } from "../lib/api";
@@ -36,6 +37,9 @@ export default function AnalyticsPage() {
         </Center>
       ) : (
         <Grid gutter="md" className="gs-stagger">
+          <Grid.Col span={12}>
+            <MarketTrends />
+          </Grid.Col>
           <Grid.Col span={12}>
             <Panel eyebrow={`Lead flow · ${days} days`} title="New leads per day, by kind">
               <LeadFlowChart rows={a.timeseries} height={280} />

@@ -12,7 +12,7 @@ from gigscout.learning import MIN_OUTCOMES
 from gigscout.platform import analytics
 from gigscout.platform.container import Platform
 from gigscout.platform.learner import current_learning
-from gigscout.platform.tables import Run
+from gigscout.platform.tables import AgencyProfileRecord, Run
 from gigscout.web.deps import PlatformDep, SessionDep, WsDep
 from gigscout.web.routes_leads import load_states
 from gigscout.web.schemas import LearningOut, LearningSignalOut
@@ -53,6 +53,14 @@ def metrics_analytics(
         "funnel": analytics.funnel(leads, states),
         "runs": analytics.run_series(runs),
     }
+
+
+@router.get("/metrics/trends")
+def market_trends(session: SessionDep, ws: WsDep, weeks: int = Query(default=4, ge=1, le=12)) -> dict:
+    """Skills in demand and how fast that is changing, budgets per week, and growing sources."""
+    profiles = session.scalars(select(AgencyProfileRecord.data).where(AgencyProfileRecord.workspace_id == ws.id))
+    watch = [term for data in profiles for key in ("skills", "services") for term in data.get(key) or []]
+    return analytics.trends(ws.index.records(), watch, weeks=weeks)
 
 
 @router.get("/metrics/map")
