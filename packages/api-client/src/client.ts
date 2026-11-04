@@ -141,7 +141,8 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       rename: (name: string) => request<WorkspaceDetail>("PATCH", "/api/workspaces/current", { name }),
       rotateFormKey: () => request<WorkspaceDetail>("POST", "/api/workspaces/current/form-key"),
       setup: () => get<SetupStep[]>("/api/workspaces/current/setup"),
-      members: () => get<{ id: number; name: string; email: string }[]>("/api/workspaces/current/members"),
+      /** hint tells same-named people apart: the email for admins, masked for everyone else. */
+      members: () => get<{ id: number; name: string; hint: string }[]>("/api/workspaces/current/members"),
     },
     billing: {
       get: () => get<Billing>("/api/billing"),

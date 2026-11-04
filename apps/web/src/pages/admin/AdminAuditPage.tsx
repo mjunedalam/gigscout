@@ -13,12 +13,19 @@ const AREA_COLORS: Record<string, string> = {
 export default function AdminAuditPage() {
   const audit = useQuery({ queryKey: ["admin", "audit"], queryFn: () => api.admin.audit(500), refetchInterval: 30_000 });
   const [area, setArea] = useState<string | null>(null);
-  const rows = (audit.data ?? []).filter((a) => !area || a.action.startsWith(`${area}.`));
+  const [actor, setActor] = useState<string | null>(null);
+  const actors = [...new Set((audit.data ?? []).map((a) => a.actor))].sort();
+  const rows = (audit.data ?? []).filter((a) => (!area || a.action.startsWith(`${area}.`)) && (!actor || a.actor === actor));
 
   return (
     <>
       <PageHeader eyebrow="Admin" title="Audit log" description="Every sign-in and change, newest first."
-        actions={<Select placeholder="All areas" clearable value={area} onChange={setArea} data={Object.keys(AREA_COLORS)} w={180} />} />
+        actions={
+          <Group gap="xs">
+            <Select placeholder="Everyone" clearable value={actor} onChange={setActor} data={actors} w={220} aria-label="Filter by person" />
+            <Select placeholder="All areas" clearable value={area} onChange={setArea} data={Object.keys(AREA_COLORS)} w={180} aria-label="Filter by area" />
+          </Group>
+        } />
       {audit.isError && <Alert color="red">{messageOf(audit.error)}</Alert>}
       {audit.isPending ? (
         <Skeleton h={400} radius="lg" />

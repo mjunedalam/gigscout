@@ -12,6 +12,8 @@ interface AuthState {
   workspaces: WorkspaceSummary[];
   /** Owner or admin of the current workspace. */
   isAdmin: boolean;
+  /** Anyone but a viewer: viewers look and change nothing. */
+  canWrite: boolean;
   /** Runs the whole installation: every workspace, system health and configuration. */
   isPlatformAdmin: boolean;
   login: (email: string, password: string) => Promise<User>;
@@ -94,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       workspace,
       workspaces,
       isAdmin: workspace?.role === "owner" || workspace?.role === "admin",
+      canWrite: !!workspace && workspace.role !== "viewer",
       isPlatformAdmin: me.data?.role === "admin",
       login,
       logout,

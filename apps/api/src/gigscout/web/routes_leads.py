@@ -13,7 +13,7 @@ from gigscout.models import Candidate
 from gigscout.platform.learner import rescore_open_leads
 from gigscout.platform.tables import LeadState, Membership, User
 from gigscout.store.vector_store import StoredLead
-from gigscout.web.deps import PlatformDep, SessionDep, WsDep, audit
+from gigscout.web.deps import PlatformDep, SessionDep, WriterDep, WsDep, audit
 from gigscout.web.schemas import AskRequest, AskResponse, LeadPage, LeadUpdate, LeadView
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
@@ -75,7 +75,7 @@ def get_lead(lead_id: str, session: SessionDep, ws: WsDep) -> LeadView:
 
 @router.patch("/{lead_id:path}")
 def update_lead(
-    lead_id: str, body: LeadUpdate, platform: PlatformDep, session: SessionDep, ws: WsDep,
+    lead_id: str, body: LeadUpdate, platform: PlatformDep, session: SessionDep, ws: WriterDep,
 ) -> LeadView:
     lead = ws.index.get(lead_id)
     if lead is None:

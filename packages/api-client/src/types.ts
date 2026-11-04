@@ -170,7 +170,7 @@ export interface User {
 }
 
 /** owner and admin manage the workspace; members work leads and start runs. */
-export type WorkspaceRole = "owner" | "admin" | "member";
+export type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
 
 export interface WorkspaceSummary {
   id: number;

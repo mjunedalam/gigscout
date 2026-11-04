@@ -9,7 +9,7 @@ import { useNavigate } from "react-router";
 import { api, messageOf } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 
-const ROLE_LABEL = { owner: "owner", admin: "admin", member: "member" } as const;
+const ROLE_LABEL = { owner: "owner", admin: "admin", member: "member", viewer: "viewer" } as const;
 
 /** Which company you are working in. Everything on every page belongs to it. */
 export function WorkspaceSwitcher() {

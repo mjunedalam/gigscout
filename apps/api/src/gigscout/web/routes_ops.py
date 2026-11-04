@@ -11,7 +11,7 @@ from gigscout.platform.runs import ProfileNotFound
 from gigscout.platform.scheduler import InvalidCron
 from gigscout.platform.tables import AgencyProfileRecord, Run, Schedule
 from gigscout.profile_templates import TEMPLATES, closest_template
-from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, UserDep, WsDep, audit
+from gigscout.web.deps import AdminDep, PlatformDep, SessionDep, UserDep, WriterDep, WsDep, audit
 from gigscout.web.schemas import (
     CronPreview,
     ProfileOut,
@@ -104,7 +104,7 @@ def list_runs(
 
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
-def start_run(body: RunCreate, platform: PlatformDep, session: SessionDep, ws: WsDep) -> RunOut:
+def start_run(body: RunCreate, platform: PlatformDep, session: SessionDep, ws: WriterDep) -> RunOut:
     if reason := platform.billing.run_blocked(ws.id):
         raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, reason)
     try:
@@ -134,7 +134,7 @@ def run_activity(run_id: str, platform: PlatformDep, ws: WsDep) -> list[dict]:
 
 
 @router.post("/runs/{run_id}/cancel")
-def cancel_run(run_id: str, platform: PlatformDep, session: SessionDep, ws: WsDep) -> dict:
+def cancel_run(run_id: str, platform: PlatformDep, session: SessionDep, ws: WriterDep) -> dict:
     """Cancel a queued run, or ask a running one to stop at its next step."""
     run = session.get(Run, run_id)
     if run is None or run.workspace_id != ws.id:
@@ -200,7 +200,7 @@ def delete_schedule(schedule_id: int, platform: PlatformDep, session: SessionDep
 
 
 @router.post("/schedules/{schedule_id}/trigger")
-def trigger_schedule(schedule_id: int, platform: PlatformDep, session: SessionDep, ws: WsDep) -> dict:
+def trigger_schedule(schedule_id: int, platform: PlatformDep, session: SessionDep, ws: WriterDep) -> dict:
     _schedule(session, ws.id, schedule_id)
     if reason := platform.billing.run_blocked(ws.id):
         raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, reason)

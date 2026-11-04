@@ -23,6 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, messageOf } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { clientLabel, dateTime, money } from "../lib/format";
 import { KindBadge, ScoreRing } from "./badges";
 import { LeadOutreach } from "./leads/LeadOutreach";
@@ -42,6 +43,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
     setNotes(lead.data?.notes ?? "");
   }, [lead.data?.notes]);
 
+  const { canWrite } = useAuth();
   const members = useQuery({ queryKey: ["workspace", "members"], queryFn: api.workspaces.members, staleTime: 60_000 });
   const update = useMutation({
     mutationFn: (change: LeadChange) => api.leads.update(leadId!, change),
@@ -94,18 +96,18 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               value={view.status}
               data={LEAD_STATUSES.map((s) => ({ value: s, label: s }))}
               onChange={(status) => update.mutate({ status: status as LeadStatus })}
-              disabled={update.isPending}
+              disabled={update.isPending || !canWrite}
             />
           </Stack>
 
           <Group grow align="flex-end">
             <Select label="Owner" placeholder="Nobody yet" clearable data={(members.data ?? []).map((m, _, all) => ({
                 value: String(m.id),
-                label: all.filter((o) => o.name === m.name).length > 1 ? `${m.name} (${m.email})` : m.name,
+                label: all.filter((o) => o.name === m.name).length > 1 ? `${m.name} (${m.hint})` : m.name,
               }))}
-              value={view.assigned_to ? String(view.assigned_to) : null} disabled={update.isPending}
+              value={view.assigned_to ? String(view.assigned_to) : null} disabled={update.isPending || !canWrite}
               onChange={(v) => update.mutate({ assigned_to: v ? Number(v) : null })} />
-            <TextInput label="Follow up on" type="date" value={view.follow_up_on ?? ""} disabled={update.isPending}
+            <TextInput label="Follow up on" type="date" value={view.follow_up_on ?? ""} disabled={update.isPending || !canWrite}
               onChange={(e) => update.mutate({ follow_up_on: e.currentTarget.value || null })} />
           </Group>
 
@@ -142,7 +144,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
             </Alert>
           )}
 
-          <LeadOutreach leadId={view.lead.id} />
+          {canWrite && <LeadOutreach leadId={view.lead.id} />}
 
           <Divider />
           <Stack gap={6}>
@@ -168,6 +170,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               minRows={3}
               value={notes}
               onChange={(e) => setNotes(e.currentTarget.value)}
+              disabled={!canWrite}
               placeholder="Who you spoke to, next step, follow-up date…"
               maxLength={5000}
             />

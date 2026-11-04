@@ -9,7 +9,7 @@ from gigscout.models import AgencyProfile, Lead
 from gigscout.platform.security import MIN_PASSWORD_LENGTH
 
 Role = Literal["admin", "member"]  # platform-wide
-WorkspaceRole = Literal["owner", "admin", "member"]
+WorkspaceRole = Literal["owner", "admin", "member", "viewer"]
 LeadStatus = Literal["new", "contacted", "proposal", "won", "lost", "archived"]
 RunMode = Literal["auto", "team", "pipeline"]
 
@@ -172,7 +172,7 @@ class LeadUpdate(BaseModel):
 class MemberName(BaseModel):
     id: int
     name: str
-    email: str
+    hint: str  # tells same-named people apart: the email for admins, masked ("a•••@acme.com") for everyone else
 
 
 class AskRequest(BaseModel):

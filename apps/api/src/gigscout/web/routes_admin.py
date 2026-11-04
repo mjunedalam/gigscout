@@ -348,7 +348,7 @@ def _hash(password: str) -> str:
 
 
 MANAGERS = ("owner", "admin")
-RANK = {"member": 0, "admin": 1, "owner": 2}
+RANK = {"viewer": 0, "member": 1, "admin": 2, "owner": 3}
 
 
 def _member(user: User, role: str) -> MemberOut:

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { api, messageOf } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
 const MODES: { value: RunMode; label: string; description: string }[] = [
   { value: "auto", label: "Auto", description: "The agent team if the local LLM is up, otherwise the fast pipeline." },
@@ -23,6 +24,7 @@ interface StartRunButtonProps {
 
 /** Launch the agents for an agency profile, then (by default) jump to the live run. */
 export function StartRunButton({ size = "md", openRun = true }: StartRunButtonProps) {
+  const { canWrite } = useAuth();
   const [opened, { open, close }] = useDisclosure();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -42,6 +44,7 @@ export function StartRunButton({ size = "md", openRun = true }: StartRunButtonPr
     onError: (error) => notifications.show({ color: "red", title: "Could not start the run", message: messageOf(error) }),
   });
 
+  if (!canWrite) return null;
   return (
     <>
       <Button size={size} leftSection={<IconBolt size={18} />} onClick={open}>

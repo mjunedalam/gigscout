@@ -58,10 +58,15 @@ def current(session: SessionDep, ws: WsDep) -> WorkspaceDetail:
 
 @router.get("/current/members")
 def members(session: SessionDep, ws: WsDep) -> list[MemberName]:
-    """Who leads can be assigned to (names only, for everyone in the workspace)."""
+    """Who leads can be assigned to. Emails are shown in full only to admins (as on the Team page)."""
     rows = session.execute(select(User.id, User.name, User.email).join(Membership, Membership.user_id == User.id)
                            .where(Membership.workspace_id == ws.id, User.is_active).order_by(User.name))
-    return [MemberName(id=i, name=n, email=e) for i, n, e in rows]
+    return [MemberName(id=i, name=n, hint=e if ws.is_admin else _masked(e)) for i, n, e in rows]
+
+
+def _masked(email: str) -> str:
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}•••@{domain}" if domain else f"{local[:1]}•••"
 
 
 @router.get("/current/setup")

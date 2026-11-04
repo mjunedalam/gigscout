@@ -29,7 +29,7 @@ import { useAuth } from "../../lib/auth";
 import { timeAgo } from "../../lib/format";
 
 const MIN_PASSWORD = 10;
-const ROLES: WorkspaceRole[] = ["member", "admin", "owner"];
+const ROLES: WorkspaceRole[] = ["viewer", "member", "admin", "owner"];
 
 export default function AdminUsersPage() {
   const { user: me, workspace } = useAuth();
@@ -50,7 +50,7 @@ export default function AdminUsersPage() {
   return (
     <>
       <PageHeader eyebrow={workspace?.name ?? "Admin"} title="Team"
-        description="Owners and admins manage profiles, schedules, connectors and the team. Members work leads and start runs. Only owners make owners."
+        description="Owners and admins manage profiles, schedules, connectors and the team. Members work leads and start runs. Viewers can look but not change anything. Only owners make owners."
         actions={<Button leftSection={<IconUserPlus size={18} />} onClick={invite.open}>Add someone</Button>} />
       {users.isPending && <Skeleton h={300} radius="lg" />}
       {users.data && (

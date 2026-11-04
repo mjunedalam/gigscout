@@ -7,7 +7,8 @@ from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 ROLES = ("admin", "member")  # platform-wide: an admin runs the whole installation and every workspace
-WORKSPACE_ROLES = ("owner", "admin", "member")  # within one workspace; owners and admins manage it
+# within one workspace: owners and admins manage it, members work leads and start runs, viewers only look
+WORKSPACE_ROLES = ("owner", "admin", "member", "viewer")
 DEFAULT_WORKSPACE = 1  # existing data and env-configured inbound channels (Google Ads, Typeform, Meta) land here
 WS = "workspaces.id"
 RUN_STATUSES = ("queued", "running", "succeeded", "failed", "cancelled")

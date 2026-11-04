@@ -215,3 +215,20 @@ def test_the_setup_checklist_follows_what_the_workspace_has_done(web):
     client.post("/api/profiles", json={"name": "Bright", "pitch": "Apps", "skills": ["react"]})
     client.put("/api/admin/sources/fake/enabled", json={"enabled": False})
     assert done() == {"profile", "sources", "team"}
+
+
+def test_viewers_see_everything_and_change_nothing(web):
+    client, platform = web()
+    platform.index_for(1).add_new([make_lead("1", "Django API")])
+    login(client)
+    viewer = client.post("/api/admin/users", json={"email": "look@acme.com", "name": "Looker", "role": "viewer",
+                                                   "password": PASSWORD}).json()
+    assert viewer["role"] == "viewer"
+    profile = client.get("/api/profiles").json()
+    login(client, "look@acme.com")
+    assert client.get("/api/leads").json()["total"] == 1 and client.get("/api/runs").status_code == 200
+    assert client.patch("/api/leads/fake:1", json={"status": "won"}).status_code == 403
+    if profile:
+        assert client.post("/api/runs", json={"profile_id": profile[0]["id"], "mode": "pipeline"}).status_code == 403
+    assert client.post("/api/outreach", json={"lead_id": "fake:1"}).status_code == 403
+    assert client.get("/api/admin/users").status_code == 403

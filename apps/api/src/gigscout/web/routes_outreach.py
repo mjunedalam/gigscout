@@ -13,7 +13,7 @@ from gigscout import outreach as outreach_lib
 from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
 from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, utcnow
-from gigscout.web.deps import PlatformDep, SessionDep, UserDep, Ws, WsDep, audit
+from gigscout.web.deps import PlatformDep, SessionDep, UserDep, WriterDep, Ws, WsDep, audit
 from gigscout.web.schemas import (
     CrmLinkOut,
     CrmSyncIn,
@@ -48,7 +48,7 @@ def list_outreach(lead_id: str, session: SessionDep, ws: WsDep) -> list[Outreach
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDep, user: WsDep) -> OutreachOut:
+def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDep, user: WriterDep) -> OutreachOut:
     lead = _lead(user, body.lead_id)
     profile = _profile(session, user.id, body.profile_id)
     state = session.get(LeadState, (user.id, lead.id))
@@ -63,7 +63,7 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
 
 
 @router.put("/{outreach_id}")
-def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: WsDep) -> OutreachOut:
+def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: WriterDep) -> OutreachOut:
     row = _draft(session, ws.id, outreach_id)
     if body.channel == "email" and not body.to:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs an address to send to")
@@ -73,7 +73,7 @@ def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: 
 
 
 @router.post("/{outreach_id}/send")
-def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WsDep) -> OutreachOut:
+def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WriterDep) -> OutreachOut:
     """Email it, or for a marketplace bid record that it was pasted into the bid form. A draft is sent once."""
     row = _draft(session, user.id, outreach_id)
     with _sending:
@@ -97,7 +97,7 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WsD
 
 
 @router.post("/{outreach_id}/status")
-def set_status(outreach_id: int, body: OutreachStatusIn, session: SessionDep, user: WsDep) -> OutreachOut:
+def set_status(outreach_id: int, body: OutreachStatusIn, session: SessionDep, user: WriterDep) -> OutreachOut:
     row = session.get(Outreach, outreach_id)
     if row is None or row.workspace_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Message not found")
@@ -117,7 +117,7 @@ def crm_links(lead_id: str, session: SessionDep, ws: WsDep) -> CrmSyncOut:
 
 
 @router.post("/crm")
-def push_to_crm(body: CrmSyncIn, platform: PlatformDep, session: SessionDep, user: WsDep) -> CrmSyncOut:
+def push_to_crm(body: CrmSyncIn, platform: PlatformDep, session: SessionDep, user: WriterDep) -> CrmSyncOut:
     """Create a deal in every connected CRM that does not have this lead yet."""
     crms = crm_lib.configured(platform.settings)
     if not crms:

@@ -65,7 +65,7 @@ class Ws:
 
     id: int
     name: str
-    role: str  # owner | admin | member ("owner" for platform admins visiting)
+    role: str  # owner | admin | member | viewer ("owner" for platform admins visiting)
     user: User
     index: LeadIndex
 
@@ -111,6 +111,16 @@ def require_admin(ws: WsDep) -> Ws:
 
 
 AdminDep = Annotated[Ws, Depends(require_admin)]
+
+
+def require_writer(ws: WsDep) -> Ws:
+    """Anyone but a viewer: viewers can look at everything and change nothing."""
+    if ws.role == "viewer":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Viewers can look but not change anything")
+    return ws
+
+
+WriterDep = Annotated[Ws, Depends(require_writer)]
 
 
 def require_platform_admin(user: UserDep) -> User:

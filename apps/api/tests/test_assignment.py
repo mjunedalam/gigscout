@@ -50,3 +50,12 @@ def test_leads_go_only_to_people_in_the_workspace(web):
     outsider = client.post("/api/admin/users", headers={"X-Workspace": str(other)},
                            json={"email": "out@x.com", "name": "Out", "password": "correct-horse-battery"}).json()
     assert client.patch("/api/leads/fake:1", json={"assigned_to": outsider["id"]}).status_code == 422
+
+
+def test_only_admins_see_colleagues_full_emails(web):
+    client, _, _ = setup(web)
+    assert {m["hint"] for m in client.get("/api/workspaces/current/members").json()} == {
+        "admin@acme-studio.com", "rep@acme-studio.com"}
+    login(client, MEMBER_EMAIL)
+    assert {m["hint"] for m in client.get("/api/workspaces/current/members").json()} == {
+        "a•••@acme-studio.com", "r•••@acme-studio.com"}
