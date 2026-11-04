@@ -77,6 +77,43 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=200)
 
 
+class PlanOut(BaseModel):
+    id: str
+    label: str
+    price: str | None  # as Stripe has it, e.g. "$49/month"
+    members: int
+    runs_per_month: int
+
+
+class BillingOut(BaseModel):
+    enabled: bool  # False: self-hosted without Stripe, nothing is limited
+    plan: str
+    status: str
+    can_work: bool
+    reason: str
+    trial_ends_at: UtcDatetime | None
+    current_period_end: UtcDatetime | None
+    members_limit: int | None
+    runs_limit: int | None
+    members: int
+    runs_this_month: int
+    plans: list[PlanOut]
+    can_manage: bool  # has a Stripe customer, so the portal can open
+
+
+class CheckoutIn(BaseModel):
+    plan: Literal["starter", "growth"]
+
+
+class SetupStep(BaseModel):
+    id: str
+    label: str
+    help: str
+    href: str
+    done: bool
+    admin_only: bool  # members see it, but only owners and admins can do it
+
+
 class WorkspaceCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
 

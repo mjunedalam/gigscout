@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile
+from gigscout.platform.billing import BillingService
 from gigscout.platform.db import SessionFactory, create_db
 from gigscout.platform.digests import DigestManager
 from gigscout.platform.events import EventBus
@@ -39,6 +40,7 @@ class Platform:
     schedules: ScheduleManager
     digests: DigestManager
     upwork: UpworkConnection
+    billing: BillingService
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)  # per account + client address
     account_limiter: LoginLimiter = field(default_factory=lambda: LoginLimiter(max_failures=ACCOUNT_MAX_FAILURES))
     started_at: float = field(default_factory=time.time)
@@ -63,9 +65,10 @@ class Platform:
         upwork = UpworkConnection(sessions, settings)
         indexes = _IndexRef()
         runs = RunManager(service, sessions, bus, extra_sources=upwork.sources, index_for=indexes)
-        schedules = ScheduleManager(sessions, runs, bus, settings.timezone)
+        billing = BillingService(sessions, settings)
+        schedules = ScheduleManager(sessions, runs, bus, settings.timezone, blocked=billing.run_blocked)
         digests = DigestManager(sessions, indexes, settings, bus, schedules)
-        platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork)
+        platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork, billing)
         indexes.platform = platform
         return platform
 

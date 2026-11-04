@@ -1,6 +1,7 @@
 """Cron schedules for agent runs, stored in the database and executed by APScheduler."""
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -30,8 +31,10 @@ def parse_cron(expression: str, timezone: str) -> CronTrigger:
 
 
 class ScheduleManager:
-    def __init__(self, sessions: SessionFactory, runs: RunManager, bus: EventBus, timezone: str) -> None:
+    def __init__(self, sessions: SessionFactory, runs: RunManager, bus: EventBus, timezone: str,
+                 blocked: Callable[[int], str | None] = lambda _workspace_id: None) -> None:
         self._sessions = sessions
+        self._blocked = blocked  # billing: why a workspace may not run now
         self._runs = runs
         self._bus = bus
         self._timezone = timezone
@@ -100,6 +103,12 @@ class ScheduleManager:
         with self._sessions() as session:
             schedule = session.get(Schedule, schedule_id)
             if schedule is None:
+                return None
+            reason = self._blocked(schedule.workspace_id)
+            if reason:
+                log.info("Schedule %s skipped: %s", schedule.name, reason)
+                self._bus.publish("schedule.skipped", {"id": schedule.id, "name": schedule.name, "reason": reason},
+                                  schedule.workspace_id)
                 return None
             if self._runs.has_active_run(schedule.profile_id):
                 log.info("Schedule %s skipped: a run for this profile is already active", schedule.name)

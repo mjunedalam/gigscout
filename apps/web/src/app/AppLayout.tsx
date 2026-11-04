@@ -40,11 +40,14 @@ import {
   IconShieldLock,
   IconSun,
   IconUsers,
+  IconSettings,
+  IconCreditCard,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../lib/auth";
+import { BillingBanner } from "../components/workspace/BillingBanner";
 import { WorkspaceSwitcher } from "../components/workspace/WorkspaceSwitcher";
 import { useLive } from "../lib/live";
 
@@ -70,7 +73,9 @@ const OPERATIONS: NavItem[] = [
 ];
 
 const ADMIN: NavItem[] = [
+  { to: "/admin/workspace", label: "Workspace", icon: <IconSettings size={18} />, description: "Name, website form, daily digest" },
   { to: "/admin/users", label: "Team", icon: <IconUsers size={18} />, description: "Members and roles in this workspace" },
+  { to: "/admin/billing", label: "Billing", icon: <IconCreditCard size={18} />, description: "Plan, usage and payment" },
   { to: "/admin/sources", label: "Connectors", icon: <IconPlugConnected size={18} />, description: "Websites the agents search" },
   { to: "/admin/audit", label: "Audit log", icon: <IconClipboardList size={18} />, description: "Who changed what" },
 ];
@@ -234,6 +239,7 @@ export function AppLayout() {
 
       <AppShell.Main>
         <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+          <BillingBanner />
           <Outlet />
         </div>
       </AppShell.Main>

@@ -29,6 +29,7 @@ dependencies = [
     "cryptography>=43",
     "defusedxml>=0.7",
     "psycopg[binary]>=3.2",
+    "stripe>=12",
 ]
 
 [dependency-groups]

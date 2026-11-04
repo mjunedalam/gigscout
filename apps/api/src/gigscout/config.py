@@ -96,6 +96,17 @@ class Settings(BaseSettings):
     meta_verify_token: SecretStr | None = None
     meta_page_access_token: SecretStr | None = None
 
+    # Stripe billing: off until the secret key, the webhook secret and at least one plan price are set (a
+    # self-hosted install has no limits). Exempt workspaces (the operator's own) never pay.
+    stripe_secret_key: SecretStr | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    stripe_price_starter: str | None = Field(default=None, pattern=r"^price_[A-Za-z0-9]+$")
+    stripe_price_growth: str | None = Field(default=None, pattern=r"^price_[A-Za-z0-9]+$")
+    billing_exempt_workspace_ids: list[int] = Field(default_factory=lambda: [1])
+    # Where people reach the app, e.g. https://leads.youragency.com (Stripe sends them back here). Default: the
+    # address the request came in on.
+    public_url: str | None = Field(default=None, pattern=r"^https?://[^\s/]+$")
+
     # Platform: users, runs, schedules and lead pipeline state (SQLite by default)
     database_url: str | None = Field(default=None, description="Default: sqlite in data_dir")
     session_ttl_hours: int = Field(default=168, ge=1)

@@ -37,6 +37,9 @@ import type {
   User,
   Member,
   WorkspaceDetail,
+  SetupStep,
+  Billing,
+  BillingPlan,
   WorkspaceRole,
   WorkspaceSummary,
 } from "./types";
@@ -137,6 +140,13 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       current: () => get<WorkspaceDetail>("/api/workspaces/current"),
       rename: (name: string) => request<WorkspaceDetail>("PATCH", "/api/workspaces/current", { name }),
       rotateFormKey: () => request<WorkspaceDetail>("POST", "/api/workspaces/current/form-key"),
+      setup: () => get<SetupStep[]>("/api/workspaces/current/setup"),
+    },
+    billing: {
+      get: () => get<Billing>("/api/billing"),
+      /** Stripe Checkout's address; the plan starts when Stripe confirms the payment. */
+      checkout: (plan: BillingPlan["id"]) => request<{ url: string }>("POST", "/api/billing/checkout", { plan }),
+      portal: () => request<{ url: string }>("POST", "/api/billing/portal"),
     },
     auth: {
       login: (email: string, password: string) => request<{ user: User }>("POST", "/api/auth/login", { email, password }),

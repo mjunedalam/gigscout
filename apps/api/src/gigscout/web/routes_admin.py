@@ -60,8 +60,10 @@ def list_members(session: SessionDep, ws: AdminDep) -> list[MemberOut]:
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
-def add_member(body: UserCreate, session: SessionDep, ws: AdminDep) -> MemberOut:
+def add_member(body: UserCreate, platform: PlatformDep, session: SessionDep, ws: AdminDep) -> MemberOut:
     _may_grant(ws, body.role)
+    if reason := platform.billing.member_blocked(ws.id):
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, reason)
     email = body.email.lower()
     user = session.scalar(select(User).where(User.email == email))
     if user is None:

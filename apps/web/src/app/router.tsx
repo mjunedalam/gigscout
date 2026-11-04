@@ -22,6 +22,8 @@ const AdminUsersPage = lazy(() => import("../pages/admin/AdminUsersPage"));
 const AdminSourcesPage = lazy(() => import("../pages/admin/AdminSourcesPage"));
 const AdminSettingsPage = lazy(() => import("../pages/admin/AdminSettingsPage"));
 const AdminAuditPage = lazy(() => import("../pages/admin/AdminAuditPage"));
+const BillingPage = lazy(() => import("../pages/admin/BillingPage"));
+const WorkspaceSettingsPage = lazy(() => import("../pages/admin/WorkspaceSettingsPage"));
 
 function page(element: ReactNode) {
   return (
@@ -63,6 +65,8 @@ export const router = createBrowserRouter([
       { path: "admin/sources", element: admin(<AdminSourcesPage />) },
       { path: "admin/settings", element: platformAdmin(<AdminSettingsPage />) },
       { path: "admin/audit", element: admin(<AdminAuditPage />) },
+      { path: "admin/workspace", element: admin(<WorkspaceSettingsPage />) },
+      { path: "admin/billing", element: admin(<BillingPage />) },
       { path: "*", element: page(<NotFoundPage />) },
     ],
   },

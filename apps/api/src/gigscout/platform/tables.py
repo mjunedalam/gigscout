@@ -62,6 +62,20 @@ class Membership(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class Subscription(Base):
+    """A workspace's Stripe subscription, as Stripe last reported it. No row: it never subscribed (trial)."""
+
+    __tablename__ = "subscriptions"
+
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
+    plan: Mapped[str] = mapped_column(String(16), default="trial")
+    status: Mapped[str] = mapped_column(String(24), default="incomplete")
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(default=None)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
 

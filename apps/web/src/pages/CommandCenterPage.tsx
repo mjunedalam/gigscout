@@ -1,6 +1,6 @@
 import { LEAD_KINDS } from "@gigscout/api-client";
 import { Donut, KIND_COLORS, KIND_LABELS, LeadFlowChart } from "@gigscout/viz";
-import { Badge, Button, Center, Grid, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Badge, Box, Button, Center, Grid, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { IconBolt, IconCircleCheck, IconEye, IconMailbox, IconRadar2, IconStack2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useState } from "react";
@@ -15,6 +15,7 @@ import { StartRunButton } from "../components/StartRunButton";
 import { api } from "../lib/api";
 import { duration, timeAgo } from "../lib/format";
 import { useLive } from "../lib/live";
+import { SetupChecklist } from "../components/workspace/SetupChecklist";
 
 const LeadGalaxy = lazy(() => import("@gigscout/viz/galaxy"));
 
@@ -35,6 +36,7 @@ export default function CommandCenterPage() {
         description="Every lead the agents found, every enquiry your ads brought in, updating as it happens."
         actions={<StartRunButton />}
       />
+      <Box mb="md"><SetupChecklist /></Box>
 
       <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" className="gs-stagger" mb="md">
         <StatTile label="Leads in memory" value={o?.total_leads ?? "–"} hint={`${o?.new_last_24h ?? 0} new in 24h`}

@@ -105,6 +105,8 @@ def list_runs(
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
 def start_run(body: RunCreate, platform: PlatformDep, session: SessionDep, ws: WsDep) -> RunOut:
+    if reason := platform.billing.run_blocked(ws.id):
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, reason)
     try:
         run = platform.runs.submit(ws.id, body.profile_id, body.mode, "manual", ws.email)
     except ProfileNotFound as exc:
@@ -200,6 +202,8 @@ def delete_schedule(schedule_id: int, platform: PlatformDep, session: SessionDep
 @router.post("/schedules/{schedule_id}/trigger")
 def trigger_schedule(schedule_id: int, platform: PlatformDep, session: SessionDep, ws: WsDep) -> dict:
     _schedule(session, ws.id, schedule_id)
+    if reason := platform.billing.run_blocked(ws.id):
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, reason)
     run_id = platform.schedules.fire(schedule_id)
     if run_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "A run for this profile is already queued or running")

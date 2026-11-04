@@ -168,6 +168,42 @@ export interface WorkspaceDetail extends WorkspaceSummary {
   members: number;
 }
 
+export interface SetupStep {
+  id: "profile" | "sources" | "run" | "digest" | "team" | "outcome";
+  label: string;
+  help: string;
+  href: string;
+  done: boolean;
+  /** Members see it, but only owners and admins can do it. */
+  admin_only: boolean;
+}
+
+export interface BillingPlan {
+  id: "starter" | "growth";
+  label: string;
+  /** As Stripe has it, e.g. "$49/month". */
+  price: string | null;
+  members: number;
+  runs_per_month: number;
+}
+
+/** The workspace's plan. `enabled` false: self-hosted without Stripe, nothing is limited. */
+export interface Billing {
+  enabled: boolean;
+  plan: "unlimited" | "trial" | "starter" | "growth";
+  status: string;
+  can_work: boolean;
+  reason: string;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  members_limit: number | null;
+  runs_limit: number | null;
+  members: number;
+  runs_this_month: number;
+  plans: BillingPlan[];
+  can_manage: boolean;
+}
+
 /** A person as a member of the current workspace; `role` is their role there. */
 export interface Member {
   id: number;

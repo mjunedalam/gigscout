@@ -3,7 +3,6 @@ import { IconInfoCircle, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { DigestSettings } from "../../components/admin/DigestSettings";
 import { PageHeader } from "../../components/layout-bits";
 import { api, messageOf } from "../../lib/api";
 
@@ -14,8 +13,7 @@ export default function AdminSettingsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Admin" title="Configuration" description="The daily digest, and the settings this server is running with. Secrets are masked." />
-      <DigestSettings />
+      <PageHeader eyebrow="Platform" title="Configuration" description="The settings this server is running with. Secrets are masked; change them in apps/api/.env and restart." />
       <Alert icon={<IconInfoCircle size={18} />} variant="light" mb="md">
         Change values in <code>apps/api/.env</code> as <code>GIGSCOUT_&lt;NAME&gt;</code> and restart the API.
       </Alert>

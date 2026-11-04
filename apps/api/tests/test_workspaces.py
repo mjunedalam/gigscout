@@ -201,3 +201,17 @@ def test_the_suite_runs_on_postgres_when_asked(web):
     _, platform = web()
     expected = "postgresql" if os.environ.get("GIGSCOUT_TEST_POSTGRES_URL") else "sqlite"
     assert platform.engine.dialect.name == expected
+
+
+def test_the_setup_checklist_follows_what_the_workspace_has_done(web):
+    client, _ = web()
+    second_workspace(client)
+    login(client, OTHER_EMAIL)
+
+    def done():
+        return {s["id"] for s in client.get("/api/workspaces/current/setup").json() if s["done"]}
+
+    assert done() == {"team"}  # the platform admin who created it and its owner
+    client.post("/api/profiles", json={"name": "Bright", "pitch": "Apps", "skills": ["react"]})
+    client.put("/api/admin/sources/fake/enabled", json={"enabled": False})
+    assert done() == {"profile", "sources", "team"}
