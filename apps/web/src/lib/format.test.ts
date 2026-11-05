@@ -1,7 +1,7 @@
 import type { Lead } from "@gigscout/api-client";
 import { describe, expect, it } from "vitest";
 
-import { clientLabel, describeCron, duration, money, percent } from "./format";
+import { clientLabel, describeCron, duration, money, percent, utc } from "./format";
 
 const lead = (overrides: Partial<Lead> = {}): Lead => ({
   id: "x:1", source: "x", title: "t", description: "", url: "", kind: "project", skills: [],
@@ -25,5 +25,14 @@ describe("format", () => {
     expect(describeCron("0 9 * * 1-5")).toMatch(/09:00/);
     expect(describeCron("nope")).toBe("Invalid schedule");
     expect(percent(0.756)).toBe("76");
+  });
+});
+
+describe("server times", () => {
+  it("reads a time without a zone as UTC, not local time", () => {
+    expect(utc("2026-11-06T10:00:00").toISOString()).toBe("2026-11-06T10:00:00.000Z");
+    expect(utc("2026-11-06T10:00:00+02:00").toISOString()).toBe("2026-11-06T08:00:00.000Z");
+    expect(utc("2026-11-06T10:00:00Z").toISOString()).toBe("2026-11-06T10:00:00.000Z");
+    expect(utc("2026-11-06").format("YYYY-MM-DD")).toBe("2026-11-06");
   });
 });

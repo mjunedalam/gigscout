@@ -5,12 +5,17 @@ import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(relativeTime);
 
+/** Server times are UTC; some arrive without a zone (SQLite drops it), and a bare time would be read as local. */
+export function utc(iso: string): dayjs.Dayjs {
+  return dayjs(/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
+}
+
 export function timeAgo(iso: string | null | undefined): string {
-  return iso ? dayjs(iso).fromNow() : "—";
+  return iso ? utc(iso).fromNow() : "—";
 }
 
 export function dateTime(iso: string | null | undefined): string {
-  return iso ? dayjs(iso).format("D MMM YYYY, HH:mm") : "—";
+  return iso ? utc(iso).format("D MMM YYYY, HH:mm") : "—";
 }
 
 export function duration(seconds: number | null | undefined): string {

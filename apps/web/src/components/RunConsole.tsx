@@ -1,6 +1,7 @@
 import { Box } from "@mantine/core";
-import dayjs from "dayjs";
 import { useEffect, useRef } from "react";
+
+import { utc } from "../lib/format";
 
 interface RunConsoleProps {
   lines: { at?: string; line: string }[];
@@ -22,7 +23,7 @@ export function RunConsole({ lines, height = 300, placeholder = "Waiting for the
         const [who, ...rest] = entry.line.split(":");
         return (
           <div key={i}>
-            {entry.at && <span className="gs-console-time">{dayjs(entry.at).format("HH:mm:ss")}</span>}
+            {entry.at && <span className="gs-console-time">{utc(entry.at).format("HH:mm:ss")}</span>}
             {rest.length ? (
               <>
                 <span className="gs-console-who">{who}</span>:{rest.join(":")}
