@@ -13,7 +13,7 @@ security headers), nightly backups, and optionally Ollama for the AI agents.
 ```bash
 git clone <your repo> gigscout && cd gigscout
 cp deploy/.env.example .env              # POSTGRES_PASSWORD (long random) and GIGSCOUT_SITE_ADDRESS (your domain)
-cp apps/api/.env.example apps/api/.env   # GIGSCOUT_ADMIN_EMAIL / GIGSCOUT_ADMIN_PASSWORD, SMTP, CRM, ...
+cp apps/api/.env.example apps/api/.env   # GIGSCOUT_ADMIN_EMAIL / GIGSCOUT_ADMIN_PASSWORD (10+ characters), SMTP, CRM, ...
 docker compose up -d --build
 ```
 

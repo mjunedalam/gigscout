@@ -35,7 +35,7 @@ GigScout uses as a competition signal: a project with 3 bids is far easier to wi
 | Platform | How it works for an agency | Status in GigScout |
 |---|---|---|
 | **Fiverr** | Fiverr is a *seller* marketplace: buyers browse gigs that sellers list. Buyer requests ("Briefs") are only shown to sellers inside the Fiverr dashboard. There is no public feed or API of buyer projects, and the Terms of Service forbid scraping. | **Not a pull source.** Win Fiverr work by listing your agency's services as gigs and answering Briefs in Fiverr itself. |
-| **Upwork** | The largest source of client projects. It has an official GraphQL API, but it needs an approved developer key and OAuth for your agency account. Public RSS feeds were retired in 2024, and scraping violates the ToS. | **Planned.** Apply for an API key at upwork.com/developer, then add an `UpworkSource` (template below). |
+| **Upwork** | The largest source of client projects. It has an official GraphQL API, but it needs an approved developer key and OAuth for your agency account. Public RSS feeds were retired in 2024, and scraping violates the ToS. | **Supported** through the official API. Apply for a key at upwork.com/developer/keys/apply, set `GIGSCOUT_UPWORK_CLIENT_ID` and `GIGSCOUT_UPWORK_CLIENT_SECRET`, then an admin connects each workspace in Admin › Connectors. |
 | **LinkedIn, Indeed** | ToS forbid scraping; aggressive anti-bot measures. | Not supported. Use their official partner programs if you qualify. |
 | **Google Ads** | Ads don't list projects; they **bring clients to you**. A lead form on your search ads collects the enquiry and Google sends it to a webhook. | **Supported** as the `google_ads` inbound channel. Setup: [OPERATIONS.md](OPERATIONS.md#google-ads-inbound-leads). |
 

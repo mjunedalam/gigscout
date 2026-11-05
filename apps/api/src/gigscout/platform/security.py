@@ -11,7 +11,7 @@ from collections import deque
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**14, 8, 1
 SALT_BYTES = 16
 TOKEN_BYTES = 32
-MIN_PASSWORD_LENGTH = 5  # TODO: restore to 10 before deploying; lowered for local dev
+MIN_PASSWORD_LENGTH = 10
 ACCOUNT_MAX_FAILURES = 20  # per account from any address; higher than the per-address limit to blunt lockout abuse
 
 

@@ -22,7 +22,7 @@ from gigscout.platform.events import EventBus
 from gigscout.platform.integrations import UpworkConnection
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
-from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, hash_password
+from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, WeakPasswordError, hash_password
 from gigscout.platform.tables import DEFAULT_WORKSPACE, AgencyProfileRecord, Membership, User, Workspace
 from gigscout.service import ScoutService
 from gigscout.store.vector_store import LeadIndex
@@ -111,8 +111,11 @@ class Platform:
         email, password = self.settings.admin_email, self.settings.admin_password
         with self.sessions() as session:
             if email and password and not session.scalar(select(User).where(User.email == email.lower())):
-                user = User(email=email.lower(), name="Admin", role="admin",
-                            password_hash=hash_password(password.get_secret_value()))
+                try:
+                    password_hash = hash_password(password.get_secret_value())
+                except WeakPasswordError as exc:
+                    raise RuntimeError(f"GIGSCOUT_ADMIN_PASSWORD is too weak: {exc}") from exc
+                user = User(email=email.lower(), name="Admin", role="admin", password_hash=password_hash)
                 session.add(user)
                 session.flush()
                 session.add(Membership(user_id=user.id, workspace_id=DEFAULT_WORKSPACE, role="owner"))

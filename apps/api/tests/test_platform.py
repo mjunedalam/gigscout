@@ -27,8 +27,10 @@ def test_password_hashing_round_trip_and_rejects_weak_passwords():
     assert verify_password("correct-horse-battery", stored)
     assert not verify_password("wrong-password!", stored)
     assert not verify_password("anything", "garbage")
-    with pytest.raises(WeakPasswordError):
-        hash_password("tiny")
+    for weak in ("tiny", "nine-char"):
+        with pytest.raises(WeakPasswordError):
+            hash_password(weak)
+    assert hash_password("ten-chars!")
 
 
 def test_tokens_are_random_and_only_hashes_are_stored():
