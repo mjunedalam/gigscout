@@ -9,6 +9,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from gigscout.agent import prompts
+from gigscout.analyst import AnalystAnswer
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 from gigscout.replies import ReplyRead
@@ -117,6 +118,11 @@ class OllamaReasoner:
                                                 description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING],
                                                 findings=findings[:9000])
         return self._llm.with_structured_output(ResearchBrief).invoke(prompt)
+
+
+    def analyze(self, question: str, facts: str) -> AnalystAnswer:
+        prompt = prompts.ANALYZE_PIPELINE.format(facts=facts[:12000], question=question[:500])
+        return self._llm.with_structured_output(AnalystAnswer).invoke(prompt)
 
 
 def build_chat_model(settings: Settings) -> BaseChatModel | None:

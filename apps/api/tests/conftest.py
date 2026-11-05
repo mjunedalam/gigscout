@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import pytest
 
 from gigscout.agent.nodes import ScoutDeps
+from gigscout.analyst import AnalystAnswer
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 from gigscout.replies import ReplyRead
@@ -97,6 +98,10 @@ class FakeReasoner:
         site = findings.splitlines()[0].removeprefix("Website: ")
         return ResearchBrief(summary=f"AI brief on {lead.title}", needs=["a web app"], signals=[],
                              talking_points=[f"Mention {site}"], risks=[])
+
+    def analyze(self, question: str, facts: str) -> AnalystAnswer:
+        first = facts.splitlines()[1] if len(facts.splitlines()) > 1 else facts
+        return AnalystAnswer(answer=f"AI: {question} -> {first}", evidence=[first], actions=["Act"])
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

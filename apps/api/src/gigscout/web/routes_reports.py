@@ -6,12 +6,15 @@ from datetime import UTC, datetime, timedelta
 from statistics import median
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
+from gigscout import analyst
 from gigscout.platform import pipeline
-from gigscout.platform.tables import AGENT_AUTHOR, LeadState, Outreach, Run
-from gigscout.web.deps import SessionDep, Ws, WsDep
+from gigscout.platform.tables import AGENT_AUTHOR, LeadState, Outreach, Reply, Run
+from gigscout.web.deps import PlatformDep, SessionDep, Ws, WsDep, audit
 from gigscout.web.routes_leads import load_states
 
 router = APIRouter(prefix="/api", tags=["reports"])
@@ -63,6 +66,27 @@ def pipeline_leads(stage: str, session: SessionDep, ws: WsDep, days: int = Query
 @router.get("/reports/owner")
 def owner_report(session: SessionDep, ws: WsDep, days: int = Query(default=30, ge=1, le=365)) -> dict:
     return build_owner_report(session, ws, days)
+
+
+class AnalystQuestion(BaseModel):
+    question: str = Field(min_length=3, max_length=500)
+    days: int = Field(default=30, ge=1, le=365)
+
+
+@router.get("/analyst/insights")
+def analyst_insights(session: SessionDep, ws: WsDep, days: int = Query(default=30, ge=1, le=365)) -> dict:
+    """What moved in the period, computed from the report's numbers."""
+    return {"insights": [i.model_dump() for i in analyst.insights(build_owner_report(session, ws, days))]}
+
+
+@router.post("/analyst/ask")
+async def analyst_ask(body: AnalystQuestion, platform: PlatformDep, session: SessionDep, ws: WsDep) -> dict:
+    """A question about the pipeline, answered from its numbers only."""
+    report = build_owner_report(session, ws, body.days)
+    reply, by = await run_in_threadpool(analyst.answer, body.question, report, platform.service.deps.reasoner)
+    audit(session, ws, "analyst.ask", "", question=body.question[:200])
+    session.commit()
+    return {**reply.model_dump(), "by": by, "days": body.days}
 
 
 @router.get("/reports/owner.csv")
@@ -117,6 +141,9 @@ def build_owner_report(session, ws: Ws, days: int, now: datetime | None = None) 
         "people": pipeline.by_person(steps, start, end),
         "pitches": _pitch_stats(session, ws.id, start, end),
         "runs": _run_stats(session, ws.id, start, end),
+        "replies": dict(session.execute(select(Reply.intent, func.count()).where(
+            Reply.workspace_id == ws.id, Reply.received_at >= start, Reply.received_at < end)
+            .group_by(Reply.intent)).all()),
     }
 
 

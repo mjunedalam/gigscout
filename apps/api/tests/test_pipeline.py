@@ -141,3 +141,63 @@ def test_the_report_csv_never_lets_the_workspace_name_run_as_a_formula(web):
         session.commit()
     first_line = client.get("/api/reports/owner.csv").text.splitlines()[0]
     assert first_line.startswith("Report,'=cmd")
+
+
+def _report(**over) -> dict:
+    stages = [
+        {"stage": "found", "label": "Found", "count": 100, "previous": 60, "conversion": None, "median_hours": None,
+         "waiting": 50, "stale": 0},
+        {"stage": "qualified", "label": "Qualified", "count": 20, "previous": 20, "conversion": 0.2,
+         "median_hours": 3.0, "waiting": 5, "stale": 0},
+        {"stage": "sent", "label": "Sent", "count": 20, "previous": 10, "conversion": 1.0, "median_hours": 40.0,
+         "waiting": 8, "stale": 3},
+        {"stage": "replied", "label": "Replied", "count": 2, "previous": 4, "conversion": 0.1, "median_hours": 72.0,
+         "waiting": 1, "stale": 0},
+        {"stage": "won", "label": "Won", "count": 0, "previous": 1, "conversion": 0.0, "median_hours": None,
+         "waiting": 0, "stale": 0},
+    ]
+    base = {"days": 30, "start": "2026-10-07T00:00:00", "end": "2026-11-06T00:00:00", "stages": stages,
+            "revenue": {"won": 0, "previous": 5000, "deals": 0, "valued": 0},
+            "pitches": {"drafted": 10, "by_agents": 8, "approved": 2, "rejected": 6, "waiting": 2, "replied": 2,
+                        "approval_rate": 0.25, "median_review_hours": 30.0},
+            "runs": {"total": 9, "succeeded": 8, "failed": 1, "leads_fetched": 900, "new_leads": 100},
+            "sources": [{"source": "hn_hiring", "found": 30, "qualified": 6, "sent": 5, "replied": 2, "won": 0,
+                         "won_value": 0, "reply_rate": 0.4, "proposal": 0, "drafted": 5, "lost": 0},
+                        {"source": "remoteok", "found": 40, "qualified": 0, "sent": 0, "replied": 0, "won": 0,
+                         "won_value": 0, "reply_rate": None, "proposal": 0, "drafted": 0, "lost": 0}],
+            "people": [{"actor": "ann@x.com", "drafted": 2, "sent": 10, "won": 0}], "replies": {"meeting": 1}}
+    return {**base, **over}
+
+
+def test_the_analyst_finds_what_moved_and_what_needs_attention():
+    from gigscout import analyst
+    found = analyst.insights(_report())
+    texts = " | ".join(i.text for i in found)
+    assert "Reply rate 10%, from 40%" in texts  # 2/20 vs 4/10
+    assert "3 lead(s) waiting too long at sent" in texts
+    assert "Only 25% of pitches were approved" in texts
+    assert "hn_hiring brought the most results" in texts and "remoteok found leads but none qualified" in texts
+    assert "Sent: 20 vs 10" in texts
+    assert all(i.metric for i in found)
+
+
+def test_the_analyst_answers_from_the_fact_sheet_or_falls_back_to_insights():
+    from gigscout import analyst
+    sheet = analyst.fact_sheet(_report())
+    assert "Replied: 2 (before: 4)" in sheet and "Source remoteok: found 40" in sheet and "meeting 1" in sheet
+
+    class Broken:
+        def analyze(self, *_a):
+            raise RuntimeError("llm down")
+
+    reply, by = analyst.answer("Why did replies drop?", _report(), Broken())
+    assert by == "rules" and "Reply rate" in reply.answer and reply.actions
+
+
+def test_ask_the_analyst_over_the_api(desk):  # noqa: F811
+    client, _ = desk
+    scout(client)
+    got = client.post("/api/analyst/ask", json={"question": "Why did replies drop?", "days": 30}).json()
+    assert got["by"] == "ai" and got["answer"].startswith("AI: Why did replies drop?")
+    assert "insights" in client.get("/api/analyst/insights").json()
+    assert client.post("/api/analyst/ask", json={"question": "x"}).status_code == 422

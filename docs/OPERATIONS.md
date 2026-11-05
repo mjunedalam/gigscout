@@ -57,6 +57,19 @@ set its value on the lead (in Proposal or Won).
 
 The history starts from your existing data the first time this version runs.
 
+**AI analyst.** Pipeline and Reports open with *What changed, and why*. These findings are computed from the
+numbers, not guessed:
+
+- big moves at a step;
+- a change in reply rate;
+- leads stuck too long;
+- a low approval rate;
+- the source that brings results, and sources that find leads but never qualify.
+
+On Reports you can also ask a question, such as "Why did replies drop?" or "Which source should we run more?".
+The AI answers only from the report's numbers and lists the figures it used. With no AI running, you get the
+computed findings instead.
+
 ## Knowledge base: pitches built on your real work
 
 Add your case studies, past proposals, portfolio and rates under **Knowledge base**. You can paste text or

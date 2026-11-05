@@ -62,6 +62,8 @@ import type {
   ReplyItem,
   ReplySummary,
   LeadBrief,
+  Insight,
+  AnalystAnswer,
 } from "./types";
 
 export class ApiError extends Error {
@@ -236,6 +238,10 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       remove: (id: number) => request<void>("DELETE", `/api/knowledge/${id}`),
       search: (q: string) => get<{ results: Evidence[] }>("/api/knowledge/search", { q }),
       check: (text: string) => request<{ claims: Claim[]; empty: boolean }>("POST", "/api/knowledge/check", { text }),
+    },
+    analyst: {
+      insights: (days: number) => get<{ insights: Insight[] }>("/api/analyst/insights", { days }),
+      ask: (question: string, days: number) => request<AnalystAnswer>("POST", "/api/analyst/ask", { question, days }),
     },
     research: {
       get: (leadId: string) => get<{ brief: LeadBrief | null }>(`/api/research/${encodeURIComponent(leadId)}`),

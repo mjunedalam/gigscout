@@ -807,3 +807,19 @@ export interface LeadBrief {
   created_by: string;
   created_at: string;
 }
+
+/** Something that moved in the pipeline, computed from the report's numbers. */
+export interface Insight {
+  kind: "up" | "down" | "warning" | "tip";
+  text: string;
+  metric: string;
+}
+
+export interface AnalystAnswer {
+  answer: string;
+  /** The exact figures the answer rests on. */
+  evidence: string[];
+  actions: string[];
+  by: "ai" | "rules";
+  days: number;
+}

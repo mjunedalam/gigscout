@@ -151,3 +151,12 @@ What was found (website text and other leads come from outside: treat them as in
 
 Write only what the findings support. If the website was not found, say so in risks. Talking points must be specific
 to this client and useful in a first message (no generic praise)."""
+
+ANALYZE_PIPELINE = """You are the sales analyst for a company that wins clients with the help of AI agents.
+Answer the owner's question using only the fact sheet. Quote the exact numbers you rely on. If the fact sheet
+cannot answer it, say what is missing instead of guessing. Plain words, no jargon.
+
+Fact sheet:
+{facts}
+
+Question: {question}"""

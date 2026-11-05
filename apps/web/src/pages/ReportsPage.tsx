@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel, StatTile } from "../components/layout-bits";
+import { AnalystPanel } from "../components/pipeline/AnalystPanel";
 import { api, messageOf } from "../lib/api";
 import { change, dateTime, usd, waitLabel } from "../lib/format";
 import { RANGES, useDays } from "../lib/period";
@@ -61,6 +62,7 @@ function ReportBody({ r, onOpen }: { r: OwnerReport; onOpen: (id: string) => voi
 
   return (
     <Stack gap="md" className="gs-report">
+      <AnalystPanel days={r.days} />
       <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md">
         <StatTile label="Revenue won" value={usd(r.revenue.won, r.revenue.won >= 100_000)} icon={<IconCash size={20} />}
           hint={revenueHint(r.revenue.won, r.revenue.previous, revenueChange)} />

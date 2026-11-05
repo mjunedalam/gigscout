@@ -8,6 +8,7 @@ import { Link } from "react-router";
 
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel } from "../components/layout-bits";
+import { AnalystPanel } from "../components/pipeline/AnalystPanel";
 import { StageFlow } from "../components/pipeline/StageFlow";
 import { StageLeads } from "../components/pipeline/StageLeads";
 import { api, messageOf } from "../lib/api";
@@ -60,6 +61,8 @@ export default function PipelinePage() {
             </Stack>
           </Alert>
         )}
+
+        <AnalystPanel days={days} compact />
 
         {selected && <StageLeads stage={selected} days={days} onOpen={setOpenLead} />}
 
