@@ -31,6 +31,7 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 SiteKind = Literal["feed", "page"]
 
 MAX_REDIRECTS = 5
+MAX_BODY_BYTES = 5 * 1024 * 1024  # a page or feed bigger than this is cut, never read whole
 TITLE_MIN, TITLE_MAX, TITLE_MIN_WORDS = 20, 160, 3  # link text that reads like a posting, not navigation
 DESCRIPTION_CHARS = 600
 FEED_TYPES = ("application/rss+xml", "application/atom+xml", "application/feed+json")
@@ -96,13 +97,15 @@ def slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "site"
 
 
-def fetch_public(client: PoliteClient, url: str, resolve: Resolver = default_resolve) -> tuple[str, bytes]:
-    """GET a public URL, vetting each redirect before following it. Returns (final_url, body bytes)."""
+def fetch_public(client: PoliteClient, url: str, resolve: Resolver = default_resolve,
+                 max_bytes: int = MAX_BODY_BYTES) -> tuple[str, bytes]:
+    """GET a public URL, vetting each redirect before following it, and reading at most max_bytes of the body.
+    Returns (final_url, body bytes)."""
     current = check_url(url, resolve)
     for _ in range(MAX_REDIRECTS + 1):
-        response = client.get(current, follow_redirects=False)
+        response = client.get_limited(current, max_bytes)
         if not response.is_redirect:
-            return current, response.content
+            return current, response.body
         current = check_url(urljoin(current, response.headers.get("location", "")), resolve)
     raise UnsafeUrl("The website redirected too many times")
 

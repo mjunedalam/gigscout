@@ -16,7 +16,7 @@ import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
-from gigscout.http import DisallowedByRobots, PoliteClient
+from gigscout.http import DisallowedByRobots, PoliteClient, TooLarge
 from gigscout.mail import SHARED_MAIL_DOMAINS
 from gigscout.models import AgencyProfile, Lead
 from gigscout.sources.website import UnsafeUrl, fetch_public
@@ -134,18 +134,18 @@ def gather(client: PoliteClient, lead: Lead, records: Sequence[StoredLead]) -> F
         for path in ("", *EXTRA_PATHS):
             url = urljoin(found.website, path) if path else found.website
             try:
-                final, body = fetch_public(client, url)
-            except (UnsafeUrl, DisallowedByRobots, httpx.HTTPError, ValueError) as exc:
+                final, body = fetch_public(client, url, max_bytes=MAX_PAGE_BYTES)
+            except (UnsafeUrl, DisallowedByRobots, TooLarge, httpx.HTTPError, ValueError) as exc:
                 found.errors.append(f"{url}: {type(exc).__name__}")
                 if not path:
                     break  # no homepage: the rest will not work either
                 continue
-            _read_page(found, final, body[:MAX_PAGE_BYTES])
+            _read_page(found, final, body)
             if len(found.text) > PAGE_CHARS:
                 break
     found.related = related_leads(lead, records, found.website)
     found.sources.extend({"label": f"{r.lead.source}: {r.lead.title[:80]}", "url": r.lead.url}
-                         for r in found.related if r.lead.url)
+                         for r in found.related if _web_url(r.lead.url))
     return found
 
 
@@ -173,12 +173,17 @@ def brief_for(profile: AgencyProfile, lead: Lead, found: Findings, researcher: o
         return rule_brief(lead, found), "rules"
 
 
-def angle(brief: dict | None) -> str:
-    """The research, as the opening angle the pitch writer is given."""
+RESEARCH_CHARS = 800
+
+
+def for_drafting(brief: dict | None) -> str:
+    """The brief as the pitch writer gets it: kept apart from our own angle and marked untrusted by the prompt,
+    without links, and short. It was written from the client's website, which anyone can put words on."""
     if not brief:
         return ""
-    points = "; ".join(brief.get("talking_points") or [])
-    return f"Client research: {brief.get('summary', '')} Angles: {points}".strip()
+    points = "; ".join(str(p) for p in (brief.get("talking_points") or [])[:3])
+    text = f"{brief.get('summary', '')} Angles: {points}" if points else str(brief.get("summary", ""))
+    return " ".join(URL.sub("", text).split())[:RESEARCH_CHARS]
 
 
 def _read_page(found: Findings, url: str, body: bytes) -> None:
@@ -198,6 +203,10 @@ def _read_page(found: Findings, url: str, body: bytes) -> None:
     text = " ".join(soup.get_text(" ", strip=True).split())
     found.text = f"{found.text} {text}".strip()[:PAGE_CHARS * 2]
     found.sources.append({"label": found.title or url, "url": url})
+
+
+def _web_url(url: str | None) -> bool:
+    return bool(url) and urlsplit(url).scheme in ("http", "https")
 
 
 def _is_platform(host: str) -> bool:

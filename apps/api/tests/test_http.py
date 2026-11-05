@@ -51,3 +51,23 @@ def test_sends_identifying_user_agent(settings):
     assert client.get_text("https://site.example/feed") == "hi"
     assert route.calls.last.request.headers["user-agent"] == settings.user_agent
     client.close()
+
+
+@respx.mock
+def test_limited_reads_stop_at_the_cap_and_refuse_bodies_declared_too_big(settings):
+    from gigscout.http import TooLarge
+    respx.get("https://site.example/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://site.example/huge").mock(  # streamed, no declared length: the cap stops the read
+        return_value=httpx.Response(200, content=(b"a" * 10_000 for _ in range(5))))
+    respx.get("https://site.example/declared").mock(
+        return_value=httpx.Response(200, headers={"content-length": "9999999"}, content=b"small"))
+    respx.get("https://site.example/moved").mock(
+        return_value=httpx.Response(301, headers={"location": "https://site.example/huge"}))
+    client = PoliteClient(settings)
+
+    huge = client.get_limited("https://site.example/huge", max_bytes=1000)
+    assert len(huge.body) == 1000 and huge.truncated
+    with pytest.raises(TooLarge):
+        client.get_limited("https://site.example/declared", max_bytes=1000)
+    moved = client.get_limited("https://site.example/moved", max_bytes=1000)
+    assert moved.is_redirect and moved.body == b""

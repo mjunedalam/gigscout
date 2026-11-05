@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
@@ -18,6 +19,21 @@ BACKOFF_BASE_SECONDS = 1.5
 
 class DisallowedByRobots(RuntimeError):
     pass
+
+
+class TooLarge(RuntimeError):
+    """A response that says (or turns out to be) bigger than the caller allows."""
+
+
+@dataclass(frozen=True)
+class Limited:
+    """A response read with a size cap: the status, headers, and at most max_bytes of body."""
+
+    status_code: int
+    headers: httpx.Headers
+    body: bytes
+    is_redirect: bool
+    truncated: bool
 
 
 class PoliteClient:
@@ -59,6 +75,28 @@ class PoliteClient:
             log.warning("HTTP %s from %s, retrying in %.1fs", response.status_code, url, wait)
             time.sleep(wait)
         raise AssertionError("unreachable")
+
+    def get_limited(self, url: str, max_bytes: int, max_seconds: float = 30.0) -> Limited:
+        """GET without following redirects, reading at most max_bytes and for at most max_seconds in total, so a
+        huge or endless body never fills memory or holds a worker. Bodies declared too big are not read at all."""
+        if not self._allowed(url):
+            raise DisallowedByRobots(f"robots.txt disallows {url}")
+        self._throttle(urlsplit(url).netloc)
+        deadline = time.monotonic() + max_seconds
+        with self._client.stream("GET", url, follow_redirects=False) as response:
+            if response.is_redirect:
+                return Limited(response.status_code, response.headers, b"", True, False)
+            response.raise_for_status()
+            declared = response.headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > max_bytes:
+                raise TooLarge(f"{url} is {int(declared):,} bytes")
+            body, truncated = bytearray(), False
+            for chunk in response.iter_bytes():
+                body.extend(chunk)
+                if len(body) >= max_bytes or time.monotonic() > deadline:
+                    truncated = True
+                    break
+            return Limited(response.status_code, response.headers, bytes(body[:max_bytes]), False, truncated)
 
     def get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
         return self.get(url, params, headers=headers).json()

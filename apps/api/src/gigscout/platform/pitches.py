@@ -72,8 +72,8 @@ class PitchDesk:
         drafter = self._drafter()
         angles = self._research(workspace_id, agency, picked, drafter, on_step) if settings.research_first else {}
         knowledge = self._index_for(workspace_id).knowledge()
-        drafts = [(match, grounded_draft(agency, match.lead, " ".join(filter(None, [match.pitch, angles.get(
-            match.lead.id, "")])), drafter, knowledge)) for match in picked]
+        drafts = [(match, grounded_draft(agency, match.lead, match.pitch, drafter, knowledge,
+                                         angles.get(match.lead.id, ""))) for match in picked]
         if drafts and drafts[0][1].evidence is not None:
             cited = sum(1 for _m, g in drafts if g.evidence)
             on_step(f"Pitch writer: {cited} of {len(drafts)} pitch(es) cite your own past work; every claim checked")
@@ -116,7 +116,7 @@ class PitchDesk:
                     session.rollback()
                     log.warning("Research failed for %s; pitching without it", match.lead.id, exc_info=True)
                     continue
-                angles[match.lead.id] = research.angle(row.brief)
+                angles[match.lead.id] = research.for_drafting(row.brief)
         return angles
 
     def follow_ups(self, workspace_id: int, now: datetime | None = None) -> int:

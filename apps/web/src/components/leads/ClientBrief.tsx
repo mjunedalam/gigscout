@@ -8,6 +8,9 @@ import { api, messageOf } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { timeAgo } from "../../lib/format";
 
+/** Only web links become clickable: a source URL comes from untrusted lead data (never javascript: or data:). */
+const isWebLink = (url: string | null | undefined): url is string => !!url && /^https?:\/\//i.test(url);
+
 /** The research agent's brief on a lead's client: who they are, what they need, and angles for the pitch. */
 export function ClientBrief({ leadId }: { leadId: string }) {
   const { canWrite } = useAuth();
@@ -42,7 +45,7 @@ export function ClientBrief({ leadId }: { leadId: string }) {
   );
 }
 
-function BriefCard({ brief: b }: { brief: LeadBrief }) {
+export function BriefCard({ brief: b }: { brief: LeadBrief }) {
   const sections: [string, string[]][] = [
     ["Angles for the pitch", b.brief.talking_points], ["What they likely need", b.brief.needs],
     ["Signals", b.brief.signals], ["Check before pitching", b.brief.risks],
@@ -52,7 +55,7 @@ function BriefCard({ brief: b }: { brief: LeadBrief }) {
       <Stack gap={8}>
         <Group gap={6} wrap="wrap">
           {b.made_by === "ai" && <Badge size="xs" variant="light" color="signal" leftSection={<IconSparkles size={9} />}>AI brief</Badge>}
-          {b.website && (
+          {isWebLink(b.website) && (
             <Anchor href={b.website} target="_blank" rel="noopener noreferrer nofollow" size="xs">
               <IconWorldWww size={12} style={{ verticalAlign: -2 }} /> {b.website.replace(/^https?:\/\//, "")}
             </Anchor>
@@ -66,9 +69,9 @@ function BriefCard({ brief: b }: { brief: LeadBrief }) {
             <List size="xs" spacing={2}>{items.map((i) => <List.Item key={i}>{i}</List.Item>)}</List>
           </div>
         ))}
-        {b.sources.length > 0 && (
+        {b.sources.some((s) => isWebLink(s.url)) && (
           <Text size="xs" c="var(--gs-text-dim)">
-            Read: {b.sources.slice(0, 4).map((s, i) => (
+            Read: {b.sources.filter((s) => isWebLink(s.url)).slice(0, 4).map((s, i) => (
               <span key={s.url}>{i > 0 && " · "}<Anchor href={s.url} target="_blank" rel="noopener noreferrer nofollow" size="xs">{s.label.slice(0, 40)}</Anchor></span>
             ))}
           </Text>
