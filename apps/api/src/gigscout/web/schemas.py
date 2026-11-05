@@ -380,6 +380,8 @@ class OutreachOut(BaseModel):
     reviewed_by: str | None = None
     reviewed_at: UtcDatetime | None = None
     review_note: str = ""
+    evidence: list[dict] | None = None  # the company documents the draft drew on
+    claims: list[dict] | None = None  # each claim, and whether those documents back it
 
 
 class OutreachRejectIn(BaseModel):

@@ -24,6 +24,7 @@ import {
   IconAdjustmentsHorizontal,
   IconAddressBook,
   IconBolt,
+  IconBook2,
   IconBuildingFactory2,
   IconBuildingStore,
   IconCalendarTime,
@@ -80,6 +81,7 @@ const WORK: NavItem[] = [
 const INTELLIGENCE: NavItem[] = [
   { to: "/reports", label: "Reports", icon: <IconReportAnalytics size={18} />, description: "Owner report: revenue, sources, team" },
   { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, market trends" },
+  { to: "/knowledge", label: "Knowledge base", icon: <IconBook2 size={18} />, description: "Your case studies, cited in pitches" },
   { to: "/ask", label: "Ask", icon: <IconMessageQuestion size={18} />, description: "Question your lead memory" },
   { to: "/competitors", label: "Competitors", icon: <IconTrophy size={18} />, description: "Contracts your competitors won" },
 ];

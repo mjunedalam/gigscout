@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from gigscout.agent import prompts
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Lead, LeadAssessment, OutreachText, ProfileSuggestion
+from gigscout.store.knowledge import format_evidence
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ class Reasoner(Protocol):
 
     def answer_stream(self, question: str, context: str) -> Iterator[str]: ...
 
-    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText: ...
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
+                       evidence: str = "") -> OutreachText: ...
 
 
 class OllamaReasoner:
@@ -82,8 +84,9 @@ class OllamaReasoner:
                 yield chunk.content
 
 
-    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText:
-        prompt = prompts.DRAFT_OUTREACH.format(
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
+                       evidence: str = "") -> OutreachText:
+        prompt = prompts.DRAFT_OUTREACH.format(evidence=evidence or format_evidence(()),
             company=profile.who(), profile=profile.as_query(), name=profile.name, kind=lead.kind, source=lead.source,
             title=lead.title, client=describe_client(lead), budget=describe_budget(lead),
             description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING], pitch=pitch or "none",

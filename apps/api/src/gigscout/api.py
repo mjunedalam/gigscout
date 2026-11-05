@@ -19,6 +19,7 @@ from gigscout.web import (
     routes_inbound,
     routes_insights,
     routes_integrations,
+    routes_knowledge,
     routes_leads,
     routes_ops,
     routes_outreach,
@@ -65,7 +66,7 @@ def create_app(platform_factory: PlatformFactory | None = None) -> FastAPI:
         )
     routers = (routes_public, routes_auth, routes_leads, routes_ops, routes_insights, routes_admin, routes_outreach,
                routes_integrations, routes_inbound, routes_workspaces, routes_billing, routes_competitors,
-               routes_pitches, routes_reports)
+               routes_pitches, routes_reports, routes_knowledge)
     for module in routers:
         app.include_router(module.router)
     return app

@@ -196,6 +196,8 @@ class Outreach(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(254), default=None)  # who approved or rejected it
     reviewed_at: Mapped[datetime | None] = mapped_column(default=None)
     review_note: Mapped[str] = mapped_column(Text, default="")  # why it was rejected
+    evidence: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # the company documents it drew on
+    claims: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # its claims, and whether they are backed
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
@@ -356,3 +358,19 @@ class LeadEvent(Base):
     stage: Mapped[str] = mapped_column(String(16), index=True)
     at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     actor: Mapped[str] = mapped_column(String(254), default="")
+
+
+class KnowledgeDoc(Base):
+    """One of the company's own documents (case study, past proposal, portfolio, rates). Its text is chunked into
+    the workspace's knowledge collection; pitches cite it and are checked against it."""
+
+    __tablename__ = "knowledge_docs"
+
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(16), default="other")
+    text: Mapped[str] = mapped_column(Text)
+    chunks: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

@@ -11,6 +11,7 @@ import numpy as np
 from gigscout import quality
 from gigscout.models import Candidate, Lead
 from gigscout.store.embeddings import Embedder
+from gigscout.store.knowledge import KnowledgeBase
 
 BACKFILL_BATCH = 500
 
@@ -38,6 +39,10 @@ class LeadIndex:
             name=collection, configuration={"hnsw": {"space": "cosine"}}
         )
         return other
+
+    def knowledge(self) -> KnowledgeBase:
+        """The company's own documents, next to its leads (same store, same embedder, same workspace)."""
+        return KnowledgeBase(self._client, f"{self._collection.name}_kb", self._embedder)
 
     def count(self) -> int:
         return self._collection.count()

@@ -55,9 +55,12 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
     lead = _lead(user, body.lead_id)
     profile = _profile(session, user.id, body.profile_id)
     state = session.get(LeadState, (user.id, lead.id))
-    draft = outreach_lib.draft_outreach(profile, lead, state.pitch if state else "", platform.service.deps.reasoner)
+    grounded = outreach_lib.grounded_draft(profile, lead, state.pitch if state else "", platform.service.deps.reasoner,
+                                           user.index.knowledge())
+    draft = grounded.draft
     row = Outreach(workspace_id=user.id, lead_id=lead.id, channel=draft.channel, to_address=draft.to,
-                   subject=draft.subject, body=draft.body, source=draft.source, created_by=user.email)
+                   subject=draft.subject, body=draft.body, source=draft.source, created_by=user.email,
+                   evidence=grounded.evidence, claims=grounded.claims)
     session.add(row)
     session.flush()
     audit(session, user, "outreach.draft", lead.id, channel=draft.channel, source=draft.source)
@@ -74,6 +77,7 @@ def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: 
         if row.status != "draft":
             raise HTTPException(status.HTTP_409_CONFLICT, "Already sent or rejected: start a new draft")
         _apply(row, body)
+        row.claims = outreach_lib.recheck(row.body, ws.index.knowledge())  # the edit may add or drop claims
         session.commit()
     return outreach_out(row)
 
@@ -93,6 +97,7 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: Wri
             raise HTTPException(status.HTTP_409_CONFLICT, "Already sent: start a new draft to follow up")
         if body is not None:
             _apply(row, body)
+            row.claims = outreach_lib.recheck(row.body, user.index.knowledge())
         if row.channel == "email":
             _email(platform, session, user, row)
         row.status, row.sent_at, row.sent_by = "sent", utcnow(), user.email
@@ -242,7 +247,8 @@ def outreach_out(row: Outreach) -> OutreachOut:
     return OutreachOut(id=row.id, lead_id=row.lead_id, channel=row.channel, to=row.to_address, subject=row.subject,
                        body=row.body, status=row.status, source=row.source, kind=row.kind or "first",
                        run_id=row.run_id, created_by=row.created_by, created_at=row.created_at, sent_at=row.sent_at,
-                       reviewed_by=row.reviewed_by, reviewed_at=row.reviewed_at, review_note=row.review_note or "")
+                       reviewed_by=row.reviewed_by, reviewed_at=row.reviewed_at, review_note=row.review_note or "",
+                       evidence=row.evidence, claims=row.claims)
 
 
 

@@ -8,6 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { api, messageOf } from "../../lib/api";
+import { Grounding } from "./Grounding";
 
 export const AGENT_AUTHOR = "GigScout agents";
 const SMTP_HINT = "Set GIGSCOUT_SMTP_HOST and GIGSCOUT_SMTP_FROM in apps/api/.env";
@@ -70,6 +71,7 @@ export function PitchEditor({ draft, emailReady, canApprove, leadUrl, onDone }: 
         )}
         <Textarea size="xs" label={isEmail ? "Message" : "Proposal text"} autosize minRows={6} maxRows={16} maxLength={5000}
           value={value.body} onChange={(e) => set({ body: e.currentTarget.value })} />
+        <Grounding evidence={draft.evidence} claims={draft.claims} body={value.body} />
         <Group justify="space-between" gap="xs" wrap="wrap">
           <RejectButton draftId={draft.id} disabled={!canApprove} onDone={onDone} />
           <Group gap="xs" wrap="wrap">

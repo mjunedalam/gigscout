@@ -550,6 +550,10 @@ export interface Outreach {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string;
+  /** The company documents the draft drew on; null when the workspace has none. */
+  evidence?: Evidence[] | null;
+  /** Each claim in the text and whether those documents back it; null when there are no documents. */
+  claims?: Claim[] | null;
 }
 
 /** The pitch autopilot: what the agents draft on their own, and who approves before anything goes out. */
@@ -714,4 +718,40 @@ export interface OwnerReport extends PipelineOverview {
     approval_rate: number | null; median_review_hours: number | null;
   };
   runs: { total: number; succeeded: number; failed: number; leads_fetched: number; new_leads: number };
+}
+
+export type KnowledgeKind = "case_study" | "proposal" | "portfolio" | "pricing" | "about" | "other";
+
+export interface KnowledgeDoc {
+  id: number;
+  title: string;
+  kind: KnowledgeKind;
+  chars: number;
+  chunks: number;
+  preview: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface KnowledgeInput {
+  title: string;
+  kind: KnowledgeKind;
+  text: string;
+}
+
+/** An excerpt from one of the company's documents. */
+export interface Evidence {
+  doc_id: number;
+  title: string;
+  kind: KnowledgeKind;
+  similarity: number;
+  excerpt: string;
+}
+
+/** A sentence that states something about the company, and whether its documents back it. */
+export interface Claim {
+  sentence: string;
+  supported: boolean;
+  source: string | null;
+  similarity: number;
 }

@@ -37,3 +37,28 @@ describe("pitch editor", () => {
     expect(screen.getByText("follow-up")).toBeTruthy();
   });
 });
+
+describe("grounding", () => {
+  afterEach(cleanup);
+
+  it("shows the documents a pitch cites and the claims they do not back", () => {
+    const grounded: Outreach = {
+      ...DRAFT,
+      evidence: [{ doc_id: 1, title: "Clinic booking MVP", kind: "case_study", similarity: 0.8, excerpt: "We built" }],
+      claims: [
+        { sentence: "We built a booking app for clinics.", supported: true, source: "Clinic booking MVP", similarity: 0.8 },
+        { sentence: "We have 40 Fortune 500 clients.", supported: false, source: null, similarity: 0.1 },
+      ],
+    };
+    renderWithProviders(<PitchEditor draft={grounded} emailReady canApprove onDone={noop} />);
+    expect(screen.getByText("Clinic booking MVP")).toBeTruthy();
+    expect(screen.getByText("1 claim backed")).toBeTruthy();
+    expect(screen.getByText("1 not in your documents")).toBeTruthy();
+    expect(screen.getByText("We have 40 Fortune 500 clients.")).toBeTruthy();
+  });
+
+  it("without documents it points to the knowledge base", () => {
+    renderWithProviders(<PitchEditor draft={DRAFT} emailReady canApprove onDone={noop} />);
+    expect(screen.getByRole("link", { name: "knowledge base" })).toBeTruthy();
+  });
+});

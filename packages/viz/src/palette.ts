@@ -1,4 +1,4 @@
-import type { LeadKind, LeadStatus, RunStatus } from "@gigscout/api-client";
+import type { LeadKind, LeadStatus, PipelineStage, RunStatus } from "@gigscout/api-client";
 import { interpolateRgb } from "d3";
 
 /** Lead kinds carry meaning everywhere (badges, charts, the galaxy), so their colours are fixed tokens. */
@@ -50,3 +50,15 @@ export const CHART_VARS = {
   surface: "var(--gs-surface)",
   strong: "var(--gs-text)",
 } as const;
+
+/** Pipeline steps keep one colour everywhere: cool at the top of the funnel, warm as a deal gets closer. */
+export const STAGE_COLORS: Record<PipelineStage, string> = {
+  found: "#7C8499",
+  qualified: "#38BDF8",
+  drafted: "#8B7CFF",
+  sent: "#5AA9FF",
+  replied: "#F5B544",
+  proposal: "#C084FC",
+  won: "#34D399",
+  lost: "#FF6B6B",
+};

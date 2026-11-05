@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from gigscout import quality
 from gigscout.models import AgencyProfile, ScoredLead
-from gigscout.outreach import Drafter, draft_outreach, follow_up_draft
+from gigscout.outreach import Drafter, follow_up_draft, grounded_draft
 from gigscout.platform import pipeline
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
@@ -65,16 +65,22 @@ class PitchDesk:
             return 0
         on_step(f"Pitch writer: drafting {len(picked)} pitch(es) for your approval")
         drafter = self._drafter()
-        drafts = [(match, draft_outreach(agency, match.lead, match.pitch, drafter)) for match in picked]
+        knowledge = self._index_for(workspace_id).knowledge()
+        drafts = [(match, grounded_draft(agency, match.lead, match.pitch, drafter, knowledge)) for match in picked]
+        if drafts and drafts[0][1].evidence is not None:
+            cited = sum(1 for _m, g in drafts if g.evidence)
+            on_step(f"Pitch writer: {cited} of {len(drafts)} pitch(es) cite your own past work; every claim checked")
         with self._sessions() as session:
             taken = _pitched(session, workspace_id, [m.lead.id for m in picked])  # someone may have started one
             drafted = 0
-            for match, draft in drafts:
+            for match, grounded in drafts:
                 if match.lead.id in taken:
                     continue
+                draft = grounded.draft
                 session.add(Outreach(workspace_id=workspace_id, lead_id=match.lead.id, channel=draft.channel,
                                      to_address=draft.to, subject=draft.subject, body=draft.body, source=draft.source,
-                                     run_id=run_id, created_by=AGENT_AUTHOR))
+                                     run_id=run_id, created_by=AGENT_AUTHOR, evidence=grounded.evidence,
+                                     claims=grounded.claims))
                 session.add(AuditLog(actor=AGENT_AUTHOR, action="pitch.auto_draft", target=match.lead.id,
                                      detail={"run_id": run_id, "channel": draft.channel}, workspace_id=workspace_id))
                 pipeline.mark(session, workspace_id, match.lead.id, "drafted", AGENT_AUTHOR)

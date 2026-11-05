@@ -15,6 +15,8 @@ SessionFactory = Callable[[], Session]
 # Columns added after the first release. create_all only creates missing tables, so older databases get these
 # added in place. Each needs a default that is valid for existing rows.
 ADDED_COLUMNS = {
+    ("outreach", "evidence"): "JSON",
+    ("outreach", "claims"): "JSON",
     ("lead_states", "deal_value_usd"): "FLOAT",
     ("runs", "activity"): "JSON DEFAULT '[]'",
     ("connectors", "lead_kind"): "VARCHAR(16) DEFAULT 'project'",

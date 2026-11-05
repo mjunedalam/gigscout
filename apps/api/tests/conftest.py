@@ -71,10 +71,13 @@ class FakeReasoner:
         return ProfileSuggestion(services=[f"{company_type} services"], skills=["specialist"],
                                  keywords=[company_type.lower()], exclude=["unpaid"], industries=[])
 
-    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str) -> OutreachText:
+    def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
+                       evidence: str = "") -> OutreachText:
         if self.fail_grade:
             raise RuntimeError("llm timeout")
-        return OutreachText(subject=f"About {lead.title}", body=f"AI draft for {lead.title} ({channel})")
+        proof = evidence.split(": ", 1)[1][:200] if evidence.startswith("[1]") else ""
+        body = f"AI draft for {lead.title} ({channel}). {proof}".strip()
+        return OutreachText(subject=f"About {lead.title}", body=body)
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

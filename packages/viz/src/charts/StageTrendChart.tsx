@@ -2,20 +2,9 @@ import type { PipelineSeriesRow, PipelineStage } from "@gigscout/api-client";
 import { bisector, curveMonotoneX, line, scaleLinear, scaleUtc } from "d3";
 import { type MouseEvent, useMemo, useState } from "react";
 
-import { CHART_VARS } from "../palette";
+import { CHART_VARS, STAGE_COLORS } from "../palette";
 import { ChartFrame, Tooltip } from "./ChartFrame";
 
-/** Pipeline steps keep one colour everywhere: cool at the top of the funnel, warm as a deal gets closer. */
-export const STAGE_COLORS: Record<PipelineStage, string> = {
-  found: "#7C8499",
-  qualified: "#38BDF8",
-  drafted: "#8B7CFF",
-  sent: "#5AA9FF",
-  replied: "#F5B544",
-  proposal: "#C084FC",
-  won: "#34D399",
-  lost: "#FF6B6B",
-};
 
 const MARGIN = { top: 12, right: 14, bottom: 26, left: 34 };
 const TOOLTIP_WIDTH = 170;

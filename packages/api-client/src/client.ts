@@ -53,6 +53,11 @@ import type {
   PipelineLead,
   PipelineStage,
   OwnerReport,
+  KnowledgeDoc,
+  KnowledgeInput,
+  KnowledgeKind,
+  Evidence,
+  Claim,
 } from "./types";
 
 export class ApiError extends Error {
@@ -211,6 +216,22 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
         if (!response.ok) throw new ApiError(response.status, errorMessage(await response.json().catch(() => null), response.statusText));
         return response.blob();
       },
+    },
+    knowledge: {
+      list: () => get<{ docs: KnowledgeDoc[]; kinds: KnowledgeKind[]; chunks: number }>("/api/knowledge"),
+      add: (doc: KnowledgeInput) => request<KnowledgeDoc>("POST", "/api/knowledge", doc),
+      /** A PDF, .txt or .md file, sent as raw bytes. */
+      upload: async (file: File, kind: KnowledgeKind): Promise<KnowledgeDoc> => {
+        const response = await fetchImpl(`${baseUrl}/api/knowledge/upload${toQuery({ filename: file.name, kind })}`, {
+          method: "POST", credentials: "include", headers: { ...scope(), "content-type": "application/octet-stream" }, body: file,
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new ApiError(response.status, errorMessage(payload, response.statusText));
+        return payload as KnowledgeDoc;
+      },
+      remove: (id: number) => request<void>("DELETE", `/api/knowledge/${id}`),
+      search: (q: string) => get<{ results: Evidence[] }>("/api/knowledge/search", { q }),
+      check: (text: string) => request<{ claims: Claim[]; empty: boolean }>("POST", "/api/knowledge/check", { text }),
     },
     pitches: {
       list: (status: PitchQueue) => get<PitchList>("/api/pitches", { status }),
