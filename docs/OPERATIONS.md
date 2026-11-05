@@ -12,6 +12,26 @@
 Re-runs are cheap: leads already in ChromaDB are not re-embedded, and the briefing ranks
 everything from the last `MAX_LEAD_AGE_DAYS`, inbound leads included.
 
+## Pitches: the agents write, a person approves
+
+Open **Pitches** in the web app. In the Autopilot panel an owner or admin sets:
+
+| Setting | What it does |
+|---|---|
+| Draft pitches after every run | At the end of each run the agents write a pitch for its best leads: new (nobody working them), not flagged as a scam or duplicate, and not pitched before. |
+| Only leads scoring at least | The score floor (default 70). |
+| At most, per run | A cap, so the queue stays reviewable (default 5). |
+| Follow up after N days | Once a day (09:00) a follow-up is drafted for each email with no reply after N days. One per email. 0 turns it off. |
+| Only owners and admins approve | Members can still edit drafts, but only owners and admins can send or reject them. |
+
+**Nothing is sent automatically.** Every draft waits in *Waiting for approval* until a person:
+
+- **Approves and sends an email.** This needs SMTP set up. At most 30 emails an hour per person.
+- **Approves a marketplace bid as posted** after copying it into the listing. Marketplaces forbid automated bidding, so a person always posts the bid.
+- **Rejects it** with a reason. Rejected pitches stay visible in the *Rejected* tab.
+
+Approving moves the lead to *contacted*. Every approval and rejection is recorded in the audit log, along with each draft the agents write.
+
 ## Google Ads inbound leads
 
 When a prospect fills in the lead form on one of your Google Ads, Google sends the submission to

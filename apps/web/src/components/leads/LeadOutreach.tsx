@@ -1,27 +1,31 @@
-import type { Outreach, OutreachInput } from "@gigscout/api-client";
-import {
-  Badge, Button, CopyButton, Group, Paper, SegmentedControl, Stack, Text, Textarea, TextInput, Tooltip,
-} from "@mantine/core";
+import type { Outreach } from "@gigscout/api-client";
+import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconBriefcase, IconCopy, IconDatabaseExport, IconMail, IconSend, IconSparkles } from "@tabler/icons-react";
+import { IconBriefcase, IconDatabaseExport, IconMail, IconSparkles, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
 import { api, messageOf } from "../../lib/api";
 import { timeAgo } from "../../lib/format";
+import { PitchEditor } from "../pitches/PitchEditor";
 
-const STATUS_COLOR: Record<Outreach["status"], string> = { draft: "gray", sent: "blue", replied: "signal", no_reply: "orange" };
-const STATUS_LABEL: Record<Outreach["status"], string> = { draft: "draft", sent: "sent", replied: "replied", no_reply: "no reply" };
+const STATUS_COLOR: Record<Outreach["status"], string> = {
+  draft: "gray", rejected: "red", sent: "blue", replied: "signal", no_reply: "orange",
+};
+const STATUS_LABEL: Record<Outreach["status"], string> = {
+  draft: "waiting for approval", rejected: "rejected", sent: "sent", replied: "replied", no_reply: "no reply",
+};
 const CRM_LABEL: Record<string, string> = { hubspot: "HubSpot", pipedrive: "Pipedrive" };
 
-/** Draft a first message for the lead, edit it, send it (email or marketplace bid), track replies, push to the CRM. */
-export function LeadOutreach({ leadId }: { leadId: string }) {
+/** Draft a message for the lead, approve or reject it (email or marketplace bid), track replies, push to the CRM. */
+export function LeadOutreach({ leadId, leadUrl }: { leadId: string; leadUrl?: string }) {
   const queryClient = useQueryClient();
   const key = ["outreach", leadId];
   const config = useQuery({ queryKey: ["outreach", "config"], queryFn: api.outreach.config, staleTime: 60_000 });
   const history = useQuery({ queryKey: key, queryFn: () => api.outreach.list(leadId) });
+  const pitches = useQuery({ queryKey: ["pitches", "summary"], queryFn: api.pitches.summary });
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: key });
+    void queryClient.invalidateQueries({ queryKey: ["pitches"] });
     void queryClient.invalidateQueries({ queryKey: ["leads"] }); // sending moves a new lead to "contacted"
   };
   const failed = (title: string) => (e: unknown) => notifications.show({ color: "red", title, message: messageOf(e) });
@@ -43,7 +47,8 @@ export function LeadOutreach({ leadId }: { leadId: string }) {
         <CrmButton leadId={leadId} crms={config.data?.crms ?? []} />
       </Group>
       {open ? (
-        <DraftEditor key={open.id} draft={open} emailReady={config.data?.email_ready ?? false} onDone={refresh} />
+        <PitchEditor key={open.id} draft={open} emailReady={config.data?.email_ready ?? false} leadUrl={leadUrl}
+          canApprove={pitches.data?.can_approve ?? false} onDone={refresh} />
       ) : (
         <Button variant="light" leftSection={<IconSparkles size={16} />} loading={draft.isPending} onClick={() => draft.mutate()}>
           {draft.isPending ? "Writing a first message…" : sent.length ? "Draft a follow-up" : "Draft a first message"}
@@ -52,10 +57,14 @@ export function LeadOutreach({ leadId }: { leadId: string }) {
       {sent.map((m) => (
         <Group key={m.id} justify="space-between" wrap="nowrap" gap="xs">
           <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-            {m.channel === "email" ? <IconMail size={14} /> : <IconBriefcase size={14} />}
-            <Text size="xs" truncate>
-              {m.channel === "email" ? `Emailed ${m.to}` : "Bid posted"} · {m.sent_at ? timeAgo(m.sent_at) : ""} · {m.created_by}
-            </Text>
+            {m.status === "rejected" ? <IconX size={14} /> : m.channel === "email" ? <IconMail size={14} /> : <IconBriefcase size={14} />}
+            <Tooltip label={m.review_note || "No reason given"} disabled={m.status !== "rejected"} multiline w={260}>
+              <Text size="xs" truncate>
+                {m.status === "rejected"
+                  ? `Rejected by ${m.reviewed_by ?? "someone"} · ${m.reviewed_at ? timeAgo(m.reviewed_at) : ""}`
+                  : `${m.channel === "email" ? `Emailed ${m.to}` : "Bid posted"} · ${m.sent_at ? timeAgo(m.sent_at) : ""} · approved by ${m.reviewed_by ?? m.created_by}`}
+              </Text>
+            </Tooltip>
           </Group>
           <Group gap={4} wrap="nowrap">
             <Badge size="sm" variant="light" color={STATUS_COLOR[m.status]}>{STATUS_LABEL[m.status]}</Badge>
@@ -69,70 +78,6 @@ export function LeadOutreach({ leadId }: { leadId: string }) {
         </Group>
       ))}
     </Stack>
-  );
-}
-
-function DraftEditor({ draft, emailReady, onDone }: { draft: Outreach; emailReady: boolean; onDone: () => void }) {
-  const [value, setValue] = useState<OutreachInput>({ channel: draft.channel, to: draft.to, subject: draft.subject, body: draft.body });
-  useEffect(() => setValue({ channel: draft.channel, to: draft.to, subject: draft.subject, body: draft.body }), [draft]);
-  const set = (change: Partial<OutreachInput>) => setValue((v) => ({ ...v, ...change }));
-  const isEmail = value.channel === "email";
-
-  const save = useMutation({ mutationFn: () => api.outreach.edit(draft.id, value), onSuccess: onDone,
-    onError: (e) => notifications.show({ color: "red", title: "Could not save", message: messageOf(e) }) });
-  const send = useMutation({
-    mutationFn: async () => {
-      await api.outreach.edit(draft.id, value);
-      return api.outreach.send(draft.id);
-    },
-    onSuccess: (m) => {
-      notifications.show({ color: "signal", title: m.channel === "email" ? `Email sent to ${m.to}` : "Marked as posted", message: "The lead moved to contacted." });
-      onDone();
-    },
-    onError: (e) => notifications.show({ color: "red", autoClose: 10000, title: "Not sent", message: messageOf(e) }),
-  });
-
-  return (
-    <Paper p="sm" radius="md" withBorder>
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <SegmentedControl size="xs" value={value.channel} onChange={(c) => set({ channel: c as OutreachInput["channel"] })}
-            data={[{ value: "email", label: "Email" }, { value: "bid", label: "Marketplace bid" }]} />
-          <Badge size="sm" variant="light" color={draft.source === "ai" ? "signal" : "gray"}
-            leftSection={draft.source === "ai" ? <IconSparkles size={10} /> : undefined}>
-            {draft.source === "ai" ? "AI draft" : "template"}
-          </Badge>
-        </Group>
-        {isEmail && (
-          <>
-            <TextInput size="xs" label="To" placeholder="name@client.com" value={value.to ?? ""} maxLength={254}
-              onChange={(e) => set({ to: e.currentTarget.value.trim() || null })} />
-            <TextInput size="xs" label="Subject" value={value.subject} maxLength={200}
-              onChange={(e) => set({ subject: e.currentTarget.value.replace(/[\r\n]/g, " ") })} />
-          </>
-        )}
-        <Textarea size="xs" label={isEmail ? "Message" : "Proposal text"} autosize minRows={6} maxRows={16} maxLength={5000}
-          value={value.body} onChange={(e) => set({ body: e.currentTarget.value })} />
-        <Group justify="flex-end" gap="xs">
-          <Button size="xs" variant="subtle" loading={save.isPending} onClick={() => save.mutate()}>Save draft</Button>
-          {isEmail ? (
-            <Tooltip label="Set GIGSCOUT_SMTP_HOST and GIGSCOUT_SMTP_FROM in apps/api/.env" disabled={emailReady}>
-              <Button size="xs" leftSection={<IconSend size={14} />} disabled={!emailReady || !value.to || !value.subject}
-                loading={send.isPending} onClick={() => send.mutate()}>Send email</Button>
-            </Tooltip>
-          ) : (
-            <>
-              <CopyButton value={value.body}>
-                {({ copied, copy }) => (
-                  <Button size="xs" variant="light" leftSection={<IconCopy size={14} />} onClick={copy}>{copied ? "Copied" : "Copy"}</Button>
-                )}
-              </CopyButton>
-              <Button size="xs" loading={send.isPending} onClick={() => send.mutate()}>Mark as posted</Button>
-            </>
-          )}
-        </Group>
-      </Stack>
-    </Paper>
   );
 }
 

@@ -82,6 +82,21 @@ def template_draft(profile: AgencyProfile, lead: Lead, pitch: str) -> OutreachDr
     )
 
 
+def follow_up_draft(profile: AgencyProfile, lead: Lead, to: str, subject: str, original: str) -> OutreachDraft:
+    """A short nudge in the same thread, quoting the first message."""
+    client = lead.client
+    quoted = "\n".join(f"> {line}" for line in original.strip().splitlines())
+    paragraphs = [
+        f"Hi {client.name}," if client and client.name else "Hi,",
+        f"Just following up on my note about {one_line(lead.title, 150)}. "
+        "If the timing is not right, no problem: a one-line reply and I will not chase.",
+        f"Best,\n{profile.name}",
+        quoted,
+    ]
+    return OutreachDraft(channel="email", to=to, subject=one_line(f"Re: {subject.removeprefix('Re: ')}"),
+                         body="\n\n".join(paragraphs)[:BODY_MAX])
+
+
 def draft_outreach(profile: AgencyProfile, lead: Lead, pitch: str, drafter: Drafter | None) -> OutreachDraft:
     draft = template_draft(profile, lead, pitch)
     if drafter is None:

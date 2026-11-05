@@ -31,6 +31,10 @@ import type {
   Outreach,
   OutreachConfig,
   OutreachInput,
+  PitchList,
+  PitchQueue,
+  PitchSettings,
+  PitchSummary,
   SourceTestResult,
   SystemInfo,
   User,
@@ -181,10 +185,17 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
         request<Outreach>("POST", "/api/outreach", { lead_id: leadId, profile_id: profileId ?? null }),
       edit: (id: number, change: OutreachInput) => request<Outreach>("PUT", `/api/outreach/${id}`, change),
       send: (id: number) => request<Outreach>("POST", `/api/outreach/${id}/send`),
+      reject: (id: number, note: string) => request<Outreach>("POST", `/api/outreach/${id}/reject`, { note }),
       setStatus: (id: number, status: "replied" | "no_reply") =>
         request<Outreach>("POST", `/api/outreach/${id}/status`, { status }),
       crmLinks: (leadId: string) => get<CrmSync>("/api/outreach/crm", { lead_id: leadId }),
       pushToCrm: (leadId: string) => request<CrmSync>("POST", "/api/outreach/crm", { lead_id: leadId }),
+    },
+    pitches: {
+      list: (status: PitchQueue) => get<PitchList>("/api/pitches", { status }),
+      summary: () => get<PitchSummary>("/api/pitches/summary"),
+      settings: () => get<PitchSettings>("/api/pitches/settings"),
+      saveSettings: (settings: PitchSettings) => request<PitchSettings>("PUT", "/api/pitches/settings", settings),
     },
     profiles: {
       list: () => get<ProfileRecord[]>("/api/profiles"),

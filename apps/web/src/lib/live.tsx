@@ -131,6 +131,7 @@ function invalidateFor(event: LiveEvent, queryClient: QueryClientLike) {
   if (event.type === "run.finished") keys.push(["leads"], ["schedules"]);
   if (event.type.startsWith("lead.")) keys.push(["leads"], ["metrics"]);
   if (event.type.startsWith("schedule.")) keys.push(["schedules"]);
+  if (event.type.startsWith("pitch.") || event.type === "run.finished") keys.push(["pitches"], ["outreach"]);
   if (event.type.startsWith("source.") || event.type === "run.finished") keys.push(["admin", "sources"]);
   keys.forEach((queryKey) => void queryClient.invalidateQueries({ queryKey }));
 }
@@ -153,6 +154,13 @@ function announce(event: LiveEvent) {
     notifications.show({
       color: "orange", autoClose: 12000, title: "Website blocked",
       message: `${String(data.name)} no longer allows automated access (robots.txt), so the agents skip it.`,
+    });
+  }
+  if (event.type === "pitch.drafted") {
+    const count = Number(data.count);
+    notifications.show({
+      color: "violet", title: `${count} pitch${count === 1 ? "" : "es"} waiting for approval`,
+      message: data.follow_up ? "Follow-ups for emails that got no reply. Open Pitches to review." : "The agents drafted them. Open Pitches to review.",
     });
   }
   if (event.type === "lead.inbound") {

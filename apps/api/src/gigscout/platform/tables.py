@@ -13,6 +13,7 @@ DEFAULT_WORKSPACE = 1  # existing data and env-configured inbound channels (Goog
 WS = "workspaces.id"
 RUN_STATUSES = ("queued", "running", "succeeded", "failed", "cancelled")
 LEAD_STATUSES = ("new", "contacted", "proposal", "won", "lost", "archived")
+AGENT_AUTHOR = "GigScout agents"  # created_by on pitches the agents drafted on their own
 
 
 def utcnow() -> datetime:
@@ -182,12 +183,18 @@ class Outreach(Base):
     to_address: Mapped[str | None] = mapped_column(String(254), default=None)
     subject: Mapped[str] = mapped_column(String(200), default="")
     body: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(12), default="draft", index=True)  # draft | sent | replied | no_reply
+    # draft (waiting for a person to approve) | rejected | sent | replied | no_reply
+    status: Mapped[str] = mapped_column(String(12), default="draft", index=True)
     source: Mapped[str] = mapped_column(String(12), default="template")  # ai | template
-    created_by: Mapped[str] = mapped_column(String(254))
+    kind: Mapped[str] = mapped_column(String(12), default="first")  # first | follow_up
+    run_id: Mapped[str | None] = mapped_column(String(36), default=None)  # set when the agents drafted it
+    created_by: Mapped[str] = mapped_column(String(254))  # a person's email, or AGENT_AUTHOR
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
     sent_by: Mapped[str | None] = mapped_column(String(254), default=None, index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(254), default=None)  # who approved or rejected it
+    reviewed_at: Mapped[datetime | None] = mapped_column(default=None)
+    review_note: Mapped[str] = mapped_column(Text, default="")  # why it was rejected
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
@@ -252,6 +259,21 @@ class SourceToggle(Base):
     workspace_id: Mapped[int] = workspace_fk(primary_key=True)
     name: Mapped[str] = mapped_column(String(60), primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class PitchSettings(Base):
+    """A workspace's pitch autopilot: what the agents draft on their own, and who must approve before it goes out."""
+
+    __tablename__ = "pitch_settings"
+
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
+    auto_draft: Mapped[bool] = mapped_column(Boolean, default=False)  # draft pitches for the best leads of each run
+    min_score: Mapped[float] = mapped_column(Float, default=0.7)
+    max_per_run: Mapped[int] = mapped_column(Integer, default=5)
+    follow_up_days: Mapped[int] = mapped_column(Integer, default=0)  # draft a follow-up after this much silence; 0 off
+    require_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # only owners and admins approve
+    updated_by: Mapped[str] = mapped_column(String(254), default="")
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
 class DigestSettings(Base):

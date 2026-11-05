@@ -533,11 +533,53 @@ export interface Outreach {
   to: string | null;
   subject: string;
   body: string;
-  status: "draft" | "sent" | "replied" | "no_reply";
+  /** draft = waiting for a person to approve; rejected = turned down (kept, with the reason). */
+  status: "draft" | "rejected" | "sent" | "replied" | "no_reply";
   source: "ai" | "template";
+  /** follow_up = a nudge the agents drafted after the first email got no answer. */
+  kind: "first" | "follow_up";
+  /** Set when the agents drafted it after this run. */
+  run_id: string | null;
+  /** A person's email, or "GigScout agents". */
   created_by: string;
   created_at: string;
   sent_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string;
+}
+
+/** The pitch autopilot: what the agents draft on their own, and who approves before anything goes out. */
+export interface PitchSettings {
+  auto_draft: boolean;
+  /** 0-1: only leads scoring at least this get a pitch drafted. */
+  min_score: number;
+  max_per_run: number;
+  /** Draft a follow-up after this many days without a reply; 0 = off. */
+  follow_up_days: number;
+  /** Only owners and admins may approve (send) or reject. */
+  require_admin: boolean;
+}
+
+export type PitchQueue = "pending" | "sent" | "rejected";
+
+export interface PitchItem {
+  outreach: Outreach;
+  lead: { id: string; title: string; url: string; source: string; kind: string; client_name: string | null; status: string };
+  score: number | null;
+  reasons: string;
+  can_approve: boolean;
+}
+
+export interface PitchList {
+  items: PitchItem[];
+  can_approve: boolean;
+}
+
+export interface PitchSummary {
+  pending: number;
+  auto_draft: boolean;
+  can_approve: boolean;
 }
 
 export interface OutreachInput {

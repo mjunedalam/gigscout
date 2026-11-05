@@ -368,11 +368,57 @@ class OutreachOut(BaseModel):
     to: str | None
     subject: str
     body: str
-    status: Literal["draft", "sent", "replied", "no_reply"]
+    status: Literal["draft", "rejected", "sent", "replied", "no_reply"]
     source: Literal["ai", "template"]
+    kind: Literal["first", "follow_up"] = "first"
+    run_id: str | None = None
     created_by: str
     created_at: UtcDatetime
     sent_at: UtcDatetime | None
+    reviewed_by: str | None = None
+    reviewed_at: UtcDatetime | None = None
+    review_note: str = ""
+
+
+class OutreachRejectIn(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+class PitchSettingsIO(BaseModel):
+    auto_draft: bool = False
+    min_score: float = Field(default=0.7, ge=0, le=1)
+    max_per_run: int = Field(default=5, ge=1, le=25)
+    follow_up_days: int = Field(default=0, ge=0, le=60)
+    require_admin: bool = False
+
+
+class PitchLeadOut(BaseModel):
+    id: str
+    title: str
+    url: str
+    source: str
+    kind: str
+    client_name: str | None = None
+    status: str = "new"
+
+
+class PitchItemOut(BaseModel):
+    outreach: OutreachOut
+    lead: PitchLeadOut
+    score: float | None = None
+    reasons: str = ""
+    can_approve: bool
+
+
+class PitchListOut(BaseModel):
+    items: list[PitchItemOut]
+    can_approve: bool
+
+
+class PitchSummaryOut(BaseModel):
+    pending: int
+    auto_draft: bool
+    can_approve: bool
 
 
 class OutreachConfigOut(BaseModel):

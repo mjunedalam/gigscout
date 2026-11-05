@@ -6,6 +6,7 @@ import {
   Burger,
   Divider,
   Group,
+  Indicator,
   Kbd,
   Menu,
   NavLink,
@@ -43,10 +44,13 @@ import {
   IconSettings,
   IconTrophy,
   IconCreditCard,
+  IconSend,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
 
+import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { BillingBanner } from "../components/workspace/BillingBanner";
 import { WorkspaceSwitcher } from "../components/workspace/WorkspaceSwitcher";
@@ -63,6 +67,7 @@ const WORKSPACE: NavItem[] = [
   { to: "/cockpit", label: "Agent cockpit", icon: <IconBuildingFactory2 size={18} />, description: "Watch the agents work, live" },
   { to: "/", label: "Command center", icon: <IconRadar2 size={18} />, description: "Live metrics, galaxy, activity" },
   { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
+  { to: "/pitches", label: "Pitches", icon: <IconSend size={18} />, description: "Approve what the agents drafted" },
   { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, funnel" },
   { to: "/ask", label: "Ask", icon: <IconMessageQuestion size={18} />, description: "Question your lead memory" },
   { to: "/competitors", label: "Competitors", icon: <IconTrophy size={18} />, description: "Contracts your competitors won" },
@@ -101,6 +106,8 @@ export function AppLayout() {
   const { user, isAdmin, isPlatformAdmin, workspace, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const pitches = useQuery({ queryKey: ["pitches", "summary"], queryFn: api.pitches.summary, enabled: !!workspace });
+  const waiting = pitches.data?.pending ?? 0;
 
   const sections: [string, NavItem[]][] = [
     ["Workspace", WORKSPACE],
@@ -204,7 +211,12 @@ export function AppLayout() {
                       end={item.to === "/" || item.to === "/admin"}
                       label={rail ? undefined : item.label}
                       aria-label={item.label}
-                      leftSection={item.icon}
+                      leftSection={rail && item.to === "/pitches" && waiting > 0 ? (
+                        <Indicator size={8} color="signal" offset={2}>{item.icon}</Indicator>
+                      ) : item.icon}
+                      rightSection={!rail && item.to === "/pitches" && waiting > 0 ? (
+                        <Badge size="sm" circle color="signal" aria-label={`${waiting} waiting for approval`}>{waiting}</Badge>
+                      ) : undefined}
                       onClick={close}
                       active={item.to === "/" || item.to === "/admin" ? location.pathname === item.to : location.pathname.startsWith(item.to)}
                       styles={{

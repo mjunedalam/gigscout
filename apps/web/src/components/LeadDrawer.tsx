@@ -146,7 +146,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
             </Alert>
           )}
 
-          {canWrite && <LeadOutreach leadId={view.lead.id} />}
+          {canWrite && <LeadOutreach leadId={view.lead.id} leadUrl={view.lead.url} />}
 
           <Divider />
           <Stack gap={6}>

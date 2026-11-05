@@ -45,6 +45,8 @@ export function describeEvent(event: LiveEvent): Described {
       return { icon: <IconPlugConnected size={14} />, color: "teal", text: `Website connected: ${d.name}` };
     case "source.blocked":
       return { icon: <IconPlugConnectedX size={14} />, color: "orange", text: `${d.name} now blocks automated access` };
+    case "pitch.drafted":
+      return { icon: <IconMail size={14} />, color: "violet", text: `${d.count} ${d.follow_up ? "follow-up" : "pitch"}${d.count === 1 ? "" : "es"} drafted, waiting for approval` };
     case "digest.sent":
       return { icon: <IconMail size={14} />, color: "signal", text: `Daily digest: ${d.count} leads sent` };
     case "schedule.skipped":

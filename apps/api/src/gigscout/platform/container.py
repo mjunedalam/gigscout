@@ -20,6 +20,7 @@ from gigscout.platform.db import SessionFactory, create_db
 from gigscout.platform.digests import DigestManager
 from gigscout.platform.events import EventBus
 from gigscout.platform.integrations import UpworkConnection
+from gigscout.platform.pitches import PitchDesk
 from gigscout.platform.runs import RunManager
 from gigscout.platform.scheduler import ScheduleManager
 from gigscout.platform.security import ACCOUNT_MAX_FAILURES, LoginLimiter, WeakPasswordError, hash_password
@@ -45,6 +46,7 @@ class Platform:
     upwork: UpworkConnection
     billing: BillingService
     competitors: CompetitorWatcher
+    pitches: PitchDesk
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)  # per account + client address
     account_limiter: LoginLimiter = field(default_factory=lambda: LoginLimiter(max_failures=ACCOUNT_MAX_FAILURES))
     started_at: float = field(default_factory=time.time)
@@ -74,7 +76,10 @@ class Platform:
         digests = DigestManager(sessions, indexes, settings, bus, schedules)
         awards_client = PoliteClient(settings)
         watcher = CompetitorWatcher(sessions, bus, schedules, lambda: competitors.recent_awards(awards_client))
-        platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork, billing, watcher)
+        pitches = PitchDesk(sessions, bus, schedules, indexes, lambda: service.deps.reasoner)
+        runs.after_run = pitches.draft_for_run
+        platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork, billing, watcher,
+                       pitches)
         indexes.platform = platform
         return platform
 
@@ -87,6 +92,7 @@ class Platform:
         self._recheck_quality()
         self.digests.sync()
         self.competitors.start()
+        self.pitches.start()
         self.schedules.start()
 
     def stop(self) -> None:

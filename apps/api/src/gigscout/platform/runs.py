@@ -3,14 +3,14 @@
 import logging
 import threading
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal
 
 from sqlalchemy import select, update
 
 from gigscout.learning import Learning
-from gigscout.models import AgencyProfile, ScoutResult
+from gigscout.models import AgencyProfile, ScoredLead, ScoutResult
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
 from gigscout.platform.learner import current_learning, score_with
@@ -25,6 +25,8 @@ log = logging.getLogger(__name__)
 Trigger = Literal["manual", "schedule"]
 StopOutcome = Literal["cancelled", "stopping"]
 ACTIVE_STATUSES = ("queued", "running")
+# (workspace, run, profile, matches, report a step) -> pitches drafted; the pitch desk plugs in here
+AfterRun = Callable[[int, str, AgencyProfile, Sequence[ScoredLead], Callable[[str], None]], int]
 
 
 class ProfileNotFound(LookupError):
@@ -53,6 +55,7 @@ class RunManager:
         self._live_activity: dict[str, list[dict]] = {}  # activity of the run in progress, until it is stored
         self._stop_requested: set[str] = set()
         self._workspace_of: dict[str, int] = {}  # run id -> workspace, for scoping live events
+        self.after_run: AfterRun = lambda *_args: 0
 
     def recover(self) -> int:
         """Runs left queued/running by a previous process can never finish; mark them failed."""
@@ -127,6 +130,7 @@ class RunManager:
             log.exception("Run %s failed", run_id)
             self._finish_failed(run_id, exc)
             return
+        self._draft_pitches(run_id, workspace_id, agency, result)
         try:
             self._finish(run_id, result)
         except Exception as exc:  # saving the results failed: the run must still end, never stay "running"
@@ -196,6 +200,17 @@ class RunManager:
         with self._lock:
             if run_id in self._stop_requested:
                 raise RunStopped
+
+    def _draft_pitches(self, run_id: str, workspace_id: int, agency: AgencyProfile, result: ScoutResult) -> None:
+        """Before the run ends, so its steps show live. A failure here never fails the run that found the leads."""
+        def report(line: str) -> None:
+            self._publish("run.step", run_id, {"id": run_id, "line": line[:500]})
+
+        try:
+            self.after_run(workspace_id, run_id, agency, result.matches, report)
+        except Exception:
+            log.warning("Drafting pitches after run %s failed", run_id, exc_info=True)
+            report("Pitch writer: could not draft pitches this time (see the server log)")
 
     def _take_activity(self, run_id: str) -> list[dict]:
         with self._lock:

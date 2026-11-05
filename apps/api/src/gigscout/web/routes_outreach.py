@@ -12,6 +12,7 @@ from gigscout import crm as crm_lib
 from gigscout import outreach as outreach_lib
 from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
+from gigscout.platform.pitches import pitch_settings
 from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, utcnow
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep, WriterDep, Ws, WsDep, audit
 from gigscout.web.schemas import (
@@ -21,6 +22,7 @@ from gigscout.web.schemas import (
     OutreachConfigOut,
     OutreachCreate,
     OutreachOut,
+    OutreachRejectIn,
     OutreachStatusIn,
     OutreachUpdate,
 )
@@ -44,7 +46,7 @@ def outreach_config(platform: PlatformDep, _: UserDep) -> OutreachConfigOut:
 def list_outreach(lead_id: str, session: SessionDep, ws: WsDep) -> list[OutreachOut]:
     rows = session.scalars(select(Outreach).where(Outreach.workspace_id == ws.id, Outreach.lead_id == lead_id)
                            .order_by(Outreach.id.desc()))
-    return [_out(r) for r in rows]
+    return [outreach_out(r) for r in rows]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -59,7 +61,7 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
     session.flush()
     audit(session, user, "outreach.draft", lead.id, channel=draft.channel, source=draft.source)
     session.commit()
-    return _out(row)
+    return outreach_out(row)
 
 
 @router.put("/{outreach_id}")
@@ -69,13 +71,14 @@ def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: 
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs an address to send to")
     row.channel, row.to_address, row.subject, row.body = body.channel, body.to, body.subject.strip(), body.body
     session.commit()
-    return _out(row)
+    return outreach_out(row)
 
 
 @router.post("/{outreach_id}/send")
 def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WriterDep) -> OutreachOut:
-    """Email it, or for a marketplace bid record that it was pasted into the bid form. A draft is sent once."""
+    """Approve it: email it, or for a marketplace bid record that it was pasted into the bid form. Sent once."""
     row = _draft(session, user.id, outreach_id)
+    _check_approver(session, user)
     with _sending:
         session.refresh(row)
         if row.status != "draft":
@@ -83,6 +86,7 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: Wri
         if row.channel == "email":
             _email(platform, session, user, row)
         row.status, row.sent_at, row.sent_by = "sent", utcnow(), user.email
+        row.reviewed_by, row.reviewed_at = user.email, row.sent_at
         session.commit()
     state = session.get(LeadState, (user.id, row.lead_id)) or LeadState(workspace_id=user.id, lead_id=row.lead_id)
     if (state.status or "new") == "new":
@@ -93,7 +97,19 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: Wri
     lead = user.index.get(row.lead_id)
     platform.bus.publish("lead.updated", {"id": row.lead_id, "title": lead.title if lead else row.lead_id,
                                           "by": user.user.name, "status": state.status}, user.id)
-    return _out(row)
+    return outreach_out(row)
+
+
+@router.post("/{outreach_id}/reject")
+def reject(outreach_id: int, body: OutreachRejectIn, session: SessionDep, user: WriterDep) -> OutreachOut:
+    """Turn a draft down. It is kept, with the reason, so the team can see what was not good enough."""
+    row = _draft(session, user.id, outreach_id)
+    _check_approver(session, user)
+    row.status, row.reviewed_by, row.reviewed_at = "rejected", user.email, utcnow()
+    row.review_note = " ".join(body.note.split())
+    audit(session, user, "outreach.reject", row.lead_id, note=row.review_note)
+    session.commit()
+    return outreach_out(row)
 
 
 @router.post("/{outreach_id}/status")
@@ -106,7 +122,7 @@ def set_status(outreach_id: int, body: OutreachStatusIn, session: SessionDep, us
     row.status = body.status
     audit(session, user, "outreach.status", row.lead_id, status=body.status)
     session.commit()
-    return _out(row)
+    return outreach_out(row)
 
 
 @router.get("/crm")
@@ -163,6 +179,17 @@ def _email(platform, session, user: Ws, row: Outreach) -> None:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"The mail server refused it ({type(exc).__name__})") from None
 
 
+def can_approve(session, ws: Ws) -> bool:
+    if ws.role == "viewer":
+        return False
+    return ws.is_admin or not pitch_settings(session, ws.id).require_admin
+
+
+def _check_approver(session, ws: Ws) -> None:
+    if not can_approve(session, ws):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "An owner or admin must approve messages in this workspace")
+
+
 def _lead(ws: Ws, lead_id: str) -> Lead:
     lead = ws.index.get(lead_id)
     if lead is None:
@@ -184,14 +211,16 @@ def _draft(session, workspace_id: int, outreach_id: int) -> Outreach:
     if row is None or row.workspace_id != workspace_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Message not found")
     if row.status != "draft":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Already sent: start a new draft to follow up")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already sent or rejected: start a new draft")
     return row
 
 
-def _out(row: Outreach) -> OutreachOut:
+def outreach_out(row: Outreach) -> OutreachOut:
     return OutreachOut(id=row.id, lead_id=row.lead_id, channel=row.channel, to=row.to_address, subject=row.subject,
-                       body=row.body, status=row.status, source=row.source, created_by=row.created_by,
-                       created_at=row.created_at, sent_at=row.sent_at)
+                       body=row.body, status=row.status, source=row.source, kind=row.kind or "first",
+                       run_id=row.run_id, created_by=row.created_by, created_at=row.created_at, sent_at=row.sent_at,
+                       reviewed_by=row.reviewed_by, reviewed_at=row.reviewed_at, review_note=row.review_note or "")
+
 
 
 def _link(row: CrmRecord) -> CrmLinkOut:

@@ -32,6 +32,11 @@ ADDED_COLUMNS = {
     ("lead_states", "assigned_to"): "INTEGER",
     ("lead_states", "follow_up_on"): "DATE",
     ("lead_states", "score_parts"): "JSON",
+    ("outreach", "kind"): "VARCHAR(12) DEFAULT 'first'",
+    ("outreach", "run_id"): "VARCHAR(36)",
+    ("outreach", "reviewed_by"): "VARCHAR(254)",
+    ("outreach", "reviewed_at"): "TIMESTAMP WITH TIME ZONE",
+    ("outreach", "review_note"): "TEXT DEFAULT ''",
 }
 # Tables whose key changed to include the workspace: SQLite cannot alter a key, so they are rebuilt (rows kept).
 REKEYED = ("lead_states", "crm_links", "integration_tokens", "connectors", "source_toggles")
