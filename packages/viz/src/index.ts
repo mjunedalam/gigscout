@@ -7,6 +7,7 @@ export { PipelineFunnel } from "./charts/PipelineFunnel";
 export { RunTimeline } from "./charts/RunTimeline";
 export { ScoreHistogram } from "./charts/ScoreHistogram";
 export { Sparkline } from "./charts/Sparkline";
+export { STAGE_COLORS, StageTrendChart } from "./charts/StageTrendChart";
 export { compactNumber, funnelBars, pushWindow, stackByKind, stackMax } from "./layout";
 export { KIND_COLORS, KIND_LABELS, RUN_STATUS_COLORS, scoreColor, STATUS_COLORS } from "./palette";
 export { usePrefersReducedMotion, useSize } from "./useSize";

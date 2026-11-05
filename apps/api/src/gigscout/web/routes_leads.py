@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from gigscout.learning import OUTCOMES
 from gigscout.models import Candidate
+from gigscout.platform import pipeline
 from gigscout.platform.learner import rescore_open_leads
 from gigscout.platform.tables import LeadState, Membership, User
 from gigscout.store.vector_store import StoredLead
@@ -83,13 +84,15 @@ def update_lead(
     state = session.get(LeadState, (ws.id, lead_id)) or LeadState(workspace_id=ws.id, lead_id=lead_id)
     previous, before_owner = state.status or "new", state.assigned_to
     changes = {k: v for k, v in body.model_dump(exclude_unset=True).items()
-               if v is not None or k in ("assigned_to", "follow_up_on")}
+               if v is not None or k in ("assigned_to", "follow_up_on", "deal_value_usd")}
     names = member_names(session, ws.id)
     if changes.get("assigned_to") is not None and changes["assigned_to"] not in names:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Assign leads to people in this workspace")
     for field, value in changes.items():
         setattr(state, field, value)
     outcome_changed = previous != state.status and (previous in OUTCOMES or state.status in OUTCOMES)
+    if previous != state.status:
+        pipeline.mark_status(session, ws.id, lead_id, state.status, ws.email)
     state.updated_by = ws.email
     session.add(state)
     audit(session, ws, "lead.update", lead_id, **{k: str(v) if isinstance(v, date) else v for k, v in changes.items()})
@@ -151,7 +154,7 @@ def to_view(stored: StoredLead | None, states: dict[str, LeadState], candidate: 
             "learned_note": state.learned_note or "", "assigned_to": state.assigned_to,
             "score_parts": state.score_parts,
             "assignee": (names or {}).get(state.assigned_to) if state.assigned_to else None,
-            "follow_up_on": state.follow_up_on,
+            "follow_up_on": state.follow_up_on, "deal_value_usd": state.deal_value_usd,
         } if state else {}),
     )
 

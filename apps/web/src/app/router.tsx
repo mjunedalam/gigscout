@@ -24,6 +24,8 @@ const AdminSettingsPage = lazy(() => import("../pages/admin/AdminSettingsPage"))
 const AdminAuditPage = lazy(() => import("../pages/admin/AdminAuditPage"));
 const CompetitorsPage = lazy(() => import("../pages/CompetitorsPage"));
 const PitchesPage = lazy(() => import("../pages/PitchesPage"));
+const PipelinePage = lazy(() => import("../pages/PipelinePage"));
+const ReportsPage = lazy(() => import("../pages/ReportsPage"));
 const BillingPage = lazy(() => import("../pages/admin/BillingPage"));
 const WorkspaceSettingsPage = lazy(() => import("../pages/admin/WorkspaceSettingsPage"));
 
@@ -60,6 +62,8 @@ export const router = createBrowserRouter([
       { path: "ask", element: page(<AskPage />) },
       { path: "competitors", element: page(<CompetitorsPage />) },
       { path: "pitches", element: page(<PitchesPage />) },
+      { path: "pipeline", element: page(<PipelinePage />) },
+      { path: "reports", element: page(<ReportsPage />) },
       { path: "runs", element: page(<RunsPage />) },
       { path: "runs/:runId", element: page(<RunDetailPage />) },
       { path: "schedules", element: page(<SchedulesPage />) },

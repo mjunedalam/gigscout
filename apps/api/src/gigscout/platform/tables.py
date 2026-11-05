@@ -166,6 +166,7 @@ class LeadState(Base):
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), default=None,
                                                     index=True)  # who on the team owns the lead
     follow_up_on: Mapped[date | None] = mapped_column(Date, default=None, index=True)
+    deal_value_usd: Mapped[float | None] = mapped_column(Float, default=None)  # what a won lead is worth
     last_run_id: Mapped[str | None] = mapped_column(String(36), default=None)
     updated_by: Mapped[str | None] = mapped_column(String(254), default=None)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
@@ -341,3 +342,17 @@ class AuditLog(Base):
 def _aware(value: datetime) -> datetime:
     """SQLite drops tzinfo on read; every timestamp we write is UTC."""
     return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+class LeadEvent(Base):
+    """When a lead first reached a pipeline step, and who (or which agent) moved it there. One row per step."""
+
+    __tablename__ = "lead_events"
+    __table_args__ = (UniqueConstraint("workspace_id", "lead_id", "stage"),)
+
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lead_id: Mapped[str] = mapped_column(String(300), index=True)
+    stage: Mapped[str] = mapped_column(String(16), index=True)
+    at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
+    actor: Mapped[str] = mapped_column(String(254), default="")

@@ -11,10 +11,11 @@ from sqlalchemy import select, update
 
 from gigscout.learning import Learning
 from gigscout.models import AgencyProfile, ScoredLead, ScoutResult
+from gigscout.platform import pipeline
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
 from gigscout.platform.learner import current_learning, score_with
-from gigscout.platform.tables import AgencyProfileRecord, Connector, LeadState, Run, SourceToggle, utcnow
+from gigscout.platform.tables import AGENT_AUTHOR, AgencyProfileRecord, Connector, LeadState, Run, SourceToggle, utcnow
 from gigscout.service import Mode, ScoutService
 from gigscout.sources.base import Source
 from gigscout.sources.website import WebsiteSource
@@ -232,7 +233,8 @@ class RunManager:
             run.activity = self._take_activity(run_id)
             workspace_id, index = run.workspace_id, self._index_for(run.workspace_id)
             _record_qualifications(session, workspace_id, run_id, result,
-                                   current_learning(session, index, workspace_id))
+                                   current_learning(session, index, workspace_id),
+                                   self._service.deps.settings.good_match_threshold)
             blocked = _record_site_health(session, workspace_id, result)
             session.commit()
             self._publish("run.finished", run_id, _summary(run))
@@ -261,7 +263,8 @@ class RunManager:
         self._forget(run_id)
 
 
-def _record_qualifications(session, workspace_id: int, run_id: str, result: ScoutResult, learning: Learning) -> None:
+def _record_qualifications(session, workspace_id: int, run_id: str, result: ScoutResult, learning: Learning,
+                           threshold: float) -> None:
     """Keep each lead's latest score (with what won/lost leads taught) and pitch; never touch status or notes."""
     for match in result.matches:
         state = (session.get(LeadState, (workspace_id, match.lead.id))
@@ -271,6 +274,8 @@ def _record_qualifications(session, workspace_id: int, run_id: str, result: Scou
         state.reasons, state.red_flags = match.reasons, match.red_flags
         state.pitch, state.last_run_id = match.pitch, run_id
         session.add(state)
+        if state.score is not None and state.score >= threshold:
+            pipeline.mark(session, workspace_id, match.lead.id, "qualified", AGENT_AUTHOR)
 
 
 def _record_site_health(session, workspace_id: int, result: ScoutResult) -> list[dict]:

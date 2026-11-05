@@ -14,6 +14,7 @@ from gigscout import competitors
 from gigscout.config import Settings
 from gigscout.http import PoliteClient
 from gigscout.models import AgencyProfile
+from gigscout.platform import pipeline
 from gigscout.platform.billing import BillingService
 from gigscout.platform.competitors import CompetitorWatcher
 from gigscout.platform.db import SessionFactory, create_db
@@ -90,6 +91,9 @@ class Platform:
         self._bootstrap_admin()
         self._seed_default_profile()
         self._recheck_quality()
+        with self.sessions() as session:
+            if added := pipeline.backfill(session, self.settings.good_match_threshold):
+                log.info("Built the pipeline history: %d step(s) from earlier data", added)
         self.digests.sync()
         self.competitors.start()
         self.pitches.start()

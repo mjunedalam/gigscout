@@ -47,3 +47,25 @@ export function describeCron(expression: string): string {
 export function percent(value: number | null | undefined): string {
   return value === null || value === undefined ? "—" : `${Math.round(value * 100)}`;
 }
+
+/** A wait in hours, said the way people say it: "45 min", "6 h", "3 d". */
+export function waitLabel(hours: number | null | undefined): string {
+  if (hours === null || hours === undefined) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 48) return `${Math.round(hours)} h`;
+  return `${Math.round(hours / 24)} d`;
+}
+
+/** US dollars without cents: "$12,500", or "$1.2M" when compact. */
+export function usd(value: number | null | undefined, compact = false): string {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", maximumFractionDigits: compact ? 1 : 0, notation: compact ? "compact" : "standard",
+  }).format(value);
+}
+
+/** The change from the period before, as a signed percent; null when there is nothing to compare with. */
+export function change(now: number, before: number): number | null {
+  if (before === 0) return now === 0 ? 0 : null;
+  return Math.round(((now - before) / before) * 100);
+}

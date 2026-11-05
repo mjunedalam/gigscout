@@ -8,6 +8,7 @@ import {
   Divider,
   Drawer,
   Group,
+  NumberInput,
   SegmentedControl,
   Skeleton,
   Stack,
@@ -99,6 +100,16 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               onChange={(status) => update.mutate({ status: status as LeadStatus })}
               disabled={update.isPending || !canWrite}
             />
+            {(view.status === "won" || view.status === "proposal") && (
+              <NumberInput key={`${view.lead.id}-${view.deal_value_usd ?? ""}`} size="xs" label="Deal value (USD)"
+                description="Counts toward revenue in the owner report once the lead is won"
+                prefix="$" thousandSeparator="," min={0} max={1_000_000_000} decimalScale={0}
+                defaultValue={view.deal_value_usd ?? undefined} disabled={update.isPending || !canWrite}
+                onBlur={(e) => {
+                  const value = Number(e.currentTarget.value.replace(/[^0-9.]/g, "")) || null;
+                  if (value !== (view.deal_value_usd ?? null)) update.mutate({ deal_value_usd: value });
+                }} />
+            )}
           </Stack>
 
           <Group grow align="flex-end">

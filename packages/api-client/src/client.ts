@@ -49,6 +49,10 @@ import type {
   BillingPlan,
   WorkspaceRole,
   WorkspaceSummary,
+  PipelineOverview,
+  PipelineLead,
+  PipelineStage,
+  OwnerReport,
 } from "./types";
 
 export class ApiError extends Error {
@@ -191,6 +195,22 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
         request<Outreach>("POST", `/api/outreach/${id}/status`, { status }),
       crmLinks: (leadId: string) => get<CrmSync>("/api/outreach/crm", { lead_id: leadId }),
       pushToCrm: (leadId: string) => request<CrmSync>("POST", "/api/outreach/crm", { lead_id: leadId }),
+    },
+    pipeline: {
+      overview: (days: number) => get<PipelineOverview>("/api/pipeline", { days }),
+      leads: (stage: PipelineStage, days: number) =>
+        get<{ stage: PipelineStage; label: string; items: PipelineLead[] }>(`/api/pipeline/${stage}/leads`, { days }),
+    },
+    reports: {
+      owner: (days: number) => get<OwnerReport>("/api/reports/owner", { days }),
+      /** The report as a CSV file, for a spreadsheet. */
+      ownerCsv: async (days: number): Promise<Blob> => {
+        const response = await fetchImpl(`${baseUrl}/api/reports/owner.csv${toQuery({ days })}`, {
+          credentials: "include", headers: scope(),
+        });
+        if (!response.ok) throw new ApiError(response.status, errorMessage(await response.json().catch(() => null), response.statusText));
+        return response.blob();
+      },
     },
     pitches: {
       list: (status: PitchQueue) => get<PitchList>("/api/pitches", { status }),

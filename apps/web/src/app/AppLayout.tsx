@@ -30,6 +30,8 @@ import {
   IconChartHistogram,
   IconClipboardList,
   IconHeartRateMonitor,
+  IconReportAnalytics,
+  IconTimeline,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconLogout,
@@ -63,17 +65,26 @@ interface NavItem {
   description: string;
 }
 
-const WORKSPACE: NavItem[] = [
-  { to: "/cockpit", label: "Agent cockpit", icon: <IconBuildingFactory2 size={18} />, description: "Watch the agents work, live" },
+// The menu follows the work: see where things stand, work the leads, understand the market, run the agents.
+const OVERVIEW: NavItem[] = [
+  { to: "/pipeline", label: "Pipeline", icon: <IconTimeline size={18} />, description: "Every step from found to won, over time" },
   { to: "/", label: "Command center", icon: <IconRadar2 size={18} />, description: "Live metrics, galaxy, activity" },
+  { to: "/cockpit", label: "Agent cockpit", icon: <IconBuildingFactory2 size={18} />, description: "Watch the agents work, live" },
+];
+
+const WORK: NavItem[] = [
   { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
   { to: "/pitches", label: "Pitches", icon: <IconSend size={18} />, description: "Approve what the agents drafted" },
-  { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, funnel" },
+];
+
+const INTELLIGENCE: NavItem[] = [
+  { to: "/reports", label: "Reports", icon: <IconReportAnalytics size={18} />, description: "Owner report: revenue, sources, team" },
+  { to: "/analytics", label: "Analytics", icon: <IconChartHistogram size={18} />, description: "Scores, competition, market trends" },
   { to: "/ask", label: "Ask", icon: <IconMessageQuestion size={18} />, description: "Question your lead memory" },
   { to: "/competitors", label: "Competitors", icon: <IconTrophy size={18} />, description: "Contracts your competitors won" },
 ];
 
-const OPERATIONS: NavItem[] = [
+const AUTOMATION: NavItem[] = [
   { to: "/runs", label: "Runs", icon: <IconBolt size={18} />, description: "Start agents, watch them live" },
   { to: "/schedules", label: "Schedules", icon: <IconCalendarTime size={18} />, description: "Automate runs with cron" },
   { to: "/profiles", label: "Company profiles", icon: <IconBuildingStore size={18} />, description: "What you sell" },
@@ -110,8 +121,10 @@ export function AppLayout() {
   const waiting = pitches.data?.pending ?? 0;
 
   const sections: [string, NavItem[]][] = [
-    ["Workspace", WORKSPACE],
-    ["Operations", OPERATIONS],
+    ["Overview", OVERVIEW],
+    ["Work", WORK],
+    ["Intelligence", INTELLIGENCE],
+    ["Automation", AUTOMATION],
     ...(isAdmin ? ([["Admin", ADMIN]] as [string, NavItem[]][]) : []),
     ...(isPlatformAdmin ? ([["Platform", PLATFORM]] as [string, NavItem[]][]) : []),
   ];

@@ -397,3 +397,13 @@ body::before {
 @keyframes gs-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Printing a report (or saving it as PDF): only the page content, on white. */
+@media print {
+  .mantine-AppShell-navbar,
+  .mantine-AppShell-header,
+  .gs-no-print { display: none !important; }
+  .mantine-AppShell-main { padding: 0 !important; }
+  body { background: #fff !important; }
+  .gs-panel, .gs-flow { break-inside: avoid; box-shadow: none !important; }
+}

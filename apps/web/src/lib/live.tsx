@@ -133,6 +133,9 @@ function invalidateFor(event: LiveEvent, queryClient: QueryClientLike) {
   if (event.type.startsWith("schedule.")) keys.push(["schedules"]);
   if (event.type.startsWith("pitch.") || event.type === "run.finished") keys.push(["pitches"], ["outreach"]);
   if (event.type.startsWith("source.") || event.type === "run.finished") keys.push(["admin", "sources"]);
+  if (event.type === "run.finished" || event.type.startsWith("lead.") || event.type.startsWith("pitch.")) {
+    keys.push(["pipeline"], ["reports"]); // every step a lead takes moves the pipeline
+  }
   keys.forEach((queryKey) => void queryClient.invalidateQueries({ queryKey }));
 }
 

@@ -68,6 +68,8 @@ export interface LeadView {
   assignee?: string | null;
   /** YYYY-MM-DD: when to chase it next. */
   follow_up_on?: string | null;
+  /** What the deal is worth, for won leads. */
+  deal_value_usd?: number | null;
 }
 
 /** One ingredient of a score: a 0-1 value, its weight, and the points it adds. */
@@ -85,6 +87,7 @@ export interface LeadChange {
   /** null clears it. */
   assigned_to?: number | null;
   follow_up_on?: string | null;
+  deal_value_usd?: number | null;
 }
 
 /** What won and lost leads have taught so far. */
@@ -653,4 +656,62 @@ export interface LiveEvent<T = Record<string, unknown>> {
   type: string;
   at: string;
   data: T;
+}
+
+/** The pipeline, one step after another; "lost" is the way out. */
+export type PipelineStage = "found" | "qualified" | "drafted" | "sent" | "replied" | "proposal" | "won" | "lost";
+
+export interface PipelineStep {
+  stage: PipelineStage;
+  label: string;
+  /** Leads that reached this step in the period. */
+  count: number;
+  /** The same count for the period before, for the change. */
+  previous: number;
+  /** count / the step before's count; null for the first step and "lost". */
+  conversion: number | null;
+  /** Median hours from the step before to this one. */
+  median_hours: number | null;
+  /** Open leads whose furthest step is this one, right now. */
+  waiting: number;
+  /** Of those, how many have waited longer than they should. */
+  stale: number;
+}
+
+export type PipelineSeriesRow = { date: string } & Record<PipelineStage, number>;
+
+export interface PipelineOverview {
+  start: string;
+  end: string;
+  days: number;
+  stages: PipelineStep[];
+  series: PipelineSeriesRow[];
+}
+
+export interface PipelineLead {
+  id: string;
+  title: string;
+  source: string;
+  kind: string;
+  client_name: string | null;
+  at: string;
+  status: LeadStatus;
+  score: number | null;
+  deal_value_usd: number | null;
+}
+
+export type SourceRow = { source: string; won_value: number; reply_rate: number | null } & Record<PipelineStage, number>;
+export type PersonRow = { actor: string; total: number } & Record<Exclude<PipelineStage, "found">, number>;
+
+export interface OwnerReport extends PipelineOverview {
+  workspace: string;
+  revenue: { won: number; previous: number; deals: number; valued: number };
+  wins: { id: string; title: string; source: string; deal_value_usd: number | null; at: string }[];
+  sources: SourceRow[];
+  people: PersonRow[];
+  pitches: {
+    drafted: number; by_agents: number; approved: number; rejected: number; waiting: number; replied: number;
+    approval_rate: number | null; median_review_hours: number | null;
+  };
+  runs: { total: number; succeeded: number; failed: number; leads_fetched: number; new_leads: number };
 }

@@ -12,6 +12,7 @@ from gigscout import crm as crm_lib
 from gigscout import outreach as outreach_lib
 from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
+from gigscout.platform import pipeline
 from gigscout.platform.pitches import pitch_settings
 from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, utcnow
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep, WriterDep, Ws, WsDep, audit
@@ -60,6 +61,7 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
     session.add(row)
     session.flush()
     audit(session, user, "outreach.draft", lead.id, channel=draft.channel, source=draft.source)
+    pipeline.mark(session, user.id, lead.id, "drafted", user.email)
     session.commit()
     return outreach_out(row)
 
@@ -100,6 +102,7 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: Wri
     if (state.status or "new") == "new":
         state.status, state.updated_by = "contacted", user.email
     session.merge(state)
+    pipeline.mark(session, user.id, row.lead_id, "sent", user.email)
     audit(session, user, "outreach.send", row.lead_id, channel=row.channel, to=row.to_address or "")
     session.commit()
     lead = user.index.get(row.lead_id)
@@ -132,6 +135,8 @@ def set_status(outreach_id: int, body: OutreachStatusIn, session: SessionDep, us
     if row.status not in ("sent", "replied", "no_reply"):  # drafts and rejected pitches never went out
         raise HTTPException(status.HTTP_409_CONFLICT, "Only a sent message can get a reply")
     row.status = body.status
+    if body.status == "replied":
+        pipeline.mark(session, user.id, row.lead_id, "replied", user.email)
     audit(session, user, "outreach.status", row.lead_id, status=body.status)
     session.commit()
     return outreach_out(row)

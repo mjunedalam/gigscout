@@ -152,6 +152,7 @@ class LeadView(BaseModel):
     assigned_to: int | None = None
     assignee: str | None = None  # their name
     follow_up_on: date | None = None
+    deal_value_usd: float | None = None
 
 
 class LeadPage(BaseModel):
@@ -168,6 +169,7 @@ class LeadUpdate(BaseModel):
     notes: str | None = Field(default=None, max_length=5000)
     assigned_to: int | None = None
     follow_up_on: date | None = None
+    deal_value_usd: float | None = Field(default=None, ge=0, le=1_000_000_000)
 
 
 class MemberName(BaseModel):

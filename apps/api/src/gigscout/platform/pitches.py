@@ -13,6 +13,7 @@ from sqlalchemy import select
 from gigscout import quality
 from gigscout.models import AgencyProfile, ScoredLead
 from gigscout.outreach import Drafter, draft_outreach, follow_up_draft
+from gigscout.platform import pipeline
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
 from gigscout.platform.scheduler import ScheduleManager
@@ -76,6 +77,7 @@ class PitchDesk:
                                      run_id=run_id, created_by=AGENT_AUTHOR))
                 session.add(AuditLog(actor=AGENT_AUTHOR, action="pitch.auto_draft", target=match.lead.id,
                                      detail={"run_id": run_id, "channel": draft.channel}, workspace_id=workspace_id))
+                pipeline.mark(session, workspace_id, match.lead.id, "drafted", AGENT_AUTHOR)
                 drafted += 1
             session.commit()
         if drafted:
