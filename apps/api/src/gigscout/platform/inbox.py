@@ -275,6 +275,8 @@ def parse_auth_results(header: str) -> tuple[str, list[tuple[str, str, dict[str,
 
     (Comments), nested or not, are removed first; quoted strings are kept whole, so text inside a comment or a
     quoted reason can never become a result or a property. Returns None if the header is malformed."""
+    if "\\" in header:
+        return None  # escapes are legal but never needed here; refusing them keeps every reader of it in agreement
     text = _without_comments(header.lower())
     if text is None:
         return None

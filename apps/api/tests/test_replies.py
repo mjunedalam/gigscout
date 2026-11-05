@@ -186,6 +186,8 @@ def test_only_results_stamped_by_our_own_mail_server_count():
     assert not ok("client.com", 'mx.google.com; dkim=fail reason="a; dkim=pass header.d=client.com" header.d=evil.com')
     assert not ok("client.com", "mx.google.com; spf=pass smtp.mailfrom=x.com dmarc=pass header.from=client.com")
     assert not ok("client.com", "mx.google.com; dmarc=pass (unbalanced header.from=client.com")
+    assert not ok("client.com", 'mx.google.com; dkim=fail reason="a\\"; dkim=pass header.d=client.com; x="" '
+                                'header.d=evil.com')  # an escaped quote
     # only the topmost header counts, and a second DMARC verdict makes the DMARC result unusable
     assert not ok("client.com", "mx.google.com; dmarc=fail header.from=client.com",
                   "mx.google.com; dmarc=pass header.from=client.com")
