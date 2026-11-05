@@ -128,3 +128,16 @@ def test_the_whole_line_from_run_to_won_shows_on_the_pipeline_and_report(desk): 
 def test_csv_cells_cannot_run_as_formulas():
     from gigscout.web.routes_reports import _safe
     assert _safe("=HYPERLINK(1)") == "'=HYPERLINK(1)" and _safe("upwork") == "upwork"
+    assert _safe("  =1+1") == "'  =1+1" and _safe("\t@SUM(A1)").startswith("'")
+
+
+def test_the_report_csv_never_lets_the_workspace_name_run_as_a_formula(web):
+    from tests.conftest import login
+    client, platform = web()
+    login(client)
+    with platform.sessions() as session:
+        from gigscout.platform.tables import Workspace
+        session.get(Workspace, 1).name = "=cmd|' /C calc'!A0"
+        session.commit()
+    first_line = client.get("/api/reports/owner.csv").text.splitlines()[0]
+    assert first_line.startswith("Report,'=cmd")

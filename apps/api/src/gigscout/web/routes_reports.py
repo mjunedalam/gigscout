@@ -70,7 +70,7 @@ def owner_report_csv(session: SessionDep, ws: WsDep, days: int = Query(default=3
     report = build_owner_report(session, ws, days)
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["Report", ws.name, report["start"], report["end"]])
+    writer.writerow(["Report", _safe(ws.name), report["start"], report["end"]])
     writer.writerow([])
     writer.writerow(["Step", "Leads", "Previous period", "Conversion", "Median hours", "Waiting now"])
     for s in report["stages"]:
@@ -146,7 +146,7 @@ def _run_stats(session, workspace_id: int, start: datetime, end: datetime) -> di
 
 def _safe(value: str) -> str:
     """Stop spreadsheet apps from running a cell as a formula (CSV injection)."""
-    return f"'{value}" if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+    return f"'{value}" if value.lstrip(" \t\r\n")[:1] in ("=", "+", "-", "@") or value[:1] in ("\t", "\r") else value
 
 
 def _aware(value: datetime) -> datetime:
