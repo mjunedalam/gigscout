@@ -100,6 +100,9 @@ def test_uploads_read_text_and_pdf_and_refuse_the_rest(desk):  # noqa: F811
     eleven_mb = b"a" * (10 * 1024 * 1024 + 1)
     too_big = client.post("/api/knowledge/upload", params={"filename": "big.txt"}, content=eleven_mb)
     assert too_big.status_code == 413
+    declared = client.post("/api/knowledge/upload", params={"filename": "big.txt"}, content=b"a" * 30,
+                           headers={"content-length": str(11 * 1024 * 1024)})
+    assert declared.status_code in (400, 413)  # refused before reading
 
     doc_id = md.json()["id"]
     assert client.delete(f"/api/knowledge/{doc_id}").status_code == 204

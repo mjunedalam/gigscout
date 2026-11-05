@@ -7,9 +7,10 @@ from datetime import UTC, datetime
 from pathlib import PurePath
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+from pypdf import PdfReader, filters
+from pypdf.errors import LimitReachedError, PdfReadError
 from sqlalchemy import select
 
 from gigscout.outreach import claims_out, evidence_out
@@ -25,6 +26,11 @@ MAX_UPLOAD = 10 * 1024 * 1024  # bytes
 MAX_PDF_PAGES = 200
 MAX_DOCS = 500  # per workspace
 TEXT_TYPES = {".txt", ".md", ".markdown", ".csv"}
+DECOMPRESSED_MAX = 25 * 1024 * 1024  # bytes one PDF stream may inflate to: stops "zip bomb" PDFs
+for _limit in ("ZLIB_MAX_OUTPUT_LENGTH", "LZW_MAX_OUTPUT_LENGTH", "RUN_LENGTH_MAX_OUTPUT_LENGTH",
+               "JBIG2_MAX_OUTPUT_LENGTH", "MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH", "MAX_DECLARED_STREAM_LENGTH"):
+    if hasattr(filters, _limit):
+        setattr(filters, _limit, min(getattr(filters, _limit), DECOMPRESSED_MAX))
 
 
 class KnowledgeIn(BaseModel):
@@ -54,14 +60,24 @@ def add_doc(body: KnowledgeIn, session: SessionDep, ws: WriterDep) -> dict:
 async def upload_doc(request: Request, session: SessionDep, ws: WriterDep,
                      filename: str = Query(min_length=1, max_length=200),
                      kind: str = Query(default="other", pattern=f"^({'|'.join(DOC_KINDS)})$")) -> dict:
-    """The file's bytes as the request body (PDF, text or Markdown); the name says which."""
+    """The file's bytes as the request body (PDF, text or Markdown); the name says which.
+
+    Only reading the body happens here; parsing and embedding run in a worker thread, so a heavy file never
+    holds up other requests."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_UPLOAD:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Files up to 10 MB")
     data = bytearray()
     async for part in request.stream():  # read with a cap, so a huge body never fills memory
         data.extend(part)
         if len(data) > MAX_UPLOAD:
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Files up to 10 MB")
+    return await run_in_threadpool(_ingest, session, ws, filename, kind, bytes(data))
+
+
+def _ingest(session, ws: Ws, filename: str, kind: str, data: bytes) -> dict:
     suffix = PurePath(filename).suffix.lower()
-    text = _pdf_text(bytes(data)) if suffix == ".pdf" else _plain_text(bytes(data), suffix)
+    text = _pdf_text(data) if suffix == ".pdf" else _plain_text(data, suffix)
     if len(text.strip()) < 20:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "No readable text in that file (scanned PDFs need OCR first)")
@@ -113,8 +129,15 @@ def _pdf_text(data: bytes) -> str:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That PDF is password-protected")
-        return "\n\n".join((page.extract_text() or "") for page in reader.pages[:MAX_PDF_PAGES])
-    except (PdfReadError, ValueError, KeyError, TypeError) as exc:
+        pages, size = [], 0
+        for page in reader.pages[:MAX_PDF_PAGES]:
+            text = page.extract_text() or ""
+            pages.append(text)
+            size += len(text)
+            if size >= MAX_TEXT:  # enough: the rest would be cut anyway
+                break
+        return "\n\n".join(pages)
+    except (PdfReadError, ValueError, KeyError, TypeError, LimitReachedError) as exc:
         log.info("Unreadable PDF upload: %s", type(exc).__name__)
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That PDF could not be read") from None
 
