@@ -91,8 +91,8 @@ async def check_mailbox(platform: PlatformDep, _: AdminDep) -> dict:
 def reply_out(r: Reply) -> dict:
     return {"id": r.id, "outreach_id": r.outreach_id, "lead_id": r.lead_id, "from_address": r.from_address,
             "subject": r.subject, "body": r.body, "source": r.source, "intent": r.intent, "summary": r.summary,
-            "read_by": r.read_by, "answer_id": r.answer_id, "received_at": _iso(r.received_at),
-            "handled_by": r.handled_by, "handled_at": _iso(r.handled_at)}
+            "read_by": r.read_by, "verified": r.verified is not False, "answer_id": r.answer_id,
+            "received_at": _iso(r.received_at), "handled_by": r.handled_by, "handled_at": _iso(r.handled_at)}
 
 
 def _iso(value: datetime | None) -> str | None:

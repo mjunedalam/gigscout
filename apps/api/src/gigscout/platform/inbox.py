@@ -5,6 +5,7 @@ import email
 import email.policy
 import imaplib
 import logging
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ class Incoming:
     body: str
     message_id: str | None
     in_reply_to: tuple[str, ...]  # In-Reply-To and References ids
+    authenticated: bool = False  # our mail server saw DKIM or DMARC pass for the From domain
 
 
 def imap_ready(settings: Settings) -> bool:
@@ -63,8 +65,11 @@ class ReplyDesk:
 
     def receive(self, workspace_id: int, outreach_id: int, body: str, from_address: str | None = None,
                 subject: str = "", message_id: str | None = None, source: str = "email",
-                actor: str = AGENT_AUTHOR) -> Reply | None:
-        """Take in one reply to one of our messages. Returns None if this exact email was already taken in."""
+                actor: str = AGENT_AUTHOR, verified: bool = True) -> Reply | None:
+        """Take in one reply to one of our messages. Returns None if this exact email was already taken in.
+
+        An unverified reply (its sender could be forged) is recorded and answered as a draft, but moves nothing:
+        a person decides what it means for the lead."""
         with self._sessions() as session:
             original = session.get(Outreach, outreach_id)
             if original is None or original.workspace_id != workspace_id:
@@ -81,19 +86,22 @@ class ReplyDesk:
             reply = Reply(workspace_id=workspace_id, outreach_id=original.id, lead_id=original.lead_id,
                           from_address=single_address(from_address), subject=subject[:300],
                           body=reply_lib.strip_quoted(body) or body[:reply_lib.REPLY_MAX], message_id=message_id,
-                          source=source, intent=read.intent, summary=read.summary, read_by=read_by)
+                          source=source, intent=read.intent, summary=read.summary, read_by=read_by,
+                          verified=verified)
             session.add(reply)
-            if original.status in ("sent", "no_reply"):
-                original.status = "replied"
-            if read.intent != "out_of_office":
-                pipeline.mark(session, workspace_id, original.lead_id, "replied", actor)
-            self._move_lead(session, workspace_id, original.lead_id, read.intent, actor)
+            if verified:
+                if original.status in ("sent", "no_reply"):
+                    original.status = "replied"
+                if read.intent != "out_of_office":
+                    pipeline.mark(session, workspace_id, original.lead_id, "replied", actor)
+                self._move_lead(session, workspace_id, original.lead_id, read.intent, actor)
             session.flush()
             if read.intent not in reply_lib.NO_ANSWER:
                 reply.answer_id = self._draft_answer(session, workspace_id, original, reply, profile, lead, reader)
             session.add(AuditLog(actor=actor, action="reply.received", target=original.lead_id,
                                  workspace_id=workspace_id,
-                                 detail={"intent": read.intent, "source": source, "outreach_id": original.id}))
+                                 detail={"intent": read.intent, "source": source, "outreach_id": original.id,
+                                         "verified": verified}))
             session.commit()
             title = lead.title
         self._bus.publish("reply.received", {"id": reply.id, "lead_id": reply.lead_id, "title": title,
@@ -118,7 +126,8 @@ class ReplyDesk:
                 continue
             try:
                 taken += self.receive(match.workspace_id, match.id, incoming.body, incoming.from_address,
-                                      incoming.subject, incoming.message_id) is not None
+                                      incoming.subject, incoming.message_id,
+                                      verified=incoming.authenticated) is not None
             except LookupError:
                 continue
             except Exception:
@@ -126,7 +135,11 @@ class ReplyDesk:
         return taken
 
     def match(self, incoming: Incoming) -> Outreach | None:
-        """The sent message this email answers: by its thread headers, else the latest email to that sender."""
+        """The sent message this email answers.
+
+        By its thread headers first: our Message-IDs are unique, so this finds exactly one message in one
+        workspace. Failing that, by the sender, but only when the sender is authenticated (a From address is easy
+        to forge) and only when exactly one workspace wrote to that address; otherwise the email is skipped."""
         with self._sessions() as session:
             if incoming.in_reply_to:
                 row = session.scalar(select(Outreach).where(Outreach.message_id.in_(incoming.in_reply_to))
@@ -134,14 +147,17 @@ class ReplyDesk:
                 if row is not None:
                     return row
             sender = single_address(incoming.from_address)
-            if not sender:
+            if not sender or not incoming.authenticated:
                 return None
             since = utcnow() - timedelta(days=LOOKBACK_DAYS)
-            return session.scalar(select(Outreach).where(
+            rows = list(session.scalars(select(Outreach).where(
                 func.lower(Outreach.to_address) == sender.lower(), Outreach.channel == "email",
                 Outreach.sent_at >= since,
                 or_(Outreach.status == "sent", Outreach.status == "replied", Outreach.status == "no_reply"),
-            ).order_by(Outreach.sent_at.desc()).limit(1))
+            ).order_by(Outreach.sent_at.desc())))
+            if len({r.workspace_id for r in rows}) != 1:
+                return None  # nobody, or more than one workspace: never guess across workspaces
+            return rows[0]
 
     @staticmethod
     def _move_lead(session, workspace_id: int, lead_id: str, intent: str, actor: str) -> None:
@@ -201,7 +217,26 @@ def parse_email(raw: bytes) -> Incoming:
     except (LookupError, ValueError):
         body = ""
     threads = " ".join(str(message.get(h, "")) for h in ("In-Reply-To", "References")).split()
-    return Incoming(from_address=parseaddr(str(message.get("From", "")))[1] or None,
+    sender = parseaddr(str(message.get("From", "")))[1] or None
+    return Incoming(from_address=sender, authenticated=sender_authenticated(message, sender),
                     subject=str(message.get("Subject", ""))[:300], body=str(body)[:reply_lib.REPLY_MAX],
                     message_id=str(message.get("Message-ID", "")).strip() or None,
                     in_reply_to=tuple(t.strip() for t in threads if t.strip().startswith("<"))[:20])
+
+
+def sender_authenticated(message: EmailMessage, sender: str | None) -> bool:
+    """Whether our mail server (the topmost Authentication-Results, which it adds itself) saw DMARC pass, or DKIM
+    pass signed by the From domain. Anything else may be forged."""
+    if not sender or "@" not in sender:
+        return False
+    results = message.get_all("Authentication-Results") or []
+    if not results:
+        return False
+    domain = sender.rsplit("@", 1)[1].lower()
+    top = str(results[0]).lower()
+    if re.search(rf"\bdmarc=pass\b[^;]*header\.from={re.escape(domain)}\b", top):
+        return True
+    for signed in re.findall(r"\bdkim=pass\b[^;]*?header\.(?:d|i)=@?([a-z0-9.-]+)", top):
+        if domain == signed or domain.endswith("." + signed):
+            return True
+    return False

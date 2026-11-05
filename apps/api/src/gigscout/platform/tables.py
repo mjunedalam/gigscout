@@ -396,6 +396,7 @@ class Reply(Base):
     intent: Mapped[str] = mapped_column(String(16), index=True)
     summary: Mapped[str] = mapped_column(Text, default="")
     read_by: Mapped[str] = mapped_column(String(8), default="rules")  # ai | rules
+    verified: Mapped[bool] = mapped_column(Boolean, default=True)  # sender authenticated, or logged by the team
     answer_id: Mapped[int | None] = mapped_column(ForeignKey("outreach.id", ondelete="SET NULL"), default=None)
     received_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     handled_by: Mapped[str | None] = mapped_column(String(254), default=None)

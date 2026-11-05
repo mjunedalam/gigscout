@@ -1,7 +1,7 @@
 import type { ReplyItem } from "@gigscout/api-client";
 import { Alert, Anchor, Badge, Blockquote, Box, Button, Grid, Group, Skeleton, Spoiler, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconCheck, IconInbox, IconMail, IconMailForward, IconRobot, IconSparkles } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCheck, IconInbox, IconMail, IconMailForward, IconRobot, IconSparkles } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 
@@ -98,6 +98,11 @@ function ReplyCard({ item, emailReady, canApprove, onDone }: ReplyCardProps) {
           <Stack gap={8}>
             <Group gap={6} wrap="wrap">
               <Tooltip label={meta.hint}><Badge color={meta.color} variant="light">{meta.label}</Badge></Tooltip>
+              {!r.verified && (
+                <Tooltip multiline w={280} label="The mail server could not confirm who sent this (no DKIM or DMARC pass). It was not used to move the lead: check it before acting.">
+                  <Badge size="sm" color="orange" variant="light" leftSection={<IconAlertTriangle size={10} />}>unverified sender</Badge>
+                </Tooltip>
+              )}
               {r.read_by === "ai" && <Badge size="sm" variant="outline" color="gray" leftSection={<IconSparkles size={10} />}>read by AI</Badge>}
               <Text size="xs" c="var(--gs-text-muted)">{r.from_address ?? (r.source === "pasted" ? "logged by hand" : "")} · {timeAgo(r.received_at)}</Text>
             </Group>

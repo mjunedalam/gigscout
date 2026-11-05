@@ -127,12 +127,14 @@ def test_mailbox_replies_match_by_thread_and_are_taken_in_once(desk, monkeypatch
         "channel": "email", "to": "cto@client.com", "subject": "Your project", "body": item["body"]}).json()
 
     incoming = Incoming("cto@client.com", "Re: Your project", "How much would this cost?", "<r1@client.com>",
-                        ("<sent-1@acme.com>",))
+                        ("<sent-1@acme.com>",), authenticated=True)
     match = platform.replies.match(incoming)
     assert match is not None and match.id == sent["id"]
-    by_sender = platform.replies.match(Incoming("CTO@client.com", "Hi", "x", "<r2@client.com>", ()))
+    by_sender = platform.replies.match(Incoming("CTO@client.com", "Hi", "x", "<r2@client.com>", (), True))
     assert by_sender is not None and by_sender.id == sent["id"]
-    assert platform.replies.match(Incoming("stranger@else.com", "Hi", "x", "<r3@x>", ())) is None
+    forged = Incoming("cto@client.com", "Hi", "x", "<r2b@client.com>", (), authenticated=False)
+    assert platform.replies.match(forged) is None  # a From address alone proves nothing
+    assert platform.replies.match(Incoming("stranger@else.com", "Hi", "x", "<r3@x>", (), True)) is None
 
     monkeypatch.setattr("gigscout.platform.inbox.imap_ready", lambda _s: True)
     monkeypatch.setattr("gigscout.platform.inbox.fetch_recent", lambda _s: [incoming, incoming])
@@ -150,3 +152,51 @@ def test_viewers_cannot_paste_and_other_workspaces_cannot_see(desk):  # noqa: F8
     login(client, MEMBER_EMAIL)
     assert client.post("/api/replies", json={"outreach_id": sent["id"], "body": "Call me?"}).status_code == 201
     assert client.post("/api/replies/check-mailbox").status_code == 403  # members cannot trigger mailbox reads
+
+
+def _signed(from_domain: str, results: str) -> bytes:
+    message = EmailMessage()
+    message["Authentication-Results"] = results
+    message["Authentication-Results"] = "attacker.example; dmarc=pass header.from=" + from_domain  # a forged one
+    message["From"] = f"CTO <cto@{from_domain}>"
+    message["Message-ID"] = "<x@y>"
+    message.set_content("No thanks.")
+    return message.as_bytes()
+
+
+def test_only_our_servers_authentication_result_counts():
+    ok = parse_email(_signed("client.com", "mx.google.com; dkim=pass header.i=@client.com; dmarc=pass "
+                                           "(p=REJECT) header.from=client.com"))
+    assert ok.authenticated
+    dkim_only = parse_email(_signed("mail.client.com", "mx.google.com; dkim=pass header.d=client.com"))
+    assert dkim_only.authenticated  # signed by the parent domain
+    failed = parse_email(_signed("client.com", "mx.google.com; dkim=fail header.i=@client.com; dmarc=fail"))
+    assert not failed.authenticated  # the second, forged header is ignored
+    other = parse_email(_signed("client.com", "mx.google.com; dkim=pass header.i=@evil.com"))
+    assert not other.authenticated
+
+
+def test_an_unverified_reply_is_kept_and_answered_but_moves_nothing(desk):  # noqa: F811
+    client, platform = desk
+    sent = _sent_bid(client)
+    reply = platform.replies.receive(1, sent["id"], "No thanks, not for us.", "cto@client.com", "Re", "<f1@x>",
+                                     verified=False)
+    assert reply is not None and reply.verified is False
+    with platform.sessions() as session:
+        assert session.get(LeadState, (1, sent["lead_id"])).status == "contacted"  # not marked lost
+        assert session.get(Outreach, sent["id"]).status == "sent"
+    item = client.get("/api/replies").json()["items"][0]["reply"]
+    assert item["verified"] is False and item["intent"] == "not_interested"
+
+
+def test_the_sender_fallback_never_guesses_between_workspaces(desk, monkeypatch):  # noqa: F811
+    client, platform = desk
+    from gigscout.platform.tables import Workspace, utcnow
+    with platform.sessions() as session:
+        session.add(Workspace(id=2, name="Other agency", form_key="other-agency-form-key"))
+        session.flush()
+        for ws in (1, 2):
+            session.add(Outreach(workspace_id=ws, lead_id=f"x:{ws}", channel="email", to_address="cto@shared.com",
+                                 status="sent", sent_at=utcnow(), created_by="a"))
+        session.commit()
+    assert platform.replies.match(Incoming("cto@shared.com", "Hi", "x", "<s1@x>", (), True)) is None

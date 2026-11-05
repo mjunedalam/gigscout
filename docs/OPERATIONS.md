@@ -96,9 +96,16 @@ Client replies land in **Inbox**. For each reply the agents:
 | `GIGSCOUT_IMAP_FOLDER` | `INBOX` (default) |
 | `GIGSCOUT_IMAP_POLL_MINUTES` | `10` (default) |
 
-Mail is read without marking it as read. Only emails that answer something GigScout sent are used: they are
-matched by their thread headers or, failing that, by the sender's address within 45 days. The rest of the
-mailbox is ignored.
+Mail is read without marking it as read. Only emails that answer something GigScout sent are used. The rest of
+the mailbox is ignored. Replies are matched in two ways:
+
+- **By their thread headers.** GigScout's message ids are unique, so this always finds the one right message.
+- **By the sender's address, within 45 days.** This is used only when your mail server confirmed the sender
+  (a DKIM or DMARC pass) and exactly one workspace wrote to that address.
+
+A sender anyone could fake can't move a lead. If the mail server couldn't confirm the sender, the reply is
+still shown and answered as a draft, marked **unverified sender**, but it doesn't change the lead or the
+pipeline. A person decides.
 
 Without a mailbox, or for marketplace messages, open the lead and use **Log a reply** on the sent message.
 

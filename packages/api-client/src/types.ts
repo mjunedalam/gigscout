@@ -770,6 +770,8 @@ export interface Reply {
   intent: ReplyIntent;
   summary: string;
   read_by: "ai" | "rules";
+  /** False when the sender could not be authenticated: the reply moved nothing, a person decides. */
+  verified: boolean;
   /** The answer the agents drafted; it waits for approval like any pitch. */
   answer_id: number | null;
   received_at: string;
