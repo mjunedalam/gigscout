@@ -106,10 +106,12 @@ the mailbox is ignored. Replies are matched in two ways:
 
 A reply moves a lead only when both of these are true:
 
-- **Your own mail server confirmed the sender.** The server named in `GIGSCOUT_IMAP_AUTHSERV_ID` recorded a
-  DMARC pass for the sender's domain, or a DKIM pass signed by it. A result written by anyone else is
-  ignored, and so is any "pass" that appears only inside a comment.
-- **The sender is the person or company you wrote to.**
+- **Your own mail server confirmed the sender.** Only the topmost `Authentication-Results` header is read, and
+  it must come from the server named in `GIGSCOUT_IMAP_AUTHSERV_ID`. In it, DMARC passed for the sender's
+  domain, or DKIM passed with a signature from that domain. Text inside comments or quotes never counts, and
+  two DMARC verdicts cancel each other out.
+- **The sender is the person you wrote to, or a colleague at the same company.** A shared provider such as
+  gmail.com never counts as the same company.
 
 Anything else is still shown and answered as a draft, but marked **unverified sender**. It doesn't change the
 lead or the pipeline, and its answer goes only to the address you originally wrote to. Until

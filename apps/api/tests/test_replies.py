@@ -180,9 +180,16 @@ def test_only_results_stamped_by_our_own_mail_server_count():
     # the sender wrote their own header: another server name is never trusted, nor is anything with no server set
     assert not ok("client.com", "attacker.example; dmarc=pass header.from=client.com")
     assert not ok("client.com", "mx.google.com; dmarc=pass header.from=client.com", server=None)
-    # "pass" hidden in a comment or in another method's text does not count
+    # "pass" hidden in a comment, a nested comment, a quoted reason or another method's text does not count
     assert not ok("client.com", "mx.google.com; dkim=fail (dkim=pass header.d=client.com) header.d=client.com")
+    assert not ok("client.com", "mx.google.com; dkim=fail ((x) dkim=pass header.d=client.com) header.d=evil.com")
+    assert not ok("client.com", 'mx.google.com; dkim=fail reason="a; dkim=pass header.d=client.com" header.d=evil.com')
     assert not ok("client.com", "mx.google.com; spf=pass smtp.mailfrom=x.com dmarc=pass header.from=client.com")
+    assert not ok("client.com", "mx.google.com; dmarc=pass (unbalanced header.from=client.com")
+    # only the topmost header counts, and a second DMARC verdict makes the DMARC result unusable
+    assert not ok("client.com", "mx.google.com; dmarc=fail header.from=client.com",
+                  "mx.google.com; dmarc=pass header.from=client.com")
+    assert not ok("client.com", "mx.google.com; dmarc=fail header.from=client.com; dmarc=pass header.from=client.com")
 
 
 def test_a_confirmed_reply_must_come_from_who_we_wrote_to():
@@ -192,6 +199,8 @@ def test_a_confirmed_reply_must_come_from_who_we_wrote_to():
     assert same_party(Incoming("ceo@client.com", "", "", None, (), True), "cto@client.com")  # a colleague
     assert not same_party(Incoming("me@other.com", "", "", None, (), True), "cto@client.com")
     assert not same_party(Incoming("cto@client.com", "", "", None, (), False), "cto@client.com")
+    assert not same_party(Incoming("anyone@gmail.com", "", "", None, (), True), "client@gmail.com")  # shared provider
+    assert same_party(Incoming("Client@gmail.com", "", "", None, (), True), "client@gmail.com")
 
 
 def test_a_stranger_in_our_thread_moves_nothing_and_is_never_answered(desk, monkeypatch):  # noqa: F811

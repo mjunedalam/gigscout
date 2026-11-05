@@ -6,6 +6,13 @@ from email.message import EmailMessage
 from gigscout.config import Settings
 
 SMTP_TIMEOUT = 20
+# Mail providers many unrelated people share: their domain says nothing about which company someone is from.
+SHARED_MAIL_DOMAINS = frozenset({
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com", "hotmail.co.uk", "outlook.com",
+    "live.com", "msn.com", "icloud.com", "me.com", "mac.com", "proton.me", "protonmail.com", "pm.me", "aol.com",
+    "gmx.com", "gmx.de", "gmx.net", "web.de", "mail.com", "yandex.com", "yandex.ru", "zoho.com", "fastmail.com",
+    "hey.com", "tutanota.com", "qq.com", "163.com", "naver.com",
+})
 
 
 def email_ready(settings: Settings) -> bool:

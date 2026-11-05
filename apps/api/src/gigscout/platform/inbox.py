@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, select
 
 from gigscout import replies as reply_lib
 from gigscout.config import Settings
+from gigscout.mail import SHARED_MAIL_DOMAINS
 from gigscout.outreach import Drafter, claims_out, evidence_out, lead_query, single_address
 from gigscout.platform import pipeline
 from gigscout.platform.db import SessionFactory
@@ -49,7 +50,10 @@ def same_party(incoming: Incoming, recipient: str | None) -> bool:
     sender, wrote_to = single_address(incoming.from_address), single_address(recipient)
     if not incoming.authenticated or not sender or not wrote_to:
         return False
-    return sender.lower() == wrote_to.lower() or sender.rsplit("@", 1)[1].lower() == wrote_to.rsplit("@", 1)[1].lower()
+    if sender.lower() == wrote_to.lower():
+        return True
+    domain = sender.rsplit("@", 1)[1].lower()  # a colleague at the same company, but never on a shared provider
+    return domain == wrote_to.rsplit("@", 1)[1].lower() and domain not in SHARED_MAIL_DOMAINS
 
 
 def imap_ready(settings: Settings) -> bool:
@@ -234,43 +238,105 @@ def parse_email(raw: bytes, authserv_id: str | None = None) -> Incoming:
 
 
 def sender_authenticated(message: EmailMessage, sender: str | None, authserv_id: str | None) -> bool:
-    """Whether OUR mail server confirmed the sender: in the topmost Authentication-Results it stamped (its
-    authserv-id must be the configured one), DMARC passed for exactly the From domain, or DKIM passed with a
-    signing domain the From domain belongs to. Without a configured authserv-id nothing counts as confirmed."""
+    """Whether OUR mail server confirmed the sender.
+
+    Only the topmost Authentication-Results header is read: the receiving server adds it last, so it sits on top,
+    and anything below could have been written by the sender. Its authserv-id must be the configured one. Then
+    either the single DMARC result passed for exactly the From domain, or a DKIM result passed with a signing domain
+    the From domain belongs to. Without a configured authserv-id nothing counts as confirmed."""
     if not authserv_id or not sender or "@" not in sender:
         return False
+    headers = message.get_all("Authentication-Results") or []
+    if not headers:
+        return False
+    parsed = parse_auth_results(str(headers[0]))
+    if parsed is None or parsed[0] != authserv_id.lower():
+        return False
     domain = sender.rsplit("@", 1)[1].lower().strip()
-    for header in message.get_all("Authentication-Results") or []:
-        server, results = _auth_results(str(header))
-        if server != authserv_id.lower():
-            continue  # stamped by someone else (possibly the sender): never trusted
-        return any(_confirms(method, result, props, domain) for method, result, props in results)
+    results = parsed[1]
+    dmarc = [r for r in results if r[0] == "dmarc"]
+    if len(dmarc) == 1 and dmarc[0][1] == "pass" and dmarc[0][2].get("header.from") == domain:
+        return True
+    for method, result, props in results:
+        if method == "dkim" and result == "pass":
+            signer = props.get("header.d") or props.get("header.i", "").rsplit("@", 1)[-1]
+            if "." in signer and (domain == signer or domain.endswith("." + signer)):
+                return True
     return False
 
 
-def _auth_results(header: str) -> tuple[str, list[tuple[str, str, dict[str, str]]]]:
-    """RFC 8601: 'authserv-id; method=result prop.name=value ...; ...' with (comments) removed."""
-    text = re.sub(r"\([^()]*\)", " ", header).lower()
-    parts = [p.strip() for p in text.split(";")]
-    server = parts[0].split()[0] if parts and parts[0].split() else ""
+RESINFO = re.compile(r"^([a-z0-9][a-z0-9_-]*)\s*=\s*([a-z]+)$")
+PROP = re.compile(r'^([a-z0-9_-]+\.[a-z0-9_-]+)\s*=\s*(.+)$')
+TOKEN = re.compile(r'[^\s"=]+\s*=\s*"(?:[^"\\]|\\.)*"|[^\s"]+|"(?:[^"\\]|\\.)*"')
+
+
+def parse_auth_results(header: str) -> tuple[str, list[tuple[str, str, dict[str, str]]]] | None:
+    """RFC 8601: 'authserv-id [version]; method=result [reason="..."] [ptype.prop=value ...]; ...'.
+
+    (Comments), nested or not, are removed first; quoted strings are kept whole, so text inside a comment or a
+    quoted reason can never become a result or a property. Returns None if the header is malformed."""
+    text = _without_comments(header.lower())
+    if text is None:
+        return None
+    parts = _split_outside_quotes(text, ";")
+    server_tokens = parts[0].split() if parts else []
+    if not server_tokens:
+        return None
     results = []
     for part in parts[1:]:
-        tokens = part.split()
-        if not tokens or "=" not in tokens[0]:
+        tokens = TOKEN.findall(part.strip())
+        if not tokens:
             continue
-        method, result = tokens[0].split("=", 1)
-        props = dict(t.split("=", 1) for t in tokens[1:] if "=" in t and "." in t.split("=", 1)[0])
-        results.append((method, result, props))
-    return server, results
+        head = RESINFO.match(tokens[0].replace(" ", ""))
+        if head is None:
+            continue
+        props = {}
+        for token in tokens[1:]:
+            prop = PROP.match(token)
+            if prop:
+                props[prop.group(1)] = prop.group(2).strip().strip('"').lstrip("@")
+        results.append((head.group(1), head.group(2), props))
+    return server_tokens[0], results
 
 
-def _confirms(method: str, result: str, props: dict[str, str], domain: str) -> bool:
-    if result != "pass":
-        return False
-    if method == "dmarc":
-        return props.get("header.from", "").strip('"') == domain
-    if method == "dkim":
-        signer = props.get("header.d") or props.get("header.i", "").rsplit("@", 1)[-1]
-        signer = signer.strip('"').lstrip("@")
-        return "." in signer and (domain == signer or domain.endswith("." + signer))
-    return False
+def _without_comments(text: str) -> str | None:
+    out, depth, quoted, escaped = [], 0, False, False
+    for ch in text:
+        if escaped:
+            escaped = False
+            if depth == 0:
+                out.append(ch)
+            continue
+        if ch == "\\":
+            escaped = True
+            if depth == 0:
+                out.append(ch)
+            continue
+        if quoted:
+            out.append(ch)
+            quoted = ch != '"'
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            if depth == 0:
+                return None  # unbalanced: do not guess
+            depth -= 1
+        elif depth == 0:
+            out.append(ch)
+            quoted = ch == '"'
+    return None if depth or quoted else "".join(out)
+
+
+def _split_outside_quotes(text: str, sep: str) -> list[str]:
+    parts, current, quoted = [], [], False
+    for ch in text:
+        if ch == '"':
+            quoted = not quoted
+        if ch == sep and not quoted:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    return parts
