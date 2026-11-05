@@ -154,26 +154,68 @@ def test_viewers_cannot_paste_and_other_workspaces_cannot_see(desk):  # noqa: F8
     assert client.post("/api/replies/check-mailbox").status_code == 403  # members cannot trigger mailbox reads
 
 
-def _signed(from_domain: str, results: str) -> bytes:
+def _signed(from_domain: str, *results: str) -> bytes:
     message = EmailMessage()
-    message["Authentication-Results"] = results
-    message["Authentication-Results"] = "attacker.example; dmarc=pass header.from=" + from_domain  # a forged one
+    for value in results:
+        message["Authentication-Results"] = value
     message["From"] = f"CTO <cto@{from_domain}>"
     message["Message-ID"] = "<x@y>"
     message.set_content("No thanks.")
     return message.as_bytes()
 
 
-def test_only_our_servers_authentication_result_counts():
-    ok = parse_email(_signed("client.com", "mx.google.com; dkim=pass header.i=@client.com; dmarc=pass "
-                                           "(p=REJECT) header.from=client.com"))
-    assert ok.authenticated
-    dkim_only = parse_email(_signed("mail.client.com", "mx.google.com; dkim=pass header.d=client.com"))
-    assert dkim_only.authenticated  # signed by the parent domain
-    failed = parse_email(_signed("client.com", "mx.google.com; dkim=fail header.i=@client.com; dmarc=fail"))
-    assert not failed.authenticated  # the second, forged header is ignored
-    other = parse_email(_signed("client.com", "mx.google.com; dkim=pass header.i=@evil.com"))
-    assert not other.authenticated
+GOOGLE = "mx.google.com"
+
+
+def test_only_results_stamped_by_our_own_mail_server_count():
+    def ok(domain, *results, server=GOOGLE):
+        return parse_email(_signed(domain, *results), server).authenticated
+
+    assert ok("client.com", "mx.google.com; dkim=pass header.i=@client.com; "
+                            "dmarc=pass (p=REJECT) header.from=client.com")
+    assert ok("mail.client.com", "mx.google.com; dkim=pass header.d=client.com")  # signed by the parent domain
+    assert not ok("client.com", "mx.google.com; dkim=fail header.i=@client.com; dmarc=fail header.from=client.com")
+    assert not ok("client.com", "mx.google.com; dkim=pass header.i=@evil.com")
+    assert not ok("client.com", "mx.google.com; dmarc=pass header.from=client.com.evil.com")
+    # the sender wrote their own header: another server name is never trusted, nor is anything with no server set
+    assert not ok("client.com", "attacker.example; dmarc=pass header.from=client.com")
+    assert not ok("client.com", "mx.google.com; dmarc=pass header.from=client.com", server=None)
+    # "pass" hidden in a comment or in another method's text does not count
+    assert not ok("client.com", "mx.google.com; dkim=fail (dkim=pass header.d=client.com) header.d=client.com")
+    assert not ok("client.com", "mx.google.com; spf=pass smtp.mailfrom=x.com dmarc=pass header.from=client.com")
+
+
+def test_a_confirmed_reply_must_come_from_who_we_wrote_to():
+    from gigscout.platform.inbox import same_party
+    confirmed = Incoming("cto@client.com", "", "", None, (), authenticated=True)
+    assert same_party(confirmed, "CTO@client.com")
+    assert same_party(Incoming("ceo@client.com", "", "", None, (), True), "cto@client.com")  # a colleague
+    assert not same_party(Incoming("me@other.com", "", "", None, (), True), "cto@client.com")
+    assert not same_party(Incoming("cto@client.com", "", "", None, (), False), "cto@client.com")
+
+
+def test_a_stranger_in_our_thread_moves_nothing_and_is_never_answered(desk, monkeypatch):  # noqa: F811
+    client, platform = desk
+    client.put("/api/pitches/settings", json=AUTOPILOT)
+    scout(client)
+    item = pending(client)[0]["outreach"]
+    monkeypatch.setattr(platform.settings, "smtp_host", "smtp.test")
+    monkeypatch.setattr(platform.settings, "smtp_from", "Acme <hi@acme.com>")
+    monkeypatch.setattr(outreach_module, "send_email", lambda *a, **k: "<sent-9@acme.com>")
+    sent = client.post(f"/api/outreach/{item['id']}/send", json={
+        "channel": "email", "to": "cto@client.com", "subject": "Your project", "body": item["body"]}).json()
+    thread = ("<sent-9@acme.com>",)
+    no = Incoming("attacker@evil.com", "Re", "No thanks.", "<e1@evil.com>", thread, True)
+    ask = Incoming("attacker@evil.com", "Re", "How much would it cost?", "<e2@evil.com>", thread, True)
+    monkeypatch.setattr("gigscout.platform.inbox.imap_ready", lambda _s: True)
+    monkeypatch.setattr("gigscout.platform.inbox.fetch_recent", lambda _s: [no, ask])
+    assert platform.replies.poll() == 2
+    with platform.sessions() as session:
+        assert session.get(LeadState, (1, sent["lead_id"])).status == "contacted"  # not marked lost
+    items = client.get("/api/replies").json()["items"]
+    assert all(i["reply"]["verified"] is False for i in items)
+    answer = next(i["answer"] for i in items if i["answer"])
+    assert answer["to"] == "cto@client.com"  # never addressed to the stranger
 
 
 def test_an_unverified_reply_is_kept_and_answered_but_moves_nothing(desk):  # noqa: F811

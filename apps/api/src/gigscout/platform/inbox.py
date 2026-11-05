@@ -44,6 +44,14 @@ class Incoming:
     authenticated: bool = False  # our mail server saw DKIM or DMARC pass for the From domain
 
 
+def same_party(incoming: Incoming, recipient: str | None) -> bool:
+    """A reply moves the lead only if its sender is confirmed AND is the person (or company) we wrote to."""
+    sender, wrote_to = single_address(incoming.from_address), single_address(recipient)
+    if not incoming.authenticated or not sender or not wrote_to:
+        return False
+    return sender.lower() == wrote_to.lower() or sender.rsplit("@", 1)[1].lower() == wrote_to.rsplit("@", 1)[1].lower()
+
+
 def imap_ready(settings: Settings) -> bool:
     return bool(settings.imap_host and settings.imap_user and settings.imap_password)
 
@@ -127,7 +135,7 @@ class ReplyDesk:
             try:
                 taken += self.receive(match.workspace_id, match.id, incoming.body, incoming.from_address,
                                       incoming.subject, incoming.message_id,
-                                      verified=incoming.authenticated) is not None
+                                      verified=same_party(incoming, match.to_address)) is not None
             except LookupError:
                 continue
             except Exception:
@@ -176,7 +184,8 @@ class ReplyDesk:
                       writer) -> int:
         knowledge = self._index_for(workspace_id).knowledge()
         evidence = tuple(knowledge.search(f"{reply.body}\n{lead_query(lead)}")) if knowledge.count() else ()
-        to = reply.from_address or original.to_address
+        # a confirmed reply is answered to whoever wrote it; anything else only ever to the person we wrote to
+        to = reply.from_address if reply.verified and reply.from_address else original.to_address
         draft = reply_lib.draft_answer(profile, lead, original.body, reply.body, reply.intent, to,
                                        original.subject or lead.title, writer, evidence)
         has_docs = knowledge.count() > 0
@@ -204,11 +213,11 @@ def fetch_recent(settings: Settings) -> list[Incoming]:
             _status, parts = imap.fetch(num, "(BODY.PEEK[])")
             raw = next((p[1] for p in parts if isinstance(p, tuple)), None)
             if raw:
-                found.append(parse_email(raw))
+                found.append(parse_email(raw, settings.imap_authserv_id))
         return found
 
 
-def parse_email(raw: bytes) -> Incoming:
+def parse_email(raw: bytes, authserv_id: str | None = None) -> Incoming:
     message = email.message_from_bytes(raw, policy=email.policy.default)
     assert isinstance(message, EmailMessage)
     part = message.get_body(preferencelist=("plain",))
@@ -218,25 +227,50 @@ def parse_email(raw: bytes) -> Incoming:
         body = ""
     threads = " ".join(str(message.get(h, "")) for h in ("In-Reply-To", "References")).split()
     sender = parseaddr(str(message.get("From", "")))[1] or None
-    return Incoming(from_address=sender, authenticated=sender_authenticated(message, sender),
+    return Incoming(from_address=sender, authenticated=sender_authenticated(message, sender, authserv_id),
                     subject=str(message.get("Subject", ""))[:300], body=str(body)[:reply_lib.REPLY_MAX],
                     message_id=str(message.get("Message-ID", "")).strip() or None,
                     in_reply_to=tuple(t.strip() for t in threads if t.strip().startswith("<"))[:20])
 
 
-def sender_authenticated(message: EmailMessage, sender: str | None) -> bool:
-    """Whether our mail server (the topmost Authentication-Results, which it adds itself) saw DMARC pass, or DKIM
-    pass signed by the From domain. Anything else may be forged."""
-    if not sender or "@" not in sender:
+def sender_authenticated(message: EmailMessage, sender: str | None, authserv_id: str | None) -> bool:
+    """Whether OUR mail server confirmed the sender: in the topmost Authentication-Results it stamped (its
+    authserv-id must be the configured one), DMARC passed for exactly the From domain, or DKIM passed with a
+    signing domain the From domain belongs to. Without a configured authserv-id nothing counts as confirmed."""
+    if not authserv_id or not sender or "@" not in sender:
         return False
-    results = message.get_all("Authentication-Results") or []
-    if not results:
+    domain = sender.rsplit("@", 1)[1].lower().strip()
+    for header in message.get_all("Authentication-Results") or []:
+        server, results = _auth_results(str(header))
+        if server != authserv_id.lower():
+            continue  # stamped by someone else (possibly the sender): never trusted
+        return any(_confirms(method, result, props, domain) for method, result, props in results)
+    return False
+
+
+def _auth_results(header: str) -> tuple[str, list[tuple[str, str, dict[str, str]]]]:
+    """RFC 8601: 'authserv-id; method=result prop.name=value ...; ...' with (comments) removed."""
+    text = re.sub(r"\([^()]*\)", " ", header).lower()
+    parts = [p.strip() for p in text.split(";")]
+    server = parts[0].split()[0] if parts and parts[0].split() else ""
+    results = []
+    for part in parts[1:]:
+        tokens = part.split()
+        if not tokens or "=" not in tokens[0]:
+            continue
+        method, result = tokens[0].split("=", 1)
+        props = dict(t.split("=", 1) for t in tokens[1:] if "=" in t and "." in t.split("=", 1)[0])
+        results.append((method, result, props))
+    return server, results
+
+
+def _confirms(method: str, result: str, props: dict[str, str], domain: str) -> bool:
+    if result != "pass":
         return False
-    domain = sender.rsplit("@", 1)[1].lower()
-    top = str(results[0]).lower()
-    if re.search(rf"\bdmarc=pass\b[^;]*header\.from={re.escape(domain)}\b", top):
-        return True
-    for signed in re.findall(r"\bdkim=pass\b[^;]*?header\.(?:d|i)=@?([a-z0-9.-]+)", top):
-        if domain == signed or domain.endswith("." + signed):
-            return True
+    if method == "dmarc":
+        return props.get("header.from", "").strip('"') == domain
+    if method == "dkim":
+        signer = props.get("header.d") or props.get("header.i", "").rsplit("@", 1)[-1]
+        signer = signer.strip('"').lstrip("@")
+        return "." in signer and (domain == signer or domain.endswith("." + signer))
     return False

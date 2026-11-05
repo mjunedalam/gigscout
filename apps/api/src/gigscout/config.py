@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     imap_password: SecretStr | None = None
     imap_folder: str = "INBOX"
     imap_poll_minutes: int = Field(default=10, ge=2, le=1440)
+    # The name your mail server stamps first in its Authentication-Results header (Gmail: mx.google.com; for
+    # others open a received email's headers). Unset = no reply counts as confirmed, so none moves a lead on its own.
+    imap_authserv_id: str | None = None
 
     # CRM sync: leads are pushed as deals. HubSpot private-app token (scope crm.objects.deals.write) and/or a
     # Pipedrive personal API token. Unset = that CRM is off.

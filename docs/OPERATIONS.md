@@ -95,17 +95,25 @@ Client replies land in **Inbox**. For each reply the agents:
 | `GIGSCOUT_IMAP_PASSWORD` | an app password, never your main password |
 | `GIGSCOUT_IMAP_FOLDER` | `INBOX` (default) |
 | `GIGSCOUT_IMAP_POLL_MINUTES` | `10` (default) |
+| `GIGSCOUT_IMAP_AUTHSERV_ID` | `mx.google.com` for Gmail. It's the name your mail server writes first in each email's `Authentication-Results` header. |
 
 Mail is read without marking it as read. Only emails that answer something GigScout sent are used. The rest of
 the mailbox is ignored. Replies are matched in two ways:
 
 - **By their thread headers.** GigScout's message ids are unique, so this always finds the one right message.
 - **By the sender's address, within 45 days.** This is used only when your mail server confirmed the sender
-  (a DKIM or DMARC pass) and exactly one workspace wrote to that address.
+  and exactly one workspace wrote to that address.
 
-A sender anyone could fake can't move a lead. If the mail server couldn't confirm the sender, the reply is
-still shown and answered as a draft, marked **unverified sender**, but it doesn't change the lead or the
-pipeline. A person decides.
+A reply moves a lead only when both of these are true:
+
+- **Your own mail server confirmed the sender.** The server named in `GIGSCOUT_IMAP_AUTHSERV_ID` recorded a
+  DMARC pass for the sender's domain, or a DKIM pass signed by it. A result written by anyone else is
+  ignored, and so is any "pass" that appears only inside a comment.
+- **The sender is the person or company you wrote to.**
+
+Anything else is still shown and answered as a draft, but marked **unverified sender**. It doesn't change the
+lead or the pipeline, and its answer goes only to the address you originally wrote to. Until
+`GIGSCOUT_IMAP_AUTHSERV_ID` is set, every reply is treated this way.
 
 Without a mailbox, or for marketplace messages, open the lead and use **Log a reply** on the sent message.
 
