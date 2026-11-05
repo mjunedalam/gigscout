@@ -71,3 +71,22 @@ def test_limited_reads_stop_at_the_cap_and_refuse_bodies_declared_too_big(settin
         client.get_limited("https://site.example/declared", max_bytes=1000)
     moved = client.get_limited("https://site.example/moved", max_bytes=1000)
     assert moved.is_redirect and moved.body == b""
+
+
+@respx.mock
+def test_limited_reads_never_expand_a_compressed_body_past_the_cap(settings):
+    import gzip
+    respx.get("https://site.example/robots.txt").mock(return_value=httpx.Response(404))
+    bomb = gzip.compress(b"a" * 5_000_000)  # 5 MB that compresses to a few KB
+    route = respx.get("https://site.example/bomb").mock(
+        return_value=httpx.Response(200, headers={"content-encoding": "gzip"}, content=bomb))
+    respx.get("https://site.example/br").mock(
+        return_value=httpx.Response(200, headers={"content-encoding": "br"}, content=b"xx"))
+    client = PoliteClient(settings)
+
+    got = client.get_limited("https://site.example/bomb", max_bytes=10_000)  # the few KB sent fit; the 5 MB do not
+    assert len(got.body) == 10_000 and got.truncated and set(got.body) == {ord("a")}
+    assert route.calls[0].request.headers["accept-encoding"] == "identity"
+    from gigscout.http import TooLarge
+    with pytest.raises(TooLarge):
+        client.get_limited("https://site.example/br", max_bytes=1000)

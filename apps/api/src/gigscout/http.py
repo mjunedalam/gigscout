@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+import zlib
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
@@ -83,16 +84,20 @@ class PoliteClient:
             raise DisallowedByRobots(f"robots.txt disallows {url}")
         self._throttle(urlsplit(url).netloc)
         deadline = time.monotonic() + max_seconds
-        with self._client.stream("GET", url, follow_redirects=False) as response:
+        # ask for the body as-is, and read raw bytes: a compressed body is only ever expanded within the cap
+        with self._client.stream("GET", url, follow_redirects=False,
+                                 headers={"Accept-Encoding": "identity"}) as response:
             if response.is_redirect:
                 return Limited(response.status_code, response.headers, b"", True, False)
             response.raise_for_status()
             declared = response.headers.get("content-length", "")
             if declared.isdigit() and int(declared) > max_bytes:
                 raise TooLarge(f"{url} is {int(declared):,} bytes")
+            decoder = _bounded_decoder(response.headers.get("content-encoding", ""), url)
             body, truncated = bytearray(), False
-            for chunk in response.iter_bytes():
-                body.extend(chunk)
+            for chunk in response.iter_raw():
+                room = max_bytes - len(body)
+                body.extend(decoder(chunk, room) if decoder else chunk[:room])
                 if len(body) >= max_bytes or time.monotonic() > deadline:
                     truncated = True
                     break
@@ -134,3 +139,15 @@ class PoliteClient:
         parser = RobotFileParser()
         parser.parse(response.text.splitlines())
         return parser
+
+
+def _bounded_decoder(encoding: str, url: str):
+    """For a server that compresses anyway: expand gzip or deflate at most `room` bytes per chunk. Anything else
+    cannot be expanded safely here and is refused."""
+    encoding = encoding.strip().lower()
+    if encoding in ("", "identity"):
+        return None
+    if encoding not in ("gzip", "x-gzip", "deflate"):
+        raise TooLarge(f"{url} sent a {encoding} body, which is not read")
+    inflater = zlib.decompressobj(zlib.MAX_WBITS | 32)  # gzip or zlib header, detected
+    return lambda chunk, room: inflater.decompress(chunk, max(room, 0)) if room > 0 else b""
