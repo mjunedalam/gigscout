@@ -9,6 +9,7 @@ import { useState } from "react";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel, StatTile } from "../components/layout-bits";
 import { AnalystPanel } from "../components/pipeline/AnalystPanel";
+import { WhatGetsReplies } from "../components/pipeline/WhatGetsReplies";
 import { api, messageOf } from "../lib/api";
 import { change, dateTime, usd, waitLabel } from "../lib/format";
 import { RANGES, useDays } from "../lib/period";
@@ -176,6 +177,8 @@ function ReportBody({ r, onOpen }: { r: OwnerReport; onOpen: (id: string) => voi
           </Panel>
         </Grid.Col>
       </Grid>
+
+      <WhatGetsReplies />
 
       <Panel eyebrow="Wins" title="Deals won in the period">
         {r.wins.length === 0 ? <Text size="sm" c="var(--gs-text-muted)">No wins yet in this period.</Text> : (

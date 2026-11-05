@@ -40,7 +40,7 @@ class Reasoner(Protocol):
     def answer_stream(self, question: str, context: str) -> Iterator[str]: ...
 
     def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
-                       evidence: str = "", research: str = "") -> OutreachText: ...
+                       evidence: str = "", research: str = "", lessons: str = "") -> OutreachText: ...
 
 
 class OllamaReasoner:
@@ -88,8 +88,9 @@ class OllamaReasoner:
 
 
     def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
-                       evidence: str = "", research: str = "") -> OutreachText:
+                       evidence: str = "", research: str = "", lessons: str = "") -> OutreachText:
         prompt = prompts.DRAFT_OUTREACH.format(evidence=evidence or format_evidence(()), research=research or "none",
+                                               lessons=lessons or "none yet",
             company=profile.who(), profile=profile.as_query(), name=profile.name, kind=lead.kind, source=lead.source,
             title=lead.title, client=describe_client(lead), budget=describe_budget(lead),
             description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING], pitch=pitch or "none",

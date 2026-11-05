@@ -70,6 +70,17 @@ On Reports you can also ask a question, such as "Why did replies drop?" or "Whic
 The AI answers only from the report's numbers and lists the figures it used. With no AI running, you get the
 computed findings instead.
 
+**What gets replies.** Every approved message, and whether the client answered, is broken down by:
+
+- length;
+- channel;
+- whether it cites your past work;
+- whether it ends on a question;
+- whether your team edited the agents' draft.
+
+Once 10 messages have gone out, differences of 30% or more, each backed by at least 5 messages, become
+lessons. They show on Reports, and the pitch writer is given them every time it drafts.
+
 ## Knowledge base: pitches built on your real work
 
 Add your case studies, past proposals, portfolio and rates under **Knowledge base**. You can paste text or

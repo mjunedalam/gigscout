@@ -823,3 +823,13 @@ export interface AnalystAnswer {
   by: "ai" | "rules";
   days: number;
 }
+
+/** Reply rates by what a message was like (last 180 days); the lessons are given to the pitch writer. */
+export interface ReplyLessons {
+  sent: number;
+  replied: number;
+  /** How many sent messages are needed before lessons are drawn. */
+  needed: number;
+  rate: number | null;
+  lessons: { trait: string; sent: number; replied: number; rate: number; lift: number; better: boolean; says: string }[];
+}

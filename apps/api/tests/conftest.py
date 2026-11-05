@@ -75,8 +75,8 @@ class FakeReasoner:
                                  keywords=[company_type.lower()], exclude=["unpaid"], industries=[])
 
     def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
-                       evidence: str = "", research: str = "") -> OutreachText:
-        self.last_research = research
+                       evidence: str = "", research: str = "", lessons: str = "") -> OutreachText:
+        self.last_research, self.last_lessons = research, lessons
         if self.fail_grade:
             raise RuntimeError("llm timeout")
         proof = evidence.split(": ", 1)[1][:200] if evidence.startswith("[1]") else ""

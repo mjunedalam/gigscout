@@ -195,7 +195,7 @@ class ReplyDesk:
         has_docs = knowledge.count() > 0
         answer = Outreach(workspace_id=workspace_id, lead_id=original.lead_id, channel=draft.channel,
                           to_address=draft.to, subject=draft.subject, body=draft.body, source=draft.source,
-                          kind="answer", run_id=original.run_id, created_by=AGENT_AUTHOR,
+                          kind="answer", run_id=original.run_id, created_by=AGENT_AUTHOR, drafted_body=draft.body,
                           in_reply_to=reply.message_id,
                           evidence=evidence_out(evidence) if has_docs else None,
                           claims=claims_out(knowledge.check_claims(draft.body, evidence)) if has_docs else None)

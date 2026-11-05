@@ -14,6 +14,7 @@ from gigscout import quality, research
 from gigscout.http import PoliteClient
 from gigscout.models import AgencyProfile, ScoredLead
 from gigscout.outreach import Drafter, follow_up_draft, grounded_draft
+from gigscout.platform import lessons as lesson_lib
 from gigscout.platform import pipeline
 from gigscout.platform.briefs import fresh_brief, research_lead
 from gigscout.platform.db import SessionFactory
@@ -66,14 +67,17 @@ class PitchDesk:
             if not settings.auto_draft:
                 return 0
             picked = self._worth_pitching(session, workspace_id, settings, matches)
+            learned = lesson_lib.for_drafting(lesson_lib.lessons(lesson_lib.load_outcomes(session, workspace_id)))
         if not picked:
             return 0
         on_step(f"Pitch writer: drafting {len(picked)} pitch(es) for your approval")
         drafter = self._drafter()
         angles = self._research(workspace_id, agency, picked, drafter, on_step) if settings.research_first else {}
         knowledge = self._index_for(workspace_id).knowledge()
+        if learned:
+            on_step("Pitch writer: using what got replies in your past messages")
         drafts = [(match, grounded_draft(agency, match.lead, match.pitch, drafter, knowledge,
-                                         angles.get(match.lead.id, ""))) for match in picked]
+                                         angles.get(match.lead.id, ""), learned)) for match in picked]
         if drafts and drafts[0][1].evidence is not None:
             cited = sum(1 for _m, g in drafts if g.evidence)
             on_step(f"Pitch writer: {cited} of {len(drafts)} pitch(es) cite your own past work; every claim checked")
@@ -87,7 +91,7 @@ class PitchDesk:
                 session.add(Outreach(workspace_id=workspace_id, lead_id=match.lead.id, channel=draft.channel,
                                      to_address=draft.to, subject=draft.subject, body=draft.body, source=draft.source,
                                      run_id=run_id, created_by=AGENT_AUTHOR, evidence=grounded.evidence,
-                                     claims=grounded.claims))
+                                     claims=grounded.claims, drafted_body=draft.body))
                 session.add(AuditLog(actor=AGENT_AUTHOR, action="pitch.auto_draft", target=match.lead.id,
                                      detail={"run_id": run_id, "channel": draft.channel}, workspace_id=workspace_id))
                 pipeline.mark(session, workspace_id, match.lead.id, "drafted", AGENT_AUTHOR)

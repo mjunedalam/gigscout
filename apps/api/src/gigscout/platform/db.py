@@ -15,6 +15,7 @@ SessionFactory = Callable[[], Session]
 # Columns added after the first release. create_all only creates missing tables, so older databases get these
 # added in place. Each needs a default that is valid for existing rows.
 ADDED_COLUMNS = {
+    ("outreach", "drafted_body"): "TEXT",
     ("pitch_settings", "research_first"): "BOOLEAN DEFAULT 0",
     ("replies", "verified"): "BOOLEAN DEFAULT 1",
     ("outreach", "message_id"): "VARCHAR(255)",

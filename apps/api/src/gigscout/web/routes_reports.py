@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from gigscout import analyst
-from gigscout.platform import pipeline
+from gigscout.platform import lessons, pipeline
 from gigscout.platform.tables import AGENT_AUTHOR, LeadState, Outreach, Reply, Run
 from gigscout.web.deps import PlatformDep, SessionDep, Ws, WsDep, audit
 from gigscout.web.routes_leads import load_states
@@ -87,6 +87,18 @@ async def analyst_ask(body: AnalystQuestion, platform: PlatformDep, session: Ses
     audit(session, ws, "analyst.ask", "", question=body.question[:200])
     session.commit()
     return {**reply.model_dump(), "by": by, "days": body.days}
+
+
+@router.get("/reports/lessons")
+def what_gets_replies(session: SessionDep, ws: WsDep) -> dict:
+    """Reply rates by what a message was like, over the last 180 days, and the lessons the pitch writer gets."""
+    outcomes = lessons.load_outcomes(session, ws.id)
+    found = lessons.lessons(outcomes)
+    replied = sum(o.replied for o in outcomes)
+    return {"sent": len(outcomes), "replied": replied, "needed": lessons.MIN_TOTAL,
+            "rate": round(replied / len(outcomes), 3) if outcomes else None,
+            "lessons": [{"trait": f.trait, "sent": f.sent, "replied": f.replied, "rate": f.rate, "lift": f.lift,
+                         "better": f.better, "says": f.says()} for f in found]}
 
 
 @router.get("/reports/owner.csv")

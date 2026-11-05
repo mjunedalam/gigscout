@@ -199,6 +199,7 @@ class Outreach(Base):
     evidence: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # the company documents it drew on
     claims: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # its claims, and whether they are backed
     message_id: Mapped[str | None] = mapped_column(String(255), default=None, index=True)  # the sent email's id
+    drafted_body: Mapped[str | None] = mapped_column(Text, default=None)  # the agents' text, to see what people change
     in_reply_to: Mapped[str | None] = mapped_column(String(255), default=None)  # for an answer: the client's email
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

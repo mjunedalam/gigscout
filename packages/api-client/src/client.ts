@@ -64,6 +64,7 @@ import type {
   LeadBrief,
   Insight,
   AnalystAnswer,
+  ReplyLessons,
 } from "./types";
 
 export class ApiError extends Error {
@@ -214,6 +215,7 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
     },
     reports: {
       owner: (days: number) => get<OwnerReport>("/api/reports/owner", { days }),
+      lessons: () => get<ReplyLessons>("/api/reports/lessons"),
       /** The report as a CSV file, for a spreadsheet. */
       ownerCsv: async (days: number): Promise<Blob> => {
         const response = await fetchImpl(`${baseUrl}/api/reports/owner.csv${toQuery({ days })}`, {

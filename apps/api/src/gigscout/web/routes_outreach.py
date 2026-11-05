@@ -12,6 +12,7 @@ from gigscout import crm as crm_lib
 from gigscout import outreach as outreach_lib
 from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
+from gigscout.platform import lessons as lesson_lib
 from gigscout.platform import pipeline
 from gigscout.platform.pitches import pitch_settings
 from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadBrief, LeadState, Outreach, Reply, utcnow
@@ -59,11 +60,13 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
     brief = session.get(LeadBrief, (user.id, lead.id))  # what the research agent learned, if it ran
     grounded = outreach_lib.grounded_draft(profile, lead, state.pitch if state else "",
                                            platform.service.deps.reasoner, user.index.knowledge(),
-                                           research_for_drafting(brief.brief if brief else None))
+                                           research_for_drafting(brief.brief if brief else None),
+                                           lesson_lib.for_drafting(lesson_lib.lessons(
+                                               lesson_lib.load_outcomes(session, user.id))))
     draft = grounded.draft
     row = Outreach(workspace_id=user.id, lead_id=lead.id, channel=draft.channel, to_address=draft.to,
                    subject=draft.subject, body=draft.body, source=draft.source, created_by=user.email,
-                   evidence=grounded.evidence, claims=grounded.claims)
+                   evidence=grounded.evidence, claims=grounded.claims, drafted_body=draft.body)
     session.add(row)
     session.flush()
     audit(session, user, "outreach.draft", lead.id, channel=draft.channel, source=draft.source)

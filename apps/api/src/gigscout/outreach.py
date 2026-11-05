@@ -28,7 +28,7 @@ BODY_MAX = 5000
 
 class Drafter(Protocol):
     def draft_outreach(self, profile: AgencyProfile, lead: Lead, pitch: str, channel: str,
-                       evidence: str = "", research: str = "") -> OutreachText: ...
+                       evidence: str = "", research: str = "", lessons: str = "") -> OutreachText: ...
 
 
 class OutreachDraft(BaseModel):
@@ -104,13 +104,13 @@ def follow_up_draft(profile: AgencyProfile, lead: Lead, to: str, subject: str, o
 
 
 def draft_outreach(profile: AgencyProfile, lead: Lead, pitch: str, drafter: Drafter | None,
-                   evidence: Sequence[Evidence] = (), research: str = "") -> OutreachDraft:
+                   evidence: Sequence[Evidence] = (), research: str = "", lessons: str = "") -> OutreachDraft:
     draft = template_draft(profile, lead, pitch, evidence)
     if drafter is None:
         return draft
     try:
         text = drafter.draft_outreach(profile, lead, pitch, draft.channel, evidence=format_evidence(evidence),
-                                      research=research)
+                                      research=research, lessons=lessons)
     except Exception:
         log.warning("Outreach draft by the LLM failed for %s; using the template", lead.id, exc_info=True)
         return draft
@@ -135,12 +135,12 @@ def lead_query(lead: Lead) -> str:
 
 
 def grounded_draft(profile: AgencyProfile, lead: Lead, pitch: str, drafter: Drafter | None,
-                   knowledge: KnowledgeBase | None, research: str = "") -> Grounded:
+                   knowledge: KnowledgeBase | None, research: str = "", lessons: str = "") -> Grounded:
     """Draft from the company's own documents when it has any, then check every claim the draft makes."""
     if knowledge is None or knowledge.count() == 0:
-        return Grounded(draft_outreach(profile, lead, pitch, drafter, research=research), None, None)
+        return Grounded(draft_outreach(profile, lead, pitch, drafter, research=research, lessons=lessons), None, None)
     evidence = knowledge.search(lead_query(lead))
-    draft = draft_outreach(profile, lead, pitch, drafter, evidence, research)
+    draft = draft_outreach(profile, lead, pitch, drafter, evidence, research, lessons)
     return Grounded(draft, evidence_out(evidence), claims_out(knowledge.check_claims(draft.body, evidence)))
 
 
