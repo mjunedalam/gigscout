@@ -35,10 +35,7 @@ export function PitchEditor({ draft, emailReady, canApprove, leadUrl, onDone }: 
 
   const save = useMutation({ mutationFn: () => api.outreach.edit(draft.id, value), onSuccess: onDone, onError: failed("Could not save") });
   const approve = useMutation({
-    mutationFn: async () => {
-      await api.outreach.edit(draft.id, value);
-      return api.outreach.send(draft.id);
-    },
+    mutationFn: () => api.outreach.send(draft.id, value), // what is on screen is exactly what goes out
     onSuccess: (m) => {
       notifications.show({ color: "signal", title: m.channel === "email" ? `Email sent to ${m.to}` : "Approved and marked as posted", message: "The lead moved to contacted." });
       onDone();

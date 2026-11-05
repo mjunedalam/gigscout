@@ -147,3 +147,31 @@ def test_follow_up_text_quotes_the_first_message():
     assert draft.channel == "email" and draft.to == "ana@bakery.com"
     assert draft.subject == "Re: SEO for a bakery"  # never "Re: Re:"
     assert "Hi Ana," in draft.body and "> We grew traffic 2x." in draft.body and "Bright Lane" in draft.body
+
+
+def test_approval_sends_exactly_what_the_approver_saw(desk):
+    client, _ = desk
+    client.put("/api/pitches/settings", json={**AUTOPILOT, "require_admin": True})
+    scout(client)
+    draft = pending(client)[0]["outreach"]
+    login(client, MEMBER_EMAIL)
+    client.put(f"/api/outreach/{draft['id']}", json={"channel": "bid", "to": None, "subject": "",
+                                                     "body": "Swapped in after the admin read it"})
+    login(client)
+    approved = {"channel": "bid", "to": None, "subject": "", "body": "The text the admin approved"}
+    sent = client.post(f"/api/outreach/{draft['id']}/send", json=approved).json()
+    assert sent["status"] == "sent" and sent["body"] == "The text the admin approved"
+
+
+def test_a_rejected_pitch_cannot_be_marked_as_answered(desk):
+    client, _ = desk
+    client.put("/api/pitches/settings", json=AUTOPILOT)
+    scout(client)
+    draft = pending(client)[0]["outreach"]
+    client.post(f"/api/outreach/{draft['id']}/reject", json={"note": "no"})
+    login(client, MEMBER_EMAIL)
+    for status in ("replied", "no_reply"):
+        assert client.post(f"/api/outreach/{draft['id']}/status", json={"status": status}).status_code == 409
+    login(client)
+    [still] = client.get("/api/pitches", params={"status": "rejected"}).json()["items"]
+    assert still["outreach"]["status"] == "rejected"

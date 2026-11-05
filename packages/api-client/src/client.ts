@@ -184,7 +184,8 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       draft: (leadId: string, profileId?: number) =>
         request<Outreach>("POST", "/api/outreach", { lead_id: leadId, profile_id: profileId ?? null }),
       edit: (id: number, change: OutreachInput) => request<Outreach>("PUT", `/api/outreach/${id}`, change),
-      send: (id: number) => request<Outreach>("POST", `/api/outreach/${id}/send`),
+      /** Approve: with the text, exactly that is saved and sent in one step. */
+      send: (id: number, approved?: OutreachInput) => request<Outreach>("POST", `/api/outreach/${id}/send`, approved),
       reject: (id: number, note: string) => request<Outreach>("POST", `/api/outreach/${id}/reject`, { note }),
       setStatus: (id: number, status: "replied" | "no_reply") =>
         request<Outreach>("POST", `/api/outreach/${id}/status`, { status }),

@@ -67,22 +67,30 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
 @router.put("/{outreach_id}")
 def edit_draft(outreach_id: int, body: OutreachUpdate, session: SessionDep, ws: WriterDep) -> OutreachOut:
     row = _draft(session, ws.id, outreach_id)
-    if body.channel == "email" and not body.to:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs an address to send to")
-    row.channel, row.to_address, row.subject, row.body = body.channel, body.to, body.subject.strip(), body.body
-    session.commit()
+    with _sending:  # never between an approver's check and the send
+        session.refresh(row)
+        if row.status != "draft":
+            raise HTTPException(status.HTTP_409_CONFLICT, "Already sent or rejected: start a new draft")
+        _apply(row, body)
+        session.commit()
     return outreach_out(row)
 
 
 @router.post("/{outreach_id}/send")
-def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WriterDep) -> OutreachOut:
-    """Approve it: email it, or for a marketplace bid record that it was pasted into the bid form. Sent once."""
+def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: WriterDep,
+         body: OutreachUpdate | None = None) -> OutreachOut:
+    """Approve it: email it, or for a marketplace bid record that it was pasted into the bid form. Sent once.
+
+    With a body, exactly that text is saved and sent in one step, so nobody's later edit can slip in between what
+    the approver read and what goes out."""
     row = _draft(session, user.id, outreach_id)
     _check_approver(session, user)
     with _sending:
         session.refresh(row)
         if row.status != "draft":
             raise HTTPException(status.HTTP_409_CONFLICT, "Already sent: start a new draft to follow up")
+        if body is not None:
+            _apply(row, body)
         if row.channel == "email":
             _email(platform, session, user, row)
         row.status, row.sent_at, row.sent_by = "sent", utcnow(), user.email
@@ -105,10 +113,14 @@ def reject(outreach_id: int, body: OutreachRejectIn, session: SessionDep, user: 
     """Turn a draft down. It is kept, with the reason, so the team can see what was not good enough."""
     row = _draft(session, user.id, outreach_id)
     _check_approver(session, user)
-    row.status, row.reviewed_by, row.reviewed_at = "rejected", user.email, utcnow()
-    row.review_note = " ".join(body.note.split())
-    audit(session, user, "outreach.reject", row.lead_id, note=row.review_note)
-    session.commit()
+    with _sending:
+        session.refresh(row)
+        if row.status != "draft":
+            raise HTTPException(status.HTTP_409_CONFLICT, "Already sent or rejected")
+        row.status, row.reviewed_by, row.reviewed_at = "rejected", user.email, utcnow()
+        row.review_note = " ".join(body.note.split())
+        audit(session, user, "outreach.reject", row.lead_id, note=row.review_note)
+        session.commit()
     return outreach_out(row)
 
 
@@ -117,8 +129,8 @@ def set_status(outreach_id: int, body: OutreachStatusIn, session: SessionDep, us
     row = session.get(Outreach, outreach_id)
     if row is None or row.workspace_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Message not found")
-    if row.status == "draft":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Send the message before recording a reply")
+    if row.status not in ("sent", "replied", "no_reply"):  # drafts and rejected pitches never went out
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only a sent message can get a reply")
     row.status = body.status
     audit(session, user, "outreach.status", row.lead_id, status=body.status)
     session.commit()
@@ -177,6 +189,12 @@ def _email(platform, session, user: Ws, row: Outreach) -> None:
     except (smtplib.SMTPException, OSError) as exc:
         log.warning("Outreach email to %s failed", row.to_address, exc_info=True)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"The mail server refused it ({type(exc).__name__})") from None
+
+
+def _apply(row: Outreach, body: OutreachUpdate) -> None:
+    if body.channel == "email" and not body.to:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "An email needs an address to send to")
+    row.channel, row.to_address, row.subject, row.body = body.channel, body.to, body.subject.strip(), body.body
 
 
 def can_approve(session, ws: Ws) -> bool:
