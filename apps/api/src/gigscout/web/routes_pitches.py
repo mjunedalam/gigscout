@@ -69,4 +69,5 @@ def put_settings(body: PitchSettingsIO, session: SessionDep, ws: AdminDep) -> Pi
 
 def _io(row: PitchSettings) -> PitchSettingsIO:
     return PitchSettingsIO(auto_draft=row.auto_draft, min_score=row.min_score, max_per_run=row.max_per_run,
-                           follow_up_days=row.follow_up_days, require_admin=row.require_admin)
+                           follow_up_days=row.follow_up_days, require_admin=row.require_admin,
+                           research_first=bool(row.research_first))

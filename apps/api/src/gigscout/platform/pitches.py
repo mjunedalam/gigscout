@@ -10,10 +10,12 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
-from gigscout import quality
+from gigscout import quality, research
+from gigscout.http import PoliteClient
 from gigscout.models import AgencyProfile, ScoredLead
 from gigscout.outreach import Drafter, follow_up_draft, grounded_draft
 from gigscout.platform import pipeline
+from gigscout.platform.briefs import fresh_brief, research_lead
 from gigscout.platform.db import SessionFactory
 from gigscout.platform.events import EventBus
 from gigscout.platform.scheduler import ScheduleManager
@@ -33,7 +35,8 @@ log = logging.getLogger(__name__)
 
 JOB_ID = "follow_ups"
 FOLLOW_UP_HOUR = 9
-DEFAULTS = {"auto_draft": False, "min_score": 0.7, "max_per_run": 5, "follow_up_days": 0, "require_admin": False}
+DEFAULTS = {"auto_draft": False, "min_score": 0.7, "max_per_run": 5, "follow_up_days": 0, "require_admin": False,
+            "research_first": False}
 
 
 def pitch_settings(session, workspace_id: int) -> PitchSettings:
@@ -43,12 +46,14 @@ def pitch_settings(session, workspace_id: int) -> PitchSettings:
 
 class PitchDesk:
     def __init__(self, sessions: SessionFactory, bus: EventBus, schedules: ScheduleManager,
-                 index_for: Callable[[int], LeadIndex], drafter: Callable[[], Drafter | None]) -> None:
+                 index_for: Callable[[int], LeadIndex], drafter: Callable[[], Drafter | None],
+                 web: Callable[[], PoliteClient] | None = None) -> None:
         self._sessions = sessions
         self._bus = bus
         self._schedules = schedules
         self._index_for = index_for
         self._drafter = drafter  # the LLM when one is running; templates otherwise
+        self._web = web  # the public-only web client the research agent reads client websites with
 
     def start(self) -> None:
         self._schedules.set_daily(JOB_ID, FOLLOW_UP_HOUR, self.follow_up_all)
@@ -65,8 +70,10 @@ class PitchDesk:
             return 0
         on_step(f"Pitch writer: drafting {len(picked)} pitch(es) for your approval")
         drafter = self._drafter()
+        angles = self._research(workspace_id, agency, picked, drafter, on_step) if settings.research_first else {}
         knowledge = self._index_for(workspace_id).knowledge()
-        drafts = [(match, grounded_draft(agency, match.lead, match.pitch, drafter, knowledge)) for match in picked]
+        drafts = [(match, grounded_draft(agency, match.lead, " ".join(filter(None, [match.pitch, angles.get(
+            match.lead.id, "")])), drafter, knowledge)) for match in picked]
         if drafts and drafts[0][1].evidence is not None:
             cited = sum(1 for _m, g in drafts if g.evidence)
             on_step(f"Pitch writer: {cited} of {len(drafts)} pitch(es) cite your own past work; every claim checked")
@@ -90,6 +97,27 @@ class PitchDesk:
             on_step(f"Pitch writer: {drafted} pitch(es) are waiting for approval")
             self._bus.publish("pitch.drafted", {"count": drafted, "run_id": run_id}, workspace_id)
         return drafted
+
+    def _research(self, workspace_id: int, agency: AgencyProfile, picked: Sequence[ScoredLead], researcher,
+                  on_step: Callable[[str], None]) -> dict[str, str]:
+        """Brief each client before its pitch is written (reusing recent briefs). Returns lead id -> angle."""
+        if self._web is None:
+            return {}
+        on_step(f"Research agent: reading about {len(picked)} client(s) before writing")
+        index, angles = self._index_for(workspace_id), {}
+        records = index.records()
+        with self._sessions() as session:
+            for match in picked:
+                try:
+                    row = fresh_brief(session, workspace_id, match.lead.id) or research_lead(
+                        session, workspace_id, match.lead, agency, records, self._web(), researcher, AGENT_AUTHOR)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    log.warning("Research failed for %s; pitching without it", match.lead.id, exc_info=True)
+                    continue
+                angles[match.lead.id] = research.angle(row.brief)
+        return angles
 
     def follow_ups(self, workspace_id: int, now: datetime | None = None) -> int:
         """Draft one follow-up for each email that got no answer within the workspace's follow-up days."""

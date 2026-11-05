@@ -566,6 +566,8 @@ export interface PitchSettings {
   follow_up_days: number;
   /** Only owners and admins may approve (send) or reject. */
   require_admin: boolean;
+  /** The research agent reads each client's website before the pitch is written. */
+  research_first: boolean;
 }
 
 export type PitchQueue = "pending" | "sent" | "rejected";
@@ -792,4 +794,16 @@ export interface ReplySummary {
   mailbox: boolean;
   intents: ReplyIntent[];
   by_intent: Partial<Record<ReplyIntent, number>>;
+}
+
+/** What the research agent learned about a lead's client, with what it read. */
+export interface LeadBrief {
+  lead_id: string;
+  website: string | null;
+  brief: { summary: string; needs: string[]; signals: string[]; talking_points: string[]; risks: string[] };
+  tech: string[];
+  sources: { label: string; url: string }[];
+  made_by: "ai" | "rules";
+  created_by: string;
+  created_at: string;
 }

@@ -130,6 +130,7 @@ function invalidateFor(event: LiveEvent, queryClient: QueryClientLike) {
   if (event.type.startsWith("run.")) keys.push(["runs"], ["metrics"]);
   if (event.type === "run.finished") keys.push(["leads"], ["schedules"]);
   if (event.type.startsWith("lead.")) keys.push(["leads"], ["metrics"]);
+  if (event.type === "lead.researched") keys.push(["research"]);
   if (event.type.startsWith("schedule.")) keys.push(["schedules"]);
   if (event.type.startsWith("pitch.") || event.type === "run.finished") keys.push(["pitches"], ["outreach"]);
   if (event.type.startsWith("source.") || event.type === "run.finished") keys.push(["admin", "sources"]);

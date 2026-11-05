@@ -27,6 +27,7 @@ import { api, messageOf } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { clientLabel, dateTime, money } from "../lib/format";
 import { KindBadge, ScoreRing } from "./badges";
+import { ClientBrief } from "./leads/ClientBrief";
 import { LeadOutreach } from "./leads/LeadOutreach";
 import { QualityBadges } from "./leads/QualityBadges";
 import { ScoreBreakdown } from "./leads/ScoreBreakdown";
@@ -157,6 +158,7 @@ export function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
             </Alert>
           )}
 
+          <ClientBrief leadId={view.lead.id} />
           {canWrite && <LeadOutreach leadId={view.lead.id} leadUrl={view.lead.url} />}
 
           <Divider />

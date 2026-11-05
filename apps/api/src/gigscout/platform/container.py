@@ -79,7 +79,8 @@ class Platform:
         digests = DigestManager(sessions, indexes, settings, bus, schedules)
         awards_client = PoliteClient(settings)
         watcher = CompetitorWatcher(sessions, bus, schedules, lambda: competitors.recent_awards(awards_client))
-        pitches = PitchDesk(sessions, bus, schedules, indexes, lambda: service.deps.reasoner)
+        pitches = PitchDesk(sessions, bus, schedules, indexes, lambda: service.deps.reasoner,
+                            lambda: service.web_client)
         runs.after_run = pitches.draft_for_run
         replies = ReplyDesk(sessions, bus, schedules, settings, indexes, lambda: service.deps.reasoner)
         platform = cls(settings, service, engine, sessions, bus, runs, schedules, digests, upwork, billing, watcher,

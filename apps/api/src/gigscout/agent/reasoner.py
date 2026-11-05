@@ -12,6 +12,7 @@ from gigscout.agent import prompts
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 from gigscout.replies import ReplyRead
+from gigscout.research import ResearchBrief
 from gigscout.store.knowledge import format_evidence
 
 log = logging.getLogger(__name__)
@@ -108,6 +109,14 @@ class OllamaReasoner:
                                              title=lead.title, original=original[:2000], reply=reply[:4000],
                                              intent=intent.replace("_", " "), evidence=evidence)
         return self._llm.with_structured_output(OutreachText).invoke(prompt)
+
+
+    def research(self, profile: AgencyProfile, lead: Lead, findings: str) -> ResearchBrief:
+        prompt = prompts.RESEARCH_CLIENT.format(company=profile.who(), profile=profile.as_query(), kind=lead.kind,
+                                                source=lead.source, title=lead.title,
+                                                description=lead.description[:DESCRIPTION_CHARS_FOR_GRADING],
+                                                findings=findings[:9000])
+        return self._llm.with_structured_output(ResearchBrief).invoke(prompt)
 
 
 def build_chat_model(settings: Settings) -> BaseChatModel | None:

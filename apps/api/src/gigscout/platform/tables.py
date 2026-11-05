@@ -277,6 +277,7 @@ class PitchSettings(Base):
     max_per_run: Mapped[int] = mapped_column(Integer, default=5)
     follow_up_days: Mapped[int] = mapped_column(Integer, default=0)  # draft a follow-up after this much silence; 0 off
     require_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # only owners and admins approve
+    research_first: Mapped[bool] = mapped_column(Boolean, default=False)  # research each client before drafting
     updated_by: Mapped[str] = mapped_column(String(254), default="")
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
@@ -401,3 +402,19 @@ class Reply(Base):
     received_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
     handled_by: Mapped[str | None] = mapped_column(String(254), default=None)
     handled_at: Mapped[datetime | None] = mapped_column(default=None, index=True)
+
+
+class LeadBrief(Base):
+    """What the research agent learned about a lead's client, with the sources it read."""
+
+    __tablename__ = "lead_briefs"
+
+    workspace_id: Mapped[int] = workspace_fk(primary_key=True)
+    lead_id: Mapped[str] = mapped_column(String(300), primary_key=True)
+    website: Mapped[str | None] = mapped_column(String(300), default=None)
+    brief: Mapped[dict[str, Any]] = mapped_column(JSON)
+    tech: Mapped[list[str]] = mapped_column(JSON, default=list)
+    sources: Mapped[list[dict] | None] = mapped_column(JSON, default=None)
+    made_by: Mapped[str] = mapped_column(String(8), default="rules")  # ai | rules
+    created_by: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)

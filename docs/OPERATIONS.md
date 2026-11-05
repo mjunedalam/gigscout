@@ -71,6 +71,23 @@ Once the knowledge base has documents:
   can click **Check again** at any time.
 - **Try it** shows what the agents would cite for a lead you describe.
 
+## Client research: know the client before you pitch
+
+Open a lead and click **Research this client**. The research agent:
+
+1. **Finds the client's own website.** It uses a company link in the lead text, or a business email domain.
+   Marketplaces, job boards and free email providers are skipped.
+2. **Reads the website's home and about pages.** It never visits private or internal addresses, and it follows
+   robots.txt.
+3. **Spots the website's tech stack** (React, WordPress, Shopify and so on), and pulls in what GigScout already
+   knows about the client, such as hiring posts or funding filings.
+4. **Writes a brief:** who the client is, what they likely need, buying signals, angles for the pitch, and what
+   to check first. Every brief lists what it read.
+
+Pitches drafted after that use the brief. In **Pitches → Autopilot**, turn on **Research each client first** and
+the agents research every client before writing its pitch. A brief younger than 14 days is reused. Website text
+is treated as information, never as instructions, and every pitch still waits for a person to approve it.
+
 ## Replies: the agents read them, a person answers
 
 Client replies land in **Inbox**. For each reply the agents:

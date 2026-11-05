@@ -48,6 +48,9 @@ export function PitchAutopilot() {
             onChange={(v) => set({ max_per_run: typeof v === "number" ? v : 5 })} />
           <NumberInput disabled={!isAdmin} label="Follow up after (days without a reply)" description="0 = never. One follow-up per email, also approved by a person."
             min={0} max={60} value={value.follow_up_days} onChange={(v) => set({ follow_up_days: typeof v === "number" ? v : 0 })} />
+          <Switch disabled={!isAdmin || !value.auto_draft} checked={value.research_first}
+            onChange={(e) => set({ research_first: e.currentTarget.checked })}
+            label="Research each client first" description="The research agent reads the client's website before the pitch is written. Slower, more specific." mt="xs" />
           <Switch disabled={!isAdmin} checked={value.require_admin} onChange={(e) => set({ require_admin: e.currentTarget.checked })}
             label="Only owners and admins approve" description="Members can still edit drafts; an admin sends or rejects them." mt="xs" />
         </SimpleGrid>

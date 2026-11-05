@@ -11,6 +11,7 @@ from gigscout.agent.nodes import ScoutDeps
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, OutreachText, ProfileSuggestion
 from gigscout.replies import ReplyRead
+from gigscout.research import ResearchBrief
 from gigscout.store.vector_store import LeadIndex
 
 DIMENSIONS = 128
@@ -90,6 +91,11 @@ class FakeReasoner:
     def draft_answer(self, profile: AgencyProfile, lead: Lead, original: str, reply: str, intent: str,
                      evidence: str) -> OutreachText:
         return OutreachText(subject="", body=f"AI answer ({intent}) to: {reply[:60]}")
+
+    def research(self, profile: AgencyProfile, lead: Lead, findings: str) -> ResearchBrief:
+        site = findings.splitlines()[0].removeprefix("Website: ")
+        return ResearchBrief(summary=f"AI brief on {lead.title}", needs=["a web app"], signals=[],
+                             talking_points=[f"Mention {site}"], risks=[])
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

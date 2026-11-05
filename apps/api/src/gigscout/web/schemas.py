@@ -394,6 +394,7 @@ class PitchSettingsIO(BaseModel):
     max_per_run: int = Field(default=5, ge=1, le=25)
     follow_up_days: int = Field(default=0, ge=0, le=60)
     require_admin: bool = False
+    research_first: bool = False  # the research agent reads each client's website before the pitch is written
 
 
 class PitchLeadOut(BaseModel):

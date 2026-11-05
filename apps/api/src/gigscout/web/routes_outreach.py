@@ -14,7 +14,8 @@ from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
 from gigscout.platform import pipeline
 from gigscout.platform.pitches import pitch_settings
-from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, Reply, utcnow
+from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadBrief, LeadState, Outreach, Reply, utcnow
+from gigscout.research import angle as research_angle
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep, WriterDep, Ws, WsDep, audit
 from gigscout.web.schemas import (
     CrmLinkOut,
@@ -55,7 +56,9 @@ def create_draft(body: OutreachCreate, platform: PlatformDep, session: SessionDe
     lead = _lead(user, body.lead_id)
     profile = _profile(session, user.id, body.profile_id)
     state = session.get(LeadState, (user.id, lead.id))
-    grounded = outreach_lib.grounded_draft(profile, lead, state.pitch if state else "", platform.service.deps.reasoner,
+    brief = session.get(LeadBrief, (user.id, lead.id))  # what the research agent learned, if it ran
+    opening = " ".join(filter(None, [state.pitch if state else "", research_angle(brief.brief if brief else None)]))
+    grounded = outreach_lib.grounded_draft(profile, lead, opening, platform.service.deps.reasoner,
                                            user.index.knowledge())
     draft = grounded.draft
     row = Outreach(workspace_id=user.id, lead_id=lead.id, channel=draft.channel, to_address=draft.to,
