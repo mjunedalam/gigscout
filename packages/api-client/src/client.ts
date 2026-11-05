@@ -58,6 +58,9 @@ import type {
   KnowledgeKind,
   Evidence,
   Claim,
+  Reply,
+  ReplyItem,
+  ReplySummary,
 } from "./types";
 
 export class ApiError extends Error {
@@ -232,6 +235,15 @@ export function createClient(baseUrl = "", fetchImpl: Fetch = (...args) => fetch
       remove: (id: number) => request<void>("DELETE", `/api/knowledge/${id}`),
       search: (q: string) => get<{ results: Evidence[] }>("/api/knowledge/search", { q }),
       check: (text: string) => request<{ claims: Claim[]; empty: boolean }>("POST", "/api/knowledge/check", { text }),
+    },
+    replies: {
+      list: (state: "open" | "handled") => get<{ items: ReplyItem[] }>("/api/replies", { state }),
+      summary: () => get<ReplySummary>("/api/replies/summary"),
+      /** A reply that came another way (a marketplace message, a call): the agents read it and draft the answer. */
+      paste: (outreachId: number, body: string, fromAddress?: string) =>
+        request<Reply>("POST", "/api/replies", { outreach_id: outreachId, body, from_address: fromAddress || null }),
+      done: (id: number) => request<Reply>("POST", `/api/replies/${id}/done`),
+      checkMailbox: () => request<{ new: number }>("POST", "/api/replies/check-mailbox"),
     },
     pitches: {
       list: (status: PitchQueue) => get<PitchList>("/api/pitches", { status }),

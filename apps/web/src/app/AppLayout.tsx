@@ -25,6 +25,7 @@ import {
   IconAddressBook,
   IconBolt,
   IconBook2,
+  IconInbox,
   IconBuildingFactory2,
   IconBuildingStore,
   IconCalendarTime,
@@ -76,6 +77,7 @@ const OVERVIEW: NavItem[] = [
 const WORK: NavItem[] = [
   { to: "/leads", label: "Leads", icon: <IconAddressBook size={18} />, description: "Table and pipeline board" },
   { to: "/pitches", label: "Pitches", icon: <IconSend size={18} />, description: "Approve what the agents drafted" },
+  { to: "/inbox", label: "Inbox", icon: <IconInbox size={18} />, description: "Client replies, read by the agents" },
 ];
 
 const INTELLIGENCE: NavItem[] = [
@@ -120,7 +122,8 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const pitches = useQuery({ queryKey: ["pitches", "summary"], queryFn: api.pitches.summary, enabled: !!workspace });
-  const waiting = pitches.data?.pending ?? 0;
+  const replies = useQuery({ queryKey: ["replies", "summary"], queryFn: api.replies.summary, enabled: !!workspace });
+  const counts: Record<string, number> = { "/pitches": pitches.data?.pending ?? 0, "/inbox": replies.data?.open ?? 0 };
 
   const sections: [string, NavItem[]][] = [
     ["Overview", OVERVIEW],
@@ -226,11 +229,11 @@ export function AppLayout() {
                       end={item.to === "/" || item.to === "/admin"}
                       label={rail ? undefined : item.label}
                       aria-label={item.label}
-                      leftSection={rail && item.to === "/pitches" && waiting > 0 ? (
+                      leftSection={rail && counts[item.to] ? (
                         <Indicator size={8} color="signal" offset={2}>{item.icon}</Indicator>
                       ) : item.icon}
-                      rightSection={!rail && item.to === "/pitches" && waiting > 0 ? (
-                        <Badge size="sm" circle color="signal" aria-label={`${waiting} waiting for approval`}>{waiting}</Badge>
+                      rightSection={!rail && counts[item.to] ? (
+                        <Badge size="sm" circle color="signal" aria-label={`${counts[item.to]} waiting for you`}>{counts[item.to]}</Badge>
                       ) : undefined}
                       onClick={close}
                       active={item.to === "/" || item.to === "/admin" ? location.pathname === item.to : location.pathname.startsWith(item.to)}

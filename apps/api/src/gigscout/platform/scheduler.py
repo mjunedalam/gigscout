@@ -6,6 +6,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
 
 from gigscout.platform.db import SessionFactory
@@ -90,6 +91,13 @@ class ScheduleManager:
             existing.remove()
         if hour is not None:
             self._scheduler.add_job(func, CronTrigger(hour=hour, minute=0, timezone=self._timezone), id=job_id)
+
+    def set_interval(self, job_id: str, seconds: int, func) -> None:
+        """(Re)schedule a job every `seconds`; one at a time, and a missed turn is skipped, not queued."""
+        existing = self._scheduler.get_job(job_id)
+        if existing is not None:
+            existing.remove()
+        self._scheduler.add_job(func, IntervalTrigger(seconds=seconds), id=job_id, max_instances=1, coalesce=True)
 
     def has_job(self, job_id: str) -> bool:
         return self._scheduler.get_job(job_id) is not None

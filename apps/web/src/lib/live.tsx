@@ -133,7 +133,8 @@ function invalidateFor(event: LiveEvent, queryClient: QueryClientLike) {
   if (event.type.startsWith("schedule.")) keys.push(["schedules"]);
   if (event.type.startsWith("pitch.") || event.type === "run.finished") keys.push(["pitches"], ["outreach"]);
   if (event.type.startsWith("source.") || event.type === "run.finished") keys.push(["admin", "sources"]);
-  if (event.type === "run.finished" || event.type.startsWith("lead.") || event.type.startsWith("pitch.")) {
+  if (event.type.startsWith("reply.")) keys.push(["replies"], ["pitches"], ["outreach"], ["leads"]);
+  if (event.type === "run.finished" || event.type.startsWith("lead.") || event.type.startsWith("pitch.") || event.type.startsWith("reply.")) {
     keys.push(["pipeline"], ["reports"]); // every step a lead takes moves the pipeline
   }
   keys.forEach((queryKey) => void queryClient.invalidateQueries({ queryKey }));
@@ -158,6 +159,9 @@ function announce(event: LiveEvent) {
       color: "orange", autoClose: 12000, title: "Website blocked",
       message: `${String(data.name)} no longer allows automated access (robots.txt), so the agents skip it.`,
     });
+  }
+  if (event.type === "reply.received") {
+    notifications.show({ color: "teal", title: `Reply: ${String(data.title ?? "a lead")}`, message: String(data.summary ?? "Open Inbox to see it.") });
   }
   if (event.type === "pitch.drafted") {
     const count = Number(data.count);

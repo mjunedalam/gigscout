@@ -14,7 +14,7 @@ from gigscout.mail import email_ready
 from gigscout.models import AgencyProfile, Lead
 from gigscout.platform import pipeline
 from gigscout.platform.pitches import pitch_settings
-from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, utcnow
+from gigscout.platform.tables import AgencyProfileRecord, CrmRecord, LeadState, Outreach, Reply, utcnow
 from gigscout.web.deps import PlatformDep, SessionDep, UserDep, WriterDep, Ws, WsDep, audit
 from gigscout.web.schemas import (
     CrmLinkOut,
@@ -99,9 +99,11 @@ def send(outreach_id: int, platform: PlatformDep, session: SessionDep, user: Wri
             _apply(row, body)
             row.claims = outreach_lib.recheck(row.body, user.index.knowledge())
         if row.channel == "email":
-            _email(platform, session, user, row)
+            row.message_id = _email(platform, session, user, row)
         row.status, row.sent_at, row.sent_by = "sent", utcnow(), user.email
         row.reviewed_by, row.reviewed_at = user.email, row.sent_at
+        for answered in session.scalars(select(Reply).where(Reply.answer_id == row.id, Reply.handled_at.is_(None))):
+            answered.handled_by, answered.handled_at = user.email, row.sent_at  # answering a reply handles it
         session.commit()
     state = session.get(LeadState, (user.id, row.lead_id)) or LeadState(workspace_id=user.id, lead_id=row.lead_id)
     if (state.status or "new") == "new":
@@ -183,7 +185,7 @@ def push_to_crm(body: CrmSyncIn, platform: PlatformDep, session: SessionDep, use
     return CrmSyncOut(links=[_link(r) for r in existing.values()], errors=errors)
 
 
-def _email(platform, session, user: Ws, row: Outreach) -> None:
+def _email(platform, session, user: Ws, row: Outreach) -> str:
     if not email_ready(platform.settings):
         raise HTTPException(status.HTTP_409_CONFLICT, SMTP_HELP)
     if not outreach_lib.single_address(row.to_address) or not row.subject:
@@ -195,7 +197,7 @@ def _email(platform, session, user: Ws, row: Outreach) -> None:
     if recent >= HOURLY_EMAIL_LIMIT:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"At most {HOURLY_EMAIL_LIMIT} emails an hour")
     try:
-        outreach_lib.send_email(platform.settings, row.to_address, row.subject, row.body)
+        return outreach_lib.send_email(platform.settings, row.to_address, row.subject, row.body, row.in_reply_to)
     except (smtplib.SMTPException, OSError) as exc:
         log.warning("Outreach email to %s failed", row.to_address, exc_info=True)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"The mail server refused it ({type(exc).__name__})") from None

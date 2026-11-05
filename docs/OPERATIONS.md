@@ -32,6 +32,76 @@ Open **Pitches** in the web app. In the Autopilot panel an owner or admin sets:
 
 Approving moves the lead to *contacted*. Every approval and rejection is recorded in the audit log, along with each draft the agents write.
 
+## Pipeline and owner report
+
+**Pipeline** shows every step a lead takes, from *Found* to *Won* (or *Lost*), for 7, 30 or 90 days, or a
+year. Each step shows four numbers:
+
+- how many leads reached it;
+- the change from the period before;
+- the share of leads from the step before that got there;
+- the median time it took.
+
+It also flags leads that have waited too long: pitches not approved within 2 days, emails with no answer
+after 7 days, and proposals open longer than 14 days. Click a step to see its leads.
+
+**Reports** is the owner view for the same period:
+
+- revenue won;
+- reply and approval rates;
+- sources ranked by the value they won;
+- what each person and the agents did.
+
+Use **CSV** to get a spreadsheet, and **Print / PDF** to save a clean copy. To count a won deal as revenue,
+set its value on the lead (in Proposal or Won).
+
+The history starts from your existing data the first time this version runs.
+
+## Knowledge base: pitches built on your real work
+
+Add your case studies, past proposals, portfolio and rates under **Knowledge base**. You can paste text or
+upload a PDF, `.txt` or `.md` file of up to 10 MB. PDFs need real text: a scanned PDF needs OCR first.
+
+Once the knowledge base has documents:
+
+- The pitch writer gets the passages that best match the lead. It may mention only the past work, clients,
+  numbers and prices found in them.
+- Every sentence in a pitch that claims something about your company is checked against your documents.
+  Claims they don't back show in orange before you approve. They are checked again after every edit, and you
+  can click **Check again** at any time.
+- **Try it** shows what the agents would cite for a lead you describe.
+
+## Replies: the agents read them, a person answers
+
+Client replies land in **Inbox**. For each reply the agents:
+
+1. **Read what it means:** wants a call, interested, a question, not now, not interested, an auto-reply, or
+   unsubscribe.
+2. **Move the lead:**
+   - Every real reply records the *Replied* step.
+   - *Wants a call* moves the lead to **proposal**.
+   - *Not interested* and *unsubscribe* mark it **lost**.
+3. **Draft an answer** in your voice, from your knowledge base. Nothing is drafted for no, an auto-reply or
+   unsubscribe. The answer waits in Inbox and Pitches like any other pitch: nothing goes out until a person
+   approves it. Approving an email answer sends it in the client's thread, and the reply is marked handled.
+
+**Reading replies from your mailbox (optional).** Set the same mailbox the emails are sent from in
+`apps/api/.env`:
+
+| Setting | Example |
+|---|---|
+| `GIGSCOUT_IMAP_HOST` | `imap.gmail.com` |
+| `GIGSCOUT_IMAP_USER` | `sales@your-agency.com` |
+| `GIGSCOUT_IMAP_PASSWORD` | an app password, never your main password |
+| `GIGSCOUT_IMAP_FOLDER` | `INBOX` (default) |
+| `GIGSCOUT_IMAP_POLL_MINUTES` | `10` (default) |
+
+Mail is read without marking it as read. Only emails that answer something GigScout sent are used: they are
+matched by their thread headers or, failing that, by the sender's address within 45 days. The rest of the
+mailbox is ignored.
+
+Without a mailbox, or for marketplace messages, open the lead and use **Log a reply** on the sent message.
+
 ## Google Ads inbound leads
 
 When a prospect fills in the lead form on one of your Google Ads, Google sends the submission to

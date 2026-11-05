@@ -8,6 +8,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from email.message import EmailMessage
+from email.utils import make_msgid
 from typing import Literal, Protocol
 
 from email_validator import EmailNotValidError, validate_email
@@ -159,9 +160,21 @@ def claims_out(claims: Sequence[Claim]) -> list[dict]:
             for c in claims]
 
 
-def send_email(settings: Settings, to: str, subject: str, body: str) -> None:
+def send_email(settings: Settings, to: str, subject: str, body: str, in_reply_to: str | None = None) -> str:
+    """Send one email; returns its Message-ID, so a reply to it can be matched to this message."""
     message = EmailMessage()
     message["Subject"] = subject
     message["To"] = to
+    message_id = make_msgid(domain=_sender_domain(settings))
+    message["Message-ID"] = message_id
+    if in_reply_to:  # keep the client's thread together
+        message["In-Reply-To"] = in_reply_to
+        message["References"] = in_reply_to
     message.set_content(body)
     deliver(settings, message)
+    return message_id
+
+
+def _sender_domain(settings: Settings) -> str | None:
+    address = (settings.smtp_from or "").rsplit("<", 1)[-1].rstrip(">").strip()
+    return address.rsplit("@", 1)[-1] if "@" in address else None

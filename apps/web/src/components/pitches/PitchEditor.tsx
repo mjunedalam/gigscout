@@ -52,6 +52,7 @@ export function PitchEditor({ draft, emailReady, canApprove, leadUrl, onDone }: 
             data={[{ value: "email", label: "Email" }, { value: "bid", label: "Marketplace bid" }]} />
           <Group gap={4}>
             {draft.kind === "follow_up" && <Badge size="sm" variant="light" color="orange">follow-up</Badge>}
+            {draft.kind === "answer" && <Badge size="sm" variant="light" color="teal">answer to a reply</Badge>}
             {draft.created_by === AGENT_AUTHOR && (
               <Badge size="sm" variant="light" color="violet" leftSection={<IconRobot size={10} />}>by the agents</Badge>
             )}

@@ -198,6 +198,8 @@ class Outreach(Base):
     review_note: Mapped[str] = mapped_column(Text, default="")  # why it was rejected
     evidence: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # the company documents it drew on
     claims: Mapped[list[dict] | None] = mapped_column(JSON, default=None)  # its claims, and whether they are backed
+    message_id: Mapped[str | None] = mapped_column(String(255), default=None, index=True)  # the sent email's id
+    in_reply_to: Mapped[str | None] = mapped_column(String(255), default=None)  # for an answer: the client's email
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 
 
@@ -374,3 +376,27 @@ class KnowledgeDoc(Base):
     chunks: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(254))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class Reply(Base):
+    """A client's answer to one of our messages: read from the mailbox or pasted in, with what it means."""
+
+    __tablename__ = "replies"
+    __table_args__ = (UniqueConstraint("workspace_id", "message_id"),)
+
+    workspace_id: Mapped[int] = workspace_fk(index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    outreach_id: Mapped[int | None] = mapped_column(ForeignKey("outreach.id", ondelete="SET NULL"), default=None)
+    lead_id: Mapped[str] = mapped_column(String(300), index=True)
+    from_address: Mapped[str | None] = mapped_column(String(254), default=None)
+    subject: Mapped[str] = mapped_column(String(300), default="")
+    body: Mapped[str] = mapped_column(Text)
+    message_id: Mapped[str | None] = mapped_column(String(255), default=None)  # dedupes mailbox re-reads
+    source: Mapped[str] = mapped_column(String(8), default="email")  # email | pasted
+    intent: Mapped[str] = mapped_column(String(16), index=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    read_by: Mapped[str] = mapped_column(String(8), default="rules")  # ai | rules
+    answer_id: Mapped[int | None] = mapped_column(ForeignKey("outreach.id", ondelete="SET NULL"), default=None)
+    received_at: Mapped[datetime] = mapped_column(default=utcnow, index=True)
+    handled_by: Mapped[str | None] = mapped_column(String(254), default=None)
+    handled_at: Mapped[datetime | None] = mapped_column(default=None, index=True)

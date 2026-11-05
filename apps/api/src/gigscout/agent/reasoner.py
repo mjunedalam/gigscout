@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from gigscout.agent import prompts
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Lead, LeadAssessment, OutreachText, ProfileSuggestion
+from gigscout.replies import ReplyRead
 from gigscout.store.knowledge import format_evidence
 
 log = logging.getLogger(__name__)
@@ -93,6 +94,19 @@ class OllamaReasoner:
             channel="an email" if channel == "email" else "a proposal pasted into the marketplace's bid form",
             subject_rule="required" if channel == "email" else "leave it empty",
         )
+        return self._llm.with_structured_output(OutreachText).invoke(prompt)
+
+
+    def read_reply(self, profile: AgencyProfile, lead: Lead, original: str, reply: str) -> ReplyRead:
+        prompt = prompts.READ_REPLY.format(company=profile.who(), title=lead.title, original=original[:2000],
+                                           reply=reply[:4000])
+        return self._llm.with_structured_output(ReplyRead).invoke(prompt)
+
+    def draft_answer(self, profile: AgencyProfile, lead: Lead, original: str, reply: str, intent: str,
+                     evidence: str) -> OutreachText:
+        prompt = prompts.DRAFT_ANSWER.format(company=profile.who(), name=profile.name, profile=profile.as_query(),
+                                             title=lead.title, original=original[:2000], reply=reply[:4000],
+                                             intent=intent.replace("_", " "), evidence=evidence)
         return self._llm.with_structured_output(OutreachText).invoke(prompt)
 
 

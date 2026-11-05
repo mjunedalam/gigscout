@@ -372,7 +372,7 @@ class OutreachOut(BaseModel):
     body: str
     status: Literal["draft", "rejected", "sent", "replied", "no_reply"]
     source: Literal["ai", "template"]
-    kind: Literal["first", "follow_up"] = "first"
+    kind: Literal["first", "follow_up", "answer"] = "first"
     run_id: str | None = None
     created_by: str
     created_at: UtcDatetime

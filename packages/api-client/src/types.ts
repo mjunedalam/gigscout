@@ -540,7 +540,7 @@ export interface Outreach {
   status: "draft" | "rejected" | "sent" | "replied" | "no_reply";
   source: "ai" | "template";
   /** follow_up = a nudge the agents drafted after the first email got no answer. */
-  kind: "first" | "follow_up";
+  kind: "first" | "follow_up" | "answer";
   /** Set when the agents drafted it after this run. */
   run_id: string | null;
   /** A person's email, or "GigScout agents". */
@@ -754,4 +754,40 @@ export interface Claim {
   supported: boolean;
   source: string | null;
   similarity: number;
+}
+
+export type ReplyIntent = "interested" | "meeting" | "question" | "not_now" | "not_interested" | "out_of_office" | "unsubscribe";
+
+/** A client's reply, read by the agents. */
+export interface Reply {
+  id: number;
+  outreach_id: number | null;
+  lead_id: string;
+  from_address: string | null;
+  subject: string;
+  body: string;
+  source: "email" | "pasted";
+  intent: ReplyIntent;
+  summary: string;
+  read_by: "ai" | "rules";
+  /** The answer the agents drafted; it waits for approval like any pitch. */
+  answer_id: number | null;
+  received_at: string;
+  handled_by: string | null;
+  handled_at: string | null;
+}
+
+export interface ReplyItem {
+  reply: Reply;
+  lead: { id: string; title: string; url: string; client_name: string | null };
+  original: Outreach | null;
+  answer: Outreach | null;
+}
+
+export interface ReplySummary {
+  open: number;
+  /** Whether replies are read from the mailbox automatically. */
+  mailbox: boolean;
+  intents: ReplyIntent[];
+  by_intent: Partial<Record<ReplyIntent, number>>;
 }

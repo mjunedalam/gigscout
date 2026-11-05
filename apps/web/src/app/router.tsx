@@ -27,6 +27,7 @@ const PitchesPage = lazy(() => import("../pages/PitchesPage"));
 const PipelinePage = lazy(() => import("../pages/PipelinePage"));
 const ReportsPage = lazy(() => import("../pages/ReportsPage"));
 const KnowledgePage = lazy(() => import("../pages/KnowledgePage"));
+const InboxPage = lazy(() => import("../pages/InboxPage"));
 const BillingPage = lazy(() => import("../pages/admin/BillingPage"));
 const WorkspaceSettingsPage = lazy(() => import("../pages/admin/WorkspaceSettingsPage"));
 
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
       { path: "pipeline", element: page(<PipelinePage />) },
       { path: "reports", element: page(<ReportsPage />) },
       { path: "knowledge", element: page(<KnowledgePage />) },
+      { path: "inbox", element: page(<InboxPage />) },
       { path: "runs", element: page(<RunsPage />) },
       { path: "runs/:runId", element: page(<RunDetailPage />) },
       { path: "schedules", element: page(<SchedulesPage />) },

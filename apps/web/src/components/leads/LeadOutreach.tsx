@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, messageOf } from "../../lib/api";
 import { timeAgo } from "../../lib/format";
 import { PitchEditor } from "../pitches/PitchEditor";
+import { LogReplyButton } from "../replies/LogReplyButton";
 
 const STATUS_COLOR: Record<Outreach["status"], string> = {
   draft: "gray", rejected: "red", sent: "blue", replied: "signal", no_reply: "orange",
@@ -27,6 +28,7 @@ export function LeadOutreach({ leadId, leadUrl }: { leadId: string; leadUrl?: st
     void queryClient.invalidateQueries({ queryKey: key });
     void queryClient.invalidateQueries({ queryKey: ["pitches"] });
     void queryClient.invalidateQueries({ queryKey: ["leads"] }); // sending moves a new lead to "contacted"
+    void queryClient.invalidateQueries({ queryKey: ["replies"] });
   };
   const failed = (title: string) => (e: unknown) => notifications.show({ color: "red", title, message: messageOf(e) });
 
@@ -70,7 +72,7 @@ export function LeadOutreach({ leadId, leadUrl }: { leadId: string; leadUrl?: st
             <Badge size="sm" variant="light" color={STATUS_COLOR[m.status]}>{STATUS_LABEL[m.status]}</Badge>
             {m.status === "sent" && (
               <>
-                <Button size="compact-xs" variant="subtle" onClick={() => reply.mutate({ id: m.id, status: "replied" })}>Got a reply</Button>
+                <LogReplyButton outreachId={m.id} isEmail={m.channel === "email"} onDone={refresh} />
                 <Button size="compact-xs" variant="subtle" color="gray" onClick={() => reply.mutate({ id: m.id, status: "no_reply" })}>No reply</Button>
               </>
             )}

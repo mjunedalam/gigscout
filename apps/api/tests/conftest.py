@@ -10,6 +10,7 @@ import pytest
 from gigscout.agent.nodes import ScoutDeps
 from gigscout.config import Settings
 from gigscout.models import AgencyProfile, Budget, Lead, LeadAssessment, OutreachText, ProfileSuggestion
+from gigscout.replies import ReplyRead
 from gigscout.store.vector_store import LeadIndex
 
 DIMENSIONS = 128
@@ -78,6 +79,17 @@ class FakeReasoner:
         proof = evidence.split(": ", 1)[1][:200] if evidence.startswith("[1]") else ""
         body = f"AI draft for {lead.title} ({channel}). {proof}".strip()
         return OutreachText(subject=f"About {lead.title}", body=body)
+
+    def read_reply(self, profile: AgencyProfile, lead: Lead, original: str, reply: str) -> ReplyRead:
+        if self.fail_grade:
+            raise RuntimeError("llm timeout")
+        intent = "meeting" if "call" in reply.lower() else "not_interested" if "no thanks" in reply.lower() \
+            else "question"
+        return ReplyRead(intent=intent, summary=f"AI read: {reply[:60]}")
+
+    def draft_answer(self, profile: AgencyProfile, lead: Lead, original: str, reply: str, intent: str,
+                     evidence: str) -> OutreachText:
+        return OutreachText(subject="", body=f"AI answer ({intent}) to: {reply[:60]}")
 
     def answer_stream(self, question: str, context: str):
         yield from ("Answer ", "based ", f"on {context.count('[')} ", "leads [1]")

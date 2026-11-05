@@ -79,6 +79,14 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_from: str | None = Field(default=None, description="Sender address, e.g. GigScout <scout@your-agency.com>")
     smtp_starttls: bool = True
+    # Replies to sent emails: the same mailbox read over IMAP (SSL), checked every few minutes. Unset host = off;
+    # replies can still be pasted in by hand.
+    imap_host: str | None = None
+    imap_port: int = Field(default=993, ge=1, le=65535)
+    imap_user: str | None = None
+    imap_password: SecretStr | None = None
+    imap_folder: str = "INBOX"
+    imap_poll_minutes: int = Field(default=10, ge=2, le=1440)
 
     # CRM sync: leads are pushed as deals. HubSpot private-app token (scope crm.objects.deals.write) and/or a
     # Pipedrive personal API token. Unset = that CRM is off.

@@ -84,7 +84,8 @@ def test_team_drafts_edits_sends_and_tracks_outreach(web, monkeypatch):
     from gigscout import outreach as outreach_module
 
     sent = []
-    monkeypatch.setattr(outreach_module, "send_email", lambda settings, to, subject, body: sent.append((to, subject)))
+    monkeypatch.setattr(outreach_module, "send_email",
+                        lambda settings, to, subject, body, in_reply_to=None: sent.append((to, subject)) or "<m1@x>")
     client, platform = stocked(web, smtp_host="smtp.example.com", smtp_from="scout@example.com")
     assert client.get("/api/outreach/config").json() == {"email_ready": True, "crms": []}
 
