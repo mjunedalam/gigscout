@@ -2,6 +2,7 @@ import { Center, Loader } from "@mantine/core";
 import { lazy, type ReactNode, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
+import { RouteError } from "../components/RouteError";
 import { AppLayout } from "./AppLayout";
 import { RequireAdmin, RequirePlatformAdmin, RequireAuth } from "./guards";
 
@@ -49,14 +50,19 @@ const admin = (element: ReactNode) => page(<RequireAdmin>{element}</RequireAdmin
 const platformAdmin = (element: ReactNode) => page(<RequirePlatformAdmin>{element}</RequirePlatformAdmin>);
 
 export const router = createBrowserRouter([
-  { path: "/login", element: page(<LoginPage />) },
+  { path: "/login", element: page(<LoginPage />), errorElement: <RouteError /> },
   {
     element: (
       <RequireAuth>
         <AppLayout />
       </RequireAuth>
     ),
+    errorElement: <RouteError />,
     children: [
+      {
+        // a failing screen renders inside the shell, so the navigation stays usable
+        errorElement: <RouteError />,
+        children: [
       { index: true, element: page(<CommandCenterPage />) },
       { path: "cockpit", element: page(<CockpitPage />) },
       { path: "leads", element: page(<LeadsPage />) },
@@ -80,6 +86,8 @@ export const router = createBrowserRouter([
       { path: "admin/workspace", element: admin(<WorkspaceSettingsPage />) },
       { path: "admin/billing", element: admin(<BillingPage />) },
       { path: "*", element: page(<NotFoundPage />) },
+        ],
+      },
     ],
   },
 ]);

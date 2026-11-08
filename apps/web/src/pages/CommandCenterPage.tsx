@@ -3,10 +3,11 @@ import { Donut, KIND_COLORS, KIND_LABELS, LeadFlowChart } from "@gigscout/viz";
 import { Badge, Box, Button, Center, Grid, Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { IconBolt, IconCircleCheck, IconEye, IconMailbox, IconRadar2, IconStack2 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 
 import { ActivityFeed } from "../components/ActivityFeed";
+import { SafeGalaxy } from "../components/galaxy/SafeGalaxy";
 import { RunStatusBadge } from "../components/badges";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel, StatTile } from "../components/layout-bits";
@@ -16,8 +17,6 @@ import { api } from "../lib/api";
 import { duration, timeAgo } from "../lib/format";
 import { useLive } from "../lib/live";
 import { SetupChecklist } from "../components/workspace/SetupChecklist";
-
-const LeadGalaxy = lazy(() => import("@gigscout/viz/galaxy"));
 
 export default function CommandCenterPage() {
   const live = useLive();
@@ -57,9 +56,7 @@ export default function CommandCenterPage() {
               <Group key={k} gap={4}><span className="gs-dot" style={{ background: KIND_COLORS[k] }} />
                 <Text size="xs" c="var(--gs-text-muted)">{KIND_LABELS[k]}</Text></Group>))}</Group>}>
             {map.data && map.data.length > 0 ? (
-              <Suspense fallback={<Center h={420}><Loader type="dots" /></Center>}>
-                <LeadGalaxy points={map.data} height={420} onSelect={setOpenLead} />
-              </Suspense>
+              <SafeGalaxy points={map.data} height={420} onSelect={setOpenLead} />
             ) : (
               <Center h={420}>
                 <Stack align="center" gap="xs">
