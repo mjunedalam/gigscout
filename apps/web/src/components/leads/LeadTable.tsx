@@ -30,10 +30,10 @@ export function LeadTable({ items, searching, onOpen }: LeadTableProps) {
           <Table.Tr>
             <Table.Th w={64}>Score</Table.Th>
             <Table.Th>Lead</Table.Th>
-            <Table.Th w={150}>Kind</Table.Th>
+            <Table.Th w={160}>Kind</Table.Th>
             <Table.Th w={110}>Budget</Table.Th>
             <Table.Th w={80}>Bids</Table.Th>
-            <Table.Th w={110}>Stage</Table.Th>
+            <Table.Th w={120}>Stage</Table.Th>
             <Table.Th w={110}>{searching ? "Match" : "Found"}</Table.Th>
           </Table.Tr>
         </Table.Thead>

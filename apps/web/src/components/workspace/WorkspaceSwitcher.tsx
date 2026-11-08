@@ -28,10 +28,10 @@ export function WorkspaceSwitcher() {
     <>
       <Menu position="bottom-start" width={280} shadow="md">
         <Menu.Target>
-          <UnstyledButton className="gs-panel gs-focus" px="sm" py={6} aria-label={`Workspace: ${workspace.name}. Switch workspace`}>
+          <UnstyledButton className="gs-panel gs-focus" px="sm" py={6} style={{ flexShrink: 0 }} aria-label={`Workspace: ${workspace.name}. Switch workspace`}>
             <Group gap={8} wrap="nowrap">
               <IconBuildingSkyscraper size={16} color="var(--gs-signal)" />
-              <Text size="sm" fw={600} truncate maw={180}>{workspace.name}</Text>
+              <Text size="sm" fw={600} truncate maw={180} visibleFrom="sm">{workspace.name}</Text>
               <IconSelector size={14} color="var(--gs-text-muted)" />
             </Group>
           </UnstyledButton>

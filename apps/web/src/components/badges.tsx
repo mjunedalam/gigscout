@@ -6,7 +6,8 @@ export function KindBadge({ kind }: { kind: LeadKind }) {
   return (
     <Badge
       variant="dot"
-      styles={{ root: { "--badge-dot-color": KIND_COLORS[kind], borderColor: "var(--gs-line)" } as never }}
+      tt="none"
+      styles={{ root: { "--badge-dot-color": KIND_COLORS[kind], borderColor: "var(--gs-line)" } as never, label: { letterSpacing: 0, overflow: "visible" } }}
     >
       {KIND_LABELS[kind]}
     </Badge>
@@ -23,7 +24,7 @@ const RUN_STATUS_BADGE: Record<RunStatus, string> = {
 
 export function StatusBadge({ status }: { status: LeadStatus }) {
   return (
-    <Badge color={LEAD_STATUS_BADGE[status]} variant="light">
+    <Badge color={LEAD_STATUS_BADGE[status]} variant="light" tt="capitalize">
       {status}
     </Badge>
   );
