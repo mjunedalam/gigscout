@@ -1,0 +1,345 @@
+/*
+ * The motion and depth layer on top of the tokens in global.css: reveal states, cursor spotlight, the sliding nav
+ * pill, the ambient backdrop, and the small designed states (selection, scrollbars, press, focus).
+ * Motion is transform / opacity / clip-path only.
+ */
+
+/* --- reveal ---------------------------------------------------------------------------------------------- */
+/* hidden until GSAP brings it in (see lib/motion/reveal.ts); never applied when motion is reduced */
+[data-reveal="pending"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* --- page title: masked words ---------------------------------------------------------------------------- */
+.gs-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  /* room for descenders inside the mask */
+  padding-bottom: 0.1em;
+  margin-bottom: -0.1em;
+}
+
+.gs-word > span {
+  display: inline-block;
+  will-change: transform;
+}
+
+.gs-page-title {
+  text-wrap: balance;
+}
+
+.gs-eyebrow-tick {
+  display: inline-block;
+  width: 14px;
+  height: 1px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--gs-signal);
+  box-shadow: 0 0 8px var(--gs-signal);
+}
+
+/* --- cursor spotlight on panels -------------------------------------------------------------------------- */
+.gs-panel::before,
+.gs-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--gs-normal) var(--gs-ease);
+}
+
+/* a soft wash of the accent under the cursor */
+.gs-panel::before {
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--gs-signal) 7%, transparent), transparent 65%);
+}
+
+/* and a brighter rim that follows it along the border */
+.gs-panel::after {
+  padding: 1px;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--gs-signal) 55%, transparent), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.gs-panel:hover::before,
+.gs-panel:hover::after {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .gs-panel::before,
+  .gs-panel::after { display: none; }
+}
+
+/* --- KPI tiles ------------------------------------------------------------------------------------------- */
+.gs-stat {
+  isolation: isolate;
+}
+
+/* a lit hairline along the top edge in the tile's own colour */
+.gs-stat > :first-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--stat-accent, var(--gs-signal)), transparent);
+  opacity: 0.55;
+  transition: opacity var(--gs-normal) var(--gs-ease), transform var(--gs-normal) var(--gs-ease);
+  transform: scaleX(0.6);
+}
+
+.gs-stat:hover > :first-child::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* --- sidebar: one sliding highlight ---------------------------------------------------------------------- */
+.gs-nav {
+  position: relative;
+}
+
+.gs-nav-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 10px;
+  pointer-events: none;
+  visibility: hidden;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gs-signal) 16%, transparent), color-mix(in srgb, var(--gs-signal) 5%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gs-signal) 20%, transparent);
+}
+
+.gs-nav-pill::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gs-signal);
+  box-shadow: 0 0 12px var(--gs-signal);
+}
+
+.gs-nav a {
+  position: relative;
+  z-index: 1;
+  transition: color var(--gs-fast) var(--gs-ease), background-color var(--gs-fast) var(--gs-ease);
+}
+
+.gs-nav a[data-active] {
+  background: transparent !important;
+  color: var(--gs-text) !important;
+}
+
+.gs-nav a[data-active] svg {
+  color: var(--gs-signal);
+}
+
+.gs-nav a:not([data-active]):hover {
+  background: var(--gs-btn-soft);
+}
+
+.gs-nav a:not([data-active]) svg {
+  transition: transform var(--gs-fast) var(--gs-ease);
+}
+
+.gs-nav a:not([data-active]):hover svg {
+  transform: translateX(2px);
+}
+
+/* --- ambient backdrop ------------------------------------------------------------------------------------ */
+.gs-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--gs-ambient-opacity);
+  /* a faint dot grid that fades out down the page */
+  background-image: radial-gradient(color-mix(in srgb, var(--gs-text) 9%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+}
+
+.gs-ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+.gs-ambient-a {
+  width: 560px;
+  height: 420px;
+  top: -220px;
+  left: 18%;
+  background: color-mix(in srgb, var(--gs-signal) 32%, transparent);
+  animation: gs-drift-a 26s ease-in-out infinite alternate;
+}
+
+.gs-ambient-b {
+  width: 520px;
+  height: 380px;
+  top: -200px;
+  right: 6%;
+  background: color-mix(in srgb, var(--gs-project) 34%, transparent);
+  animation: gs-drift-b 32s ease-in-out infinite alternate;
+}
+
+@keyframes gs-drift-a {
+  to { transform: translate3d(120px, 60px, 0) scale(1.15); }
+}
+
+@keyframes gs-drift-b {
+  to { transform: translate3d(-140px, 40px, 0) scale(0.9); }
+}
+
+.mantine-AppShell-main > :not(.gs-ambient) {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- appearance swatches --------------------------------------------------------------------------------- */
+.gs-swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.gs-swatch {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #0b0d12;
+  background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--swatch) 70%, #fff), var(--swatch) 60%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--swatch) 40%, transparent), 0 6px 18px -6px var(--swatch);
+  transition: scale var(--gs-fast) var(--gs-ease), box-shadow var(--gs-fast) var(--gs-ease);
+}
+
+.gs-swatch:hover {
+  scale: 1.08;
+}
+
+.gs-swatch:active {
+  scale: 0.94;
+}
+
+.gs-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--gs-surface), 0 0 0 4px var(--swatch), 0 6px 18px -6px var(--swatch);
+}
+
+/* theme switch: the new theme grows out of a circle (AppearanceMenu); turn off the default cross-fade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* --- flat galaxy (no WebGL) ------------------------------------------------------------------------------ */
+.gs-flat-dot {
+  opacity: 0.85;
+  cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform var(--gs-fast) var(--gs-ease), opacity var(--gs-fast);
+}
+
+.gs-flat-dot:hover,
+.gs-flat-dot:focus-visible {
+  opacity: 1;
+  transform: scale(1.6);
+  outline: none;
+}
+
+/* --- empty states: slow orbit around the icon ------------------------------------------------------------ */
+.gs-empty-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 6px;
+}
+
+.gs-empty-icon::before,
+.gs-empty-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--gs-signal) 35%, transparent);
+  animation: gs-spin 24s linear infinite;
+}
+
+.gs-empty-icon::after {
+  inset: 14px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--gs-line) 90%, transparent);
+  animation-direction: reverse;
+  animation-duration: 16s;
+}
+
+/* --- designed small states ------------------------------------------------------------------------------- */
+::selection {
+  background: color-mix(in srgb, var(--gs-signal) 32%, transparent);
+  color: var(--gs-text);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--gs-text-muted) 35%, transparent) transparent;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--gs-text-muted) 30%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--gs-text-muted) 55%, transparent); }
+
+/* buttons press in and keep one accent focus ring app-wide. Press uses the standalone `scale` property, never
+   `transform`, so it can't fight a GSAP tween on the same element. */
+.mantine-Button-root,
+.mantine-ActionIcon-root {
+  transition: scale var(--gs-fast) var(--gs-ease), background-color var(--gs-fast) var(--gs-ease), box-shadow var(--gs-fast) var(--gs-ease);
+}
+
+.mantine-Button-root:active:not(:disabled),
+.mantine-ActionIcon-root:active:not(:disabled) {
+  scale: 0.97;
+}
+
+.mantine-Button-root[data-variant="filled"]:not(:disabled):hover {
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--gs-btn-bg) 70%, transparent);
+}
+
+:where(button, a, input, textarea, [role="button"], [role="radio"]):focus-visible {
+  outline: 2px solid var(--gs-signal);
+  outline-offset: 2px;
+}
+
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within {
+  border-color: var(--gs-signal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gs-signal) 18%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-ambient-orb,
+  .gs-empty-icon::before,
+  .gs-empty-icon::after { animation: none; }
+}

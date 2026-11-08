@@ -34,7 +34,9 @@
   --gs-line: #252b3b;
   --gs-text: #eceef4;
   --gs-text-muted: #8a90a2;
-  --gs-glow: 0 0 0 1px rgba(52, 211, 153, 0.18), 0 8px 40px -12px rgba(52, 211, 153, 0.22);
+  --gs-signal: var(--gs-accent-dark, #34d399);
+  --gs-glow: 0 0 0 1px color-mix(in srgb, var(--gs-signal) 18%, transparent), 0 8px 40px -12px color-mix(in srgb, var(--gs-signal) 24%, transparent);
+  --gs-ambient-opacity: 0.55;
   --gs-btn-bg: #eceef4;
   --gs-btn-bg-hover: #ffffff;
   --gs-btn-fg: #0b0d12;
@@ -52,8 +54,9 @@
   --gs-line: #dcd7cb;
   --gs-text: #15171d;
   --gs-text-muted: #61656f;
-  --gs-signal: #047857;
-  --gs-glow: 0 0 0 1px rgba(4, 120, 87, 0.22), 0 8px 30px -14px rgba(4, 120, 87, 0.3);
+  --gs-signal: var(--gs-accent-light, #047857);
+  --gs-glow: 0 0 0 1px color-mix(in srgb, var(--gs-signal) 22%, transparent), 0 8px 30px -14px color-mix(in srgb, var(--gs-signal) 30%, transparent);
+  --gs-ambient-opacity: 0.35;
   --gs-btn-bg: #15171d;
   --gs-btn-bg-hover: #2a2d36;
   --gs-btn-fg: #fffdf8;
@@ -130,15 +133,16 @@ body::before {
     var(--gs-surface);
 }
 
+/* lift uses the standalone `translate` property so it never fights the GSAP reveal's `transform` */
 .gs-lift {
   transition:
-    transform var(--gs-fast) var(--gs-ease),
+    translate var(--gs-fast) var(--gs-ease),
     box-shadow var(--gs-fast) var(--gs-ease),
     border-color var(--gs-fast) var(--gs-ease);
 }
 
 .gs-lift:hover {
-  transform: translateY(-2px);
+  translate: 0 -2px;
   border-color: color-mix(in srgb, var(--gs-signal) 40%, var(--gs-line));
   box-shadow: var(--gs-glow);
 }
@@ -299,7 +303,7 @@ body::before {
 }
 
 .gs-fade-in { animation: gs-fade var(--gs-normal) var(--gs-ease) both; }
-.gs-rise { animation: gs-rise var(--gs-normal) var(--gs-ease) both; }
+.gs-rise:not([data-reveal]) { animation: gs-rise var(--gs-normal) var(--gs-ease) both; }
 .gs-grow-x { transform-origin: center; animation: gs-grow-x 600ms var(--gs-ease) both; }
 .gs-pulse { animation: gs-pulse 1.6s ease-in-out infinite; }
 .gs-draw { animation: gs-fade 700ms var(--gs-ease) both; }
@@ -321,7 +325,8 @@ body::before {
   animation: gs-ping 1.8s var(--gs-ease) infinite;
 }
 
-.gs-stagger > * {
+/* children that reveal themselves with GSAP (data-reveal) are left to it, so the two never fight over transform */
+.gs-stagger > *:not([data-reveal]):not(:has([data-reveal])) {
   animation: gs-rise var(--gs-normal) var(--gs-ease) both;
 }
 
@@ -406,4 +411,6 @@ body::before {
   .mantine-AppShell-main { padding: 0 !important; }
   body { background: #fff !important; }
   .gs-panel, .gs-flow { break-inside: avoid; box-shadow: none !important; }
+  [data-reveal] { opacity: 1 !important; visibility: visible !important; transform: none !important; }
+  .gs-ambient { display: none !important; }
 }

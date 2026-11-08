@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   AppShell,
   Avatar,
   Badge,
@@ -15,8 +14,6 @@ import {
   Text,
   Tooltip,
   UnstyledButton,
-  useComputedColorScheme,
-  useMantineColorScheme,
 } from "@mantine/core";
 import { useDisclosure, useHotkeys, useLocalStorage, useMediaQuery } from "@mantine/hooks";
 import { Spotlight, type SpotlightActionData, spotlight } from "@mantine/spotlight";
@@ -38,12 +35,10 @@ import {
   IconLayoutSidebarLeftExpand,
   IconLogout,
   IconMessageQuestion,
-  IconMoon,
   IconPlugConnected,
   IconRadar2,
   IconSearch,
   IconShieldLock,
-  IconSun,
   IconUsers,
   IconSettings,
   IconTrophy,
@@ -51,7 +46,7 @@ import {
   IconSend,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { NavLink as RouterLink, Outlet, useLocation, useNavigate } from "react-router";
 
 import { api } from "../lib/api";
@@ -59,6 +54,9 @@ import { useAuth } from "../lib/auth";
 import { BillingBanner } from "../components/workspace/BillingBanner";
 import { WorkspaceSwitcher } from "../components/workspace/WorkspaceSwitcher";
 import { useLive } from "../lib/live";
+import { gsap, prefersReducedMotion, useGSAP } from "../lib/motion/gsap";
+import { AppearanceMenu } from "../components/appearance/AppearanceMenu";
+import { useNavIndicator } from "./useNavIndicator";
 
 interface NavItem {
   to: string;
@@ -124,6 +122,19 @@ export function AppLayout() {
   const pitches = useQuery({ queryKey: ["pitches", "summary"], queryFn: api.pitches.summary, enabled: !!workspace });
   const replies = useQuery({ queryKey: ["replies", "summary"], queryFn: api.replies.summary, enabled: !!workspace });
   const counts: Record<string, number> = { "/pitches": pitches.data?.pending ?? 0, "/inbox": replies.data?.open ?? 0 };
+  const navRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  useNavIndicator(navRef, pillRef, [location.pathname, rail, isAdmin, isPlatformAdmin]);
+
+  // each screen settles in when you navigate to it
+  useGSAP(
+    () => {
+      if (prefersReducedMotion() || !pageRef.current) return;
+      gsap.fromTo(pageRef.current, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.5, clearProps: "transform,opacity,visibility" });
+    },
+    { dependencies: [location.pathname] },
+  );
 
   const sections: [string, NavItem[]][] = [
     ["Overview", OVERVIEW],
@@ -157,7 +168,7 @@ export function AppLayout() {
     >
       <AppShell.Header px="md">
         <Group h="100%" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Toggle navigation" />
             <Brand />
             <WorkspaceSwitcher />
@@ -173,7 +184,7 @@ export function AppLayout() {
               </Group>
             </UnstyledButton>
             <LiveIndicator />
-            <ThemeToggle />
+            <AppearanceMenu />
             <Menu position="bottom-end" width={220}>
               <Menu.Target>
                 <UnstyledButton aria-label="Account menu" className="gs-focus" style={{ borderRadius: 999 }}>
@@ -213,7 +224,8 @@ export function AppLayout() {
 
       <AppShell.Navbar p="sm" style={{ transition: "width var(--gs-normal) var(--gs-ease)" }}>
         <AppShell.Section grow component={ScrollArea} type="never">
-          <Stack gap="lg" py="xs">
+          <Stack gap="lg" py="xs" ref={navRef} className="gs-nav">
+            <div ref={pillRef} className="gs-nav-pill" aria-hidden />
             {sections.map(([title, items]) => (
               <Stack key={title} gap={2}>
                 {rail ? <Divider mx="xs" mb={4} /> : (
@@ -270,9 +282,15 @@ export function AppLayout() {
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+        <div className="gs-ambient" aria-hidden>
+          <span className="gs-ambient-orb gs-ambient-a" />
+          <span className="gs-ambient-orb gs-ambient-b" />
+        </div>
+        <div style={{ maxWidth: 1480, margin: "0 auto", position: "relative" }}>
           <BillingBanner />
-          <Outlet />
+          <div ref={pageRef}>
+            <Outlet />
+          </div>
         </div>
       </AppShell.Main>
 
@@ -319,19 +337,6 @@ function LiveIndicator() {
           {label}
         </Text>
       </Group>
-    </Tooltip>
-  );
-}
-
-function ThemeToggle() {
-  const { setColorScheme } = useMantineColorScheme();
-  const scheme = useComputedColorScheme("dark");
-  const next = scheme === "dark" ? "light" : "dark";
-  return (
-    <Tooltip label={`Switch to ${next} theme`}>
-      <ActionIcon size={36} onClick={() => setColorScheme(next)} aria-label={`Switch to ${next} theme`}>
-        {scheme === "dark" ? <IconSun size={18} /> : <IconMoon size={18} />}
-      </ActionIcon>
     </Tooltip>
   );
 }
