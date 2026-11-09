@@ -393,6 +393,9 @@ body::before {
   background: color-mix(in srgb, var(--gs-signal) 6%, var(--gs-bg-raised));
 }
 
+/* Mantine's autosize scroll area sizes content to min-content, which pushed cards past the column edge */
+.gs-column .mantine-ScrollArea-content { min-width: 0; }
+
 .gs-card-drag { cursor: grab; }
 .gs-card-drag:active { cursor: grabbing; }
 
