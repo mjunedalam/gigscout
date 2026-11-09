@@ -1,6 +1,6 @@
 import type { ProfileRecord } from "@gigscout/api-client";
 import { KIND_LABELS } from "@gigscout/viz";
-import { ActionIcon, Alert, Badge, Box, Button, Group, SimpleGrid, Skeleton, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Group, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import { IconBuildingStore, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
@@ -12,6 +12,7 @@ import { ProfileEditor } from "../components/profiles/ProfileEditor";
 import { api, messageOf } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { timeAgo } from "../lib/format";
+import { ListSkeleton } from "../components/skeletons";
 
 export default function ProfilesPage() {
   const { isAdmin } = useAuth();
@@ -33,7 +34,7 @@ export default function ProfilesPage() {
         actions={isAdmin && <Button leftSection={<IconPlus size={18} />} onClick={() => setEditing("new")}>New profile</Button>}
       />
       {profiles.isError && <Alert color="red">{messageOf(profiles.error)}</Alert>}
-      {profiles.isPending && <Skeleton h={240} radius="lg" />}
+      {profiles.isPending && <ListSkeleton rows={3} label="Loading profiles" />}
       {profiles.data?.length === 0 && (
         <Box className="gs-panel">
           <EmptyState icon={<IconBuildingStore size={26} />} title="No company profile yet">

@@ -1,5 +1,5 @@
 import type { ReplyItem } from "@gigscout/api-client";
-import { Alert, Anchor, Badge, Blockquote, Box, Button, Grid, Group, Skeleton, Spoiler, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { Alert, Anchor, Badge, Blockquote, Box, Button, Grid, Group, Spoiler, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconAlertTriangle, IconCheck, IconInbox, IconMail, IconMailForward, IconRobot, IconSparkles } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { INTENT_META } from "../components/replies/intents";
 import { api, messageOf } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { timeAgo } from "../lib/format";
+import { ListSkeleton } from "../components/skeletons";
 
 /** Client replies, read by the agents: what each one means, and the answer drafted for a person to approve. */
 export default function InboxPage() {
@@ -62,7 +63,7 @@ export default function InboxPage() {
             <Tabs.Tab value="handled" leftSection={<IconCheck size={15} />}>Handled</Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        {list.isPending && <Skeleton h={240} radius="md" />}
+        {list.isPending && <ListSkeleton label="Loading replies" />}
         {list.data?.items.length === 0 && (
           <EmptyState icon={<IconInbox size={22} />} title={state === "open" ? "No replies waiting" : "Nothing handled yet"}>
             {state === "open" && "When a client answers, it shows up here with what they want and a drafted reply."}

@@ -3,11 +3,12 @@ import { STATUS_COLORS } from "@gigscout/viz";
 import { Box, Group, Paper, ScrollArea, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type DragEvent, useState } from "react";
+import { type DragEvent, useRef, useState } from "react";
 
 import { api, messageOf } from "../../lib/api";
 import { money } from "../../lib/format";
 import { KindBadge, ScoreRing } from "../badges";
+import { useBoardMotion } from "./useBoardMotion";
 
 interface PipelineBoardProps {
   items: LeadView[];
@@ -20,6 +21,8 @@ const DRAG_TYPE = "application/x-gigscout-lead";
 export function PipelineBoard({ items, onOpen }: PipelineBoardProps) {
   const queryClient = useQueryClient();
   const [over, setOver] = useState<LeadStatus | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const captureMove = useBoardMotion(boardRef, items);
 
   const move = useMutation({
     mutationFn: ({ id, status }: { id: string; status: LeadStatus }) => api.leads.update(id, { status }),
@@ -43,11 +46,13 @@ export function PipelineBoard({ items, onOpen }: PipelineBoardProps) {
     setOver(null);
     const id = event.dataTransfer.getData(DRAG_TYPE);
     const lead = items.find((v) => v.lead.id === id);
-    if (lead && lead.status !== status) move.mutate({ id, status });
+    if (!lead || lead.status === status) return;
+    captureMove(id);
+    move.mutate({ id, status });
   };
 
   return (
-    <div className="gs-board">
+    <div className="gs-board" ref={boardRef}>
       {LEAD_STATUSES.map((status) => {
         const column = items.filter((v) => v.status === status);
         return (
@@ -79,6 +84,7 @@ export function PipelineBoard({ items, onOpen }: PipelineBoardProps) {
                 {column.map((v) => (
                   <Paper
                     key={v.lead.id}
+                    data-flip-id={v.lead.id}
                     p="sm"
                     className="gs-panel gs-lift gs-card-drag gs-focus"
                     draggable

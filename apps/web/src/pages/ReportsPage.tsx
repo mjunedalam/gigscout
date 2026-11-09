@@ -1,6 +1,6 @@
 import type { OwnerReport, PipelineStage } from "@gigscout/api-client";
 import { STAGE_COLORS, StageTrendChart } from "@gigscout/viz";
-import { Alert, Button, Grid, Group, SegmentedControl, SimpleGrid, Skeleton, Stack, Table, Text } from "@mantine/core";
+import { Alert, Button, Grid, Group, SegmentedControl, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { IconCash, IconFileSpreadsheet, IconMessageReply, IconPrinter, IconSend, IconTrophy } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { WhatGetsReplies } from "../components/pipeline/WhatGetsReplies";
 import { api, messageOf } from "../lib/api";
 import { change, dateTime, usd, waitLabel } from "../lib/format";
 import { RANGES, useDays } from "../lib/period";
+import { ChartsSkeleton } from "../components/skeletons";
 
 const TREND: PipelineStage[] = ["qualified", "sent", "replied", "won"];
 const AGENTS = "GigScout agents";
@@ -48,7 +49,7 @@ export default function ReportsPage() {
           </Group>
         } />
       {report.isError && <Alert color="red" mb="md">{messageOf(report.error)}</Alert>}
-      {!r ? <Skeleton h={480} radius="md" /> : <ReportBody r={r} onOpen={setOpenLead} />}
+      {!r ? <ChartsSkeleton /> : <ReportBody r={r} onOpen={setOpenLead} />}
       <LeadDrawer leadId={openLead} onClose={() => setOpenLead(null)} />
     </>
   );

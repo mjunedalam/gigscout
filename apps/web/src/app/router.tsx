@@ -1,8 +1,8 @@
-import { Center, Loader } from "@mantine/core";
 import { lazy, type ReactNode, Suspense } from "react";
 import { createBrowserRouter } from "react-router";
 
 import { RouteError } from "../components/RouteError";
+import { PageSkeleton } from "../components/skeletons";
 import { AppLayout } from "./AppLayout";
 import { RequireAdmin, RequirePlatformAdmin, RequireAuth } from "./guards";
 
@@ -35,11 +35,7 @@ const WorkspaceSettingsPage = lazy(() => import("../pages/admin/WorkspaceSetting
 function page(element: ReactNode) {
   return (
     <Suspense
-      fallback={
-        <Center h={320}>
-          <Loader type="dots" />
-        </Center>
-      }
+      fallback={<PageSkeleton />}
     >
       {element}
     </Suspense>

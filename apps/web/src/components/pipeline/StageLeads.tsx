@@ -1,6 +1,6 @@
 import type { PipelineStage } from "@gigscout/api-client";
 import { STAGE_COLORS } from "@gigscout/viz";
-import { Group, Skeleton, Table, Text, UnstyledButton } from "@mantine/core";
+import { Group, Table, Text, UnstyledButton } from "@mantine/core";
 import { IconListDetails } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -8,6 +8,7 @@ import { api } from "../../lib/api";
 import { timeAgo, usd } from "../../lib/format";
 import { StatusBadge } from "../badges";
 import { EmptyState, Panel } from "../layout-bits";
+import { TableSkeleton } from "../skeletons";
 
 interface StageLeadsProps {
   stage: PipelineStage;
@@ -22,7 +23,7 @@ export function StageLeads({ stage, days, onOpen }: StageLeadsProps) {
   return (
     <Panel eyebrow={`${days} days · newest first`}
       title={<Group gap={8}><span className="gs-dot" style={{ background: STAGE_COLORS[stage] }} />{list.data?.label ?? stage}: the leads</Group>}>
-      {list.isPending && <Skeleton h={160} radius="md" />}
+      {list.isPending && <TableSkeleton rows={4} label="Loading stage leads" />}
       {list.data && items.length === 0 && (
         <EmptyState icon={<IconListDetails size={22} />} title="No leads reached this step in the period" />
       )}

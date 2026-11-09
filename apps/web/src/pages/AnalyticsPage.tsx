@@ -1,5 +1,5 @@
 import { CompetitionScatter, LeadFlowChart, PipelineFunnel, RunTimeline, ScoreHistogram } from "@gigscout/viz";
-import { Alert, Center, Grid, Loader, SegmentedControl } from "@mantine/core";
+import { Alert, Grid, SegmentedControl } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -9,6 +9,7 @@ import { MarketTrends } from "../components/analytics/MarketTrends";
 import { LeadDrawer } from "../components/LeadDrawer";
 import { PageHeader, Panel } from "../components/layout-bits";
 import { api, messageOf } from "../lib/api";
+import { ChartsSkeleton } from "../components/skeletons";
 
 const RANGES = ["7", "14", "30", "90"];
 
@@ -32,9 +33,7 @@ export default function AnalyticsPage() {
       />
       {analytics.isError && <Alert color="red">{messageOf(analytics.error)}</Alert>}
       {!a ? (
-        <Center h={400}>
-          <Loader type="dots" />
-        </Center>
+        <ChartsSkeleton />
       ) : (
         <Grid gutter="md" className="gs-stagger">
           <Grid.Col span={12}>

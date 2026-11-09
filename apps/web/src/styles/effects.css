@@ -338,8 +338,72 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gs-signal) 18%, transparent);
 }
 
+/* ---------- skeletons: a light sweep instead of Mantine's opacity pulse ---------- */
+.gs-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mantine-Skeleton-root[data-visible]::after {
+  --skel-base: color-mix(in srgb, var(--gs-text) 7%, var(--gs-surface));
+  --skel-sheen: color-mix(in srgb, var(--gs-signal) 10%, color-mix(in srgb, var(--gs-text) 13%, var(--gs-surface)));
+  background-color: var(--skel-base);
+  background-image: linear-gradient(100deg, transparent 30%, var(--skel-sheen) 50%, transparent 70%);
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+}
+
+.mantine-Skeleton-root[data-visible][data-animate]::after {
+  animation: gs-shimmer 1.6s ease-in-out infinite;
+}
+
+/* the placeholder fades in after a beat, so fast responses never flash grey */
+.gs-skeleton { animation: gs-skeleton-in 0.4s ease-out 0.12s both; }
+
+@keyframes gs-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+@keyframes gs-skeleton-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- drawers: eased slide, contents arrive in sequence ---------- */
+.mantine-Drawer-content { box-shadow: var(--gs-shadow); }
+
+.mantine-Drawer-body > * { animation: gs-drawer-item 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.mantine-Drawer-body > *:nth-child(1) { animation-delay: 0.08s; }
+.mantine-Drawer-body > *:nth-child(2) { animation-delay: 0.13s; }
+.mantine-Drawer-body > *:nth-child(3) { animation-delay: 0.18s; }
+.mantine-Drawer-body > *:nth-child(4) { animation-delay: 0.23s; }
+.mantine-Drawer-body > *:nth-child(n + 5) { animation-delay: 0.28s; }
+
+@keyframes gs-drawer-item {
+  from { opacity: 0; translate: 0 10px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* a card that just landed in a new column glows once */
+.gs-card-landed { animation: gs-landed 0.9s ease-out; }
+
+@keyframes gs-landed {
+  from { box-shadow: 0 0 0 2px var(--gs-signal), 0 0 24px color-mix(in srgb, var(--gs-signal) 40%, transparent); }
+  to { box-shadow: 0 0 0 0 transparent; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gs-ambient-orb,
   .gs-empty-icon::before,
-  .gs-empty-icon::after { animation: none; }
+  .gs-empty-icon::after,
+  .gs-skeleton,
+  .gs-card-landed,
+  .mantine-Drawer-body > *,
+  .mantine-Skeleton-root[data-animate]::after { animation: none; }
 }

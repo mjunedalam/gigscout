@@ -1,5 +1,5 @@
 import type { Schedule } from "@gigscout/api-client";
-import { ActionIcon, Alert, Badge, Box, Button, Group, SimpleGrid, Skeleton, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Box, Button, Group, SimpleGrid, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import { IconCalendarPlus, IconCalendarTime, IconPencil, IconPlayerPlay, IconTrash } from "@tabler/icons-react";
@@ -12,6 +12,7 @@ import { ScheduleEditor } from "../components/schedules/ScheduleEditor";
 import { api, messageOf } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { dateTime, describeCron, timeAgo } from "../lib/format";
+import { ListSkeleton } from "../components/skeletons";
 
 export default function SchedulesPage() {
   const { isAdmin } = useAuth();
@@ -58,7 +59,7 @@ export default function SchedulesPage() {
       />
       {!isAdmin && <Alert variant="light" mb="md">Only admins can create or change schedules. You can still trigger them.</Alert>}
       {schedules.isError && <Alert color="red">{messageOf(schedules.error)}</Alert>}
-      {schedules.isPending && <Skeleton h={240} radius="lg" />}
+      {schedules.isPending && <ListSkeleton rows={3} label="Loading schedules" />}
       {schedules.data?.length === 0 && (
         <Box className="gs-panel">
           <EmptyState icon={<IconCalendarTime size={26} />} title="Nothing scheduled">

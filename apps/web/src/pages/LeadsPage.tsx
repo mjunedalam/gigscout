@@ -7,7 +7,6 @@ import {
   Pagination,
   SegmentedControl,
   Select,
-  Skeleton,
   Slider,
   Stack,
   Text,
@@ -25,6 +24,7 @@ import { PageHeader, Panel } from "../components/layout-bits";
 import { PipelineBoard } from "../components/leads/PipelineBoard";
 import { LeadTable } from "../components/leads/LeadTable";
 import { api, messageOf } from "../lib/api";
+import { BoardSkeleton, TableSkeleton } from "../components/skeletons";
 
 const PAGE_SIZE = 25;
 const BOARD_SIZE = 200;
@@ -190,7 +190,7 @@ export default function LeadsPage() {
 
       <Stack mt="md" gap="md">
         {leads.isError && <Alert color="red">{messageOf(leads.error)}</Alert>}
-        {leads.isPending && <Skeleton h={420} radius="lg" />}
+        {leads.isPending && (f.view === "board" ? <BoardSkeleton /> : <TableSkeleton />)}
         {leads.data && f.view === "table" && (
           <>
             <LeadTable items={leads.data.items} searching={!!f.q} onOpen={(id) => f.set("lead", id)} />

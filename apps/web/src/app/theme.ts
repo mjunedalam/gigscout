@@ -76,7 +76,13 @@ export function createAppTheme(signal: MantineColorsTuple) {
       Paper: { defaultProps: { radius: "lg" } },
       Card: { defaultProps: { radius: "lg" } },
       Modal: { defaultProps: { radius: "lg", overlayProps: { backgroundOpacity: 0.6, blur: 6 } } },
-      Drawer: { defaultProps: { overlayProps: { backgroundOpacity: 0.5, blur: 4 } } },
+      Drawer: {
+        defaultProps: {
+          overlayProps: { backgroundOpacity: 0.5, blur: 4 },
+          // expo-out: the panel arrives fast and settles, matching the GSAP motion elsewhere
+          transitionProps: { duration: 320, timingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" },
+        },
+      },
       Tooltip: { defaultProps: { withArrow: true, openDelay: 250 } },
       TextInput: { defaultProps: { radius: "md" } },
       Table: { defaultProps: { verticalSpacing: "sm", highlightOnHover: true } },
